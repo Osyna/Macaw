@@ -1,38 +1,86 @@
 <!-- trunk-ignore-all(markdownlint/MD033) -->
 <!-- trunk-ignore(markdownlint/MD041) -->
 <div align="center">
-  <img src="assets/Macaw.png" height="180px" width="auto" alt="Macaw logo">
+  <img src="assets/Macaw.png" height="190px" width="auto" alt="Macaw logo">
 
-  <h3 style="font-size: 25px;">
-    Fast speech-to-text dictation for Linux, one hotkey away.
-  </h3>
+  <h1>Macaw</h1>
 
+  <h3>Talk, and Macaw types it. All on your own machine.</h3>
+
+  <p><b>100% local&nbsp;&nbsp;•&nbsp;&nbsp;No cloud&nbsp;&nbsp;•&nbsp;&nbsp;No subscription&nbsp;&nbsp;•&nbsp;&nbsp;Wayland &amp; X11</b></p>
+
+[![stars-badge-img]][stars-badge]
 [![release-badge-img]][release-badge]
+[![downloads-badge-img]][downloads-badge]
 [![python-badge-img]][python-badge]
-[![platform-badge-img]][platform-badge]
-[![website-badge-img]][website-badge]
 [![license-badge-img]][license-badge]
 
-  </div>
+  <p>
+    <a href="https://macaw.osyna.com/"><b>Website</b></a>
+    &nbsp;•&nbsp;
+    <a href="https://github.com/Osyna/Macaw/releases/latest"><b>Download</b></a>
+    &nbsp;•&nbsp;
+    <a href="https://github.com/Osyna/Macaw/issues/new"><b>Report a bug</b></a>
+  </p>
 </div>
 
-# Overview
+Press a hotkey, say your sentence, and it drops straight into whatever you're typing in, or onto your clipboard. Macaw runs [faster-whisper](https://github.com/SYSTRAN/faster-whisper) on your GPU or CPU, sits quietly in the tray, and works across Wayland (Hyprland, Sway, KDE, GNOME) and X11. Nothing gets uploaded. Nothing phones home.
 
-Macaw turns your voice into text. Press a hotkey, talk, and what you said is either typed into the window you're using or dropped on your clipboard. It runs [faster-whisper](https://github.com/SYSTRAN/faster-whisper) on your GPU (CUDA) or CPU, lives in the system tray, and works on both Wayland (Hyprland, Sway, KDE, GNOME) and X11.
+<!--
+  📸 Drop a short demo GIF here (aim for ~720px wide) — this is the money shot.
+  <p align="center"><img src="assets/demo.gif" width="720" alt="Macaw dictating into an editor"></p>
+-->
 
-The website is at [macaw.osyna.com](https://macaw.osyna.com/).
+<details>
+<summary><b>Table of contents</b></summary>
+
+- [Why Macaw](#why-macaw)
+- [Features](#features)
+- [Models](#models)
+- [Install](#install)
+- [Usage](#usage)
+- [Configuration](#configuration)
+- [How it works](#how-it-works)
+- [Adding a model](#adding-a-model)
+- [Troubleshooting](#troubleshooting)
+- [Releasing](#releasing)
+- [Contributing](#contributing)
+- [License](#license)
+
+</details>
+
+## Why Macaw
+
+- 🔒 **It stays local.** Your voice and your text never leave the machine. No account, no cloud round-trip.
+- 🆓 **Free and open.** MIT-licensed, and the models are open too. No subscription, no per-minute meter.
+- 🐧 **Made for Linux.** Wayland or X11, a tray icon, a systemd user service, and one hotkey to fire it.
+- 🔁 **Swap the brain.** Start on Whisper, move to Parakeet, Voxtral, or Moonshine whenever you feel like it.
+- ⚡ **Uses your GPU.** CUDA when it's there, CPU when it isn't, and nothing to wire up either way.
 
 ## Features
 
 - One hotkey to start and stop. It also stops on its own once you go quiet.
 - Type mode pastes straight into the focused window. Clipboard mode just copies.
-- Punctuation hints per language, so Whisper adds the commas and periods you'd expect.
-- Live typing (alpha): words show up as you speak, once two passes agree on them.
-- Swappable speech-to-text models. Whisper is built in; Moonshine, Parakeet/Canary, and Voxtral install on demand.
+- Punctuation hints per language, so Whisper puts the commas and periods where you'd expect them.
+- Live typing (alpha): words appear as you speak, once two passes agree on them.
+- A tray icon with a settings window and a full model manager.
 - Picks a paste tool for you (ydotool, wtype, or xdotool) and falls back per window when one misbehaves.
-- Uses the GPU when there is one and drops to CPU when there isn't.
 - Small sound cues for recording, processing, and done.
-- A tray icon with a settings window and a model manager.
+- A recording overlay you can actually style: opacity, colours, accent, corners, and the equaliser's spacing, width, roundness, and fade.
+
+## Models
+
+Whisper is built in. The rest install on demand from the Model Manager (`macaw --models`), each in its own sandbox so nothing clobbers your main setup. Pick the one that fits your hardware and languages.
+
+| Model | Project | Languages | Download | Runs on | Install |
+|-------|---------|-----------|----------|---------|---------|
+| Whisper `tiny` → `large-v3-turbo` | [faster-whisper][faster-whisper] · [OpenAI Whisper][whisper] | 99+ | 75 MB – 3 GB | CPU or GPU | built in |
+| Moonshine `tiny` / `base` | [Useful Sensors Moonshine][moonshine] | English | ~30–60 MB | CPU | `macaw[moonshine]` |
+| Parakeet TDT `v2` / `v3` | [NVIDIA NeMo][nemo] | English / 25 | ~2.5 GB | NVIDIA GPU | `macaw[nemo]` |
+| Canary-Qwen 2.5B | [NVIDIA NeMo][nemo] | English | ~5 GB | NVIDIA GPU | `macaw[nemo]` |
+| Voxtral Mini 3B | [Mistral Voxtral][voxtral] · [Transformers][transformers] | 13 | ~6 GB | NVIDIA GPU | `macaw[voxtral]` |
+
+The default is `large-v3-turbo`: 99+ languages, about 1.6 GB, and the best speed-to-accuracy trade-off on a GPU. On a laptop with no GPU, `base` or `distil-small.en` keep things snappy.
 
 ## Install
 
@@ -45,7 +93,7 @@ Every method gives you the `macaw` command, an app-menu launcher (the 🦜 icon)
 | AppImage | no install, CPU only | grab it from [Releases](https://github.com/Osyna/Macaw/releases/latest), `chmod +x`, run |
 | uv / pipx | you manage the service yourself | `uv tool install "macaw @ git+https://github.com/Osyna/Macaw"` |
 
-Before installing, make sure you have the system bits Macaw talks to:
+First, the system bits Macaw talks to:
 
 ```sh
 # Arch
@@ -55,7 +103,7 @@ pacman -S wl-clipboard wtype ydotool portaudio
 apt install wl-clipboard wtype ydotool libportaudio2
 ```
 
-On Wayland, `ydotool` is the safest pick for type mode: it works with native Wayland apps and XWayland alike. `wtype` only handles native Wayland windows. On X11, `xdotool` is enough. You'll also need Python 3.10+.
+On Wayland, `ydotool` is the safest pick for type mode: it handles native Wayland apps and XWayland alike. `wtype` only covers native Wayland windows. On X11, `xdotool` is enough. You'll also need Python 3.10+.
 
 ### Install script
 
@@ -64,7 +112,7 @@ curl -fsSL https://raw.githubusercontent.com/Osyna/Macaw/main/install.sh | bash
 # or from a clone:  ./install.sh
 ```
 
-It installs `macaw` with `uv tool`, detects CUDA or ROCm for GPU acceleration, adds the desktop launcher, and enables a systemd user service that starts on login. Run it again any time to uninstall: it notices an existing install and offers to remove it.
+It installs `macaw` with `uv tool`, detects CUDA or ROCm for GPU acceleration, adds the desktop launcher, and enables a systemd user service that starts on login. Run it again any time to uninstall: it spots an existing install and offers to remove it.
 
 ### AppImage
 
@@ -124,9 +172,12 @@ punctuation_hints: true     # nudge Whisper toward natural punctuation
 streaming: false            # live typing as you speak (alpha)
 ```
 
-The tray settings also cover the recording overlay's look: opacity, bar colours, accent, border, corner radius, and the equaliser's spacing, width, roundness, and fade.
+<!--
+  📸 A screenshot of the settings window fits nicely here.
+  <p align="center"><img src="assets/settings.png" width="720" alt="Macaw settings window"></p>
+-->
 
-**Output modes.** In clipboard mode the text is copied and the overlay shows a checkmark. In type mode the overlay hides first (so it doesn't steal focus), then the text is pasted into whatever window was focused when you started.
+**Output modes.** In clipboard mode the text is copied and the overlay shows a checkmark. In type mode the overlay hides first, so it won't steal focus, then the text is pasted into whatever window was focused when you started.
 
 **Punctuation hints.** When on, Macaw feeds Whisper a well-punctuated sentence in your language as the `initial_prompt`, which biases it toward commas, periods, and question marks. Works for English, French, German, Spanish, Italian, Portuguese, Dutch, Polish, Russian, Japanese, and Chinese.
 
@@ -150,21 +201,7 @@ macaw-trigger  --[ZMQ IPC]-->  macaw (service)
 - Transcription runs through pluggable backends; the default is `large-v3-turbo` on faster-whisper with a Silero VAD filter.
 - Pasting uses ydotool (evdev), wtype (Wayland virtual keyboard), or xdotool (X11), with XWayland detection on Hyprland.
 
-### Speech-to-text backends
-
-`Transcriber` is a thin facade. It normalizes audio to mono float32 at 16 kHz and gates silence, then hands off to whichever backend the configured model id points at. Backends live in `src/macaw/stt/` and register themselves.
-
-| Model | Backend | Extra |
-|-------|---------|-------|
-| Whisper (tiny … large-v3-turbo) | faster-whisper | built in |
-| Moonshine tiny/base | ONNX | `macaw[moonshine]` |
-| Parakeet TDT v2/v3 | NVIDIA NeMo | `macaw[nemo]` |
-| Canary-Qwen 2.5B | NVIDIA NeMo | `macaw[nemo]` |
-| Voxtral Mini | transformers | `macaw[voxtral]` |
-
-Whisper runs in-process. The others carry native dependency stacks that don't get along with the CUDA + faster-whisper environment, so each one lives in its own isolated venv under `~/.local/share/macaw/backends/<extra>/`, driven by a sidecar worker (`stt/worker.py`) that swaps audio and text over a pipe. That's what lets conflicting backends sit next to Whisper without breaking it. The Model Manager's Install button builds that venv for you, and nothing touches the main environment. NeMo and Voxtral want a CUDA GPU and multi-GB downloads.
-
-Open the Model Manager with `macaw --models`, the tray *Models* entry, or Settings → *Manage models…*. It lists every model with its hardware recommendation, VRAM, and download size, and lets you download, delete, or switch the active one. Those fields come from each model's catalog entry, so a new backend shows up on its own.
+`Transcriber` is a thin facade. It normalizes audio to mono float32 at 16 kHz and gates silence, then hands off to whichever backend the configured model points at. Whisper runs in-process; the others carry native dependency stacks that don't get along with the CUDA + faster-whisper environment, so each lives in its own isolated venv under `~/.local/share/macaw/backends/<extra>/`, driven by a sidecar worker (`stt/worker.py`) that swaps audio and text over a pipe. The Model Manager's Install button builds that venv for you, and nothing touches the main environment.
 
 ### Adding a model
 
@@ -212,9 +249,9 @@ journalctl --user -u macaw -f
 
 **No GPU acceleration.** Check CUDA with `python -c "import ctranslate2; print(ctranslate2.get_cuda_device_count())"`. A `0` means CUDA libraries aren't on your `LD_LIBRARY_PATH`, or you need the `[cuda]` extra.
 
-**Second instance won't start.** Only one service can hold the IPC socket. If it exits immediately, `journalctl` will show "IPC socket already in use".
+**Second instance won't start.** Only one service can hold the IPC socket. If it exits immediately, `journalctl` shows "IPC socket already in use".
 
-**Electron apps miss the paste.** On Wayland, `wtype` sends virtual keyboard events that some Electron apps read wrong. Macaw uses Shift+Insert instead of Ctrl+V for `wtype`, and prefers `ydotool`, which works everywhere.
+**Electron apps miss the paste.** On Wayland, `wtype` sends virtual keyboard events some Electron apps read wrong. Macaw uses Shift+Insert instead of Ctrl+V for `wtype`, and prefers `ydotool`, which works everywhere.
 
 ## Releasing
 
@@ -229,23 +266,50 @@ git push && git push origin v0.2.0
 
 To refresh the AUR package after the release exists, run `packaging/aur/bump.sh 0.2.0` from an Arch checkout (it fetches the tag tarball, writes the `sha256` and `.SRCINFO`), then commit and push those to the macaw AUR repo.
 
-## Support
+## Contributing
 
-Found a bug or have an idea? [Open an issue](https://github.com/Osyna/Macaw/issues/new).
+Bug reports, ideas, and pull requests are all welcome. [Open an issue](https://github.com/Osyna/Macaw/issues/new) to start. Run `ruff check` and `python tests/test_stt.py` before you push, and keep changes focused.
 
 ## License
 
-MIT
+MIT. Use it, fork it, ship it.
+
+## Acknowledgments
+
+Macaw stands on a lot of good open-source work:
+
+- [faster-whisper][faster-whisper] and [OpenAI Whisper][whisper] for the default engine
+- [NVIDIA NeMo][nemo] for Parakeet and Canary-Qwen
+- [Mistral Voxtral][voxtral] and Hugging Face [Transformers][transformers]
+- [Useful Sensors Moonshine][moonshine] for the featherweight option
+- [PyQt6](https://www.riverbankcomputing.com/software/pyqt/), [sounddevice](https://python-sounddevice.readthedocs.io/), and [uv](https://docs.astral.sh/uv/)
+
+## Star history
+
+If Macaw saves you some typing, a ⭐ helps other people find it.
+
+<a href="https://star-history.com/#Osyna/Macaw&Date">
+  <img src="https://api.star-history.com/svg?repos=Osyna/Macaw&type=Date" width="600" alt="Star history chart">
+</a>
 
 <!-- Badges -->
 
+[stars-badge-img]: https://img.shields.io/github/stars/Osyna/Macaw?style=for-the-badge&color=e5322b
+[stars-badge]: https://github.com/Osyna/Macaw/stargazers
 [release-badge-img]: https://img.shields.io/github/v/release/Osyna/Macaw?style=for-the-badge&color=e5322b
 [release-badge]: https://github.com/Osyna/Macaw/releases/latest
+[downloads-badge-img]: https://img.shields.io/github/downloads/Osyna/Macaw/total?style=for-the-badge&color=f7b500
+[downloads-badge]: https://github.com/Osyna/Macaw/releases
 [python-badge-img]: https://img.shields.io/badge/python-3.10%2B-3776ab?style=for-the-badge
 [python-badge]: https://www.python.org/
-[platform-badge-img]: https://img.shields.io/badge/platform-Linux-2f6fd0?style=for-the-badge
-[platform-badge]: https://github.com/Osyna/Macaw
-[website-badge-img]: https://img.shields.io/badge/website-macaw.osyna.com-f7b500?style=for-the-badge
-[website-badge]: https://macaw.osyna.com/
 [license-badge-img]: https://img.shields.io/github/license/Osyna/Macaw?style=for-the-badge&color=666666
 [license-badge]: LICENSE
+
+<!-- Model & library links -->
+
+[faster-whisper]: https://github.com/SYSTRAN/faster-whisper
+[whisper]: https://github.com/openai/whisper
+[moonshine]: https://github.com/usefulsensors/moonshine
+[nemo]: https://github.com/NVIDIA/NeMo
+[voxtral]: https://huggingface.co/mistralai/Voxtral-Mini-3B-2507
+[transformers]: https://github.com/huggingface/transformers
