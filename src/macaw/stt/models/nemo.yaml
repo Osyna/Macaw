@@ -1,0 +1,38 @@
+# NVIDIA NeMo models (Parakeet TDT + Canary-Qwen). Two backends share one file;
+# each model names its `backend`. They run in the isolated 'nemo' venv (CUDA GPU).
+# The catalog file-level `backend`/`source_url` are defaults; a model may override.
+backend: parakeet
+source_url: https://github.com/NVIDIA/NeMo
+extra: nemo
+
+models:
+  - id: nvidia/parakeet-tdt-0.6b-v2
+    backend: parakeet
+    label: Parakeet TDT v2
+    repo: nvidia/parakeet-tdt-0.6b-v2
+    size: "~2.5 GB"
+    speed: very fast
+    languages: EN
+    streaming: true
+    hardware: NVIDIA GPU
+    vram: "~3 GB"
+  - id: nvidia/parakeet-tdt-0.6b-v3
+    backend: parakeet
+    label: Parakeet TDT v3
+    repo: nvidia/parakeet-tdt-0.6b-v3
+    size: "~2.5 GB"
+    speed: very fast
+    languages: "25"
+    streaming: true
+    hardware: NVIDIA GPU
+    vram: "~3 GB"
+  - id: nvidia/canary-qwen-2.5b
+    backend: canary-qwen
+    label: Canary-Qwen 2.5B
+    repo: nvidia/canary-qwen-2.5b
+    size: "~5 GB"
+    speed: medium
+    languages: EN
+    hardware: NVIDIA GPU
+    vram: "~6 GB"
+    notes: "Top ASR-leaderboard accuracy"

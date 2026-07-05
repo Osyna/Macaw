@@ -1,8 +1,0 @@
-device_index: 18
-language: en
-output_mode: type
-silence_timeout: 2.5
-sound_enabled: false
-punctuation_hints: true
-streaming: false
-window_position: bottom_center

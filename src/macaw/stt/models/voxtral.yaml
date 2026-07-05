@@ -1,0 +1,15 @@
+# Mistral Voxtral (HF Transformers) — isolated venv (extra: voxtral), CUDA GPU.
+backend: voxtral
+source_url: https://github.com/huggingface/transformers
+extra: voxtral
+
+models:
+  - id: mistralai/Voxtral-Mini-3B-2507
+    label: Voxtral Mini 3B
+    repo: mistralai/Voxtral-Mini-3B-2507
+    size: "~6 GB"
+    speed: fast
+    languages: "13"
+    streaming: true
+    hardware: NVIDIA GPU
+    vram: "~9 GB"

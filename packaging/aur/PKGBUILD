@@ -1,10 +1,10 @@
 # Maintainer: Osyna <https://github.com/Osyna>
-pkgname=oscribe
+pkgname=macaw
 pkgver=0.1.0
 pkgrel=1
 pkgdesc='Fast speech-to-text dictation for Linux'
 arch=('x86_64')
-url='https://github.com/Osyna/Oscribe'
+url='https://github.com/Osyna/Macaw'
 license=('MIT')
 depends=('python>=3.10' 'portaudio' 'wl-clipboard' 'wtype' 'ydotool')
 makedepends=('python-build' 'python-installer' 'python-hatchling')
@@ -12,24 +12,30 @@ optdepends=(
     'xdotool: auto-type on X11'
     'xclip: clipboard on X11'
 )
-install=oscribe.install
+install=macaw.install
 source=("$pkgname-$pkgver.tar.gz::$url/archive/v$pkgver.tar.gz")
 sha256sums=('SKIP')
 
 build() {
-    cd "Oscribe-$pkgver"
+    cd "Macaw-$pkgver"
     python -m build --wheel --no-isolation
 }
 
 package() {
-    cd "Oscribe-$pkgver"
+    cd "Macaw-$pkgver"
     python -m installer --destdir="$pkgdir" dist/*.whl
 
-    # systemd user service
-    install -Dm644 contrib/oscribe.service \
-        "$pkgdir/usr/lib/systemd/user/oscribe.service"
-    sed -i 's|%h/.local/bin/oscribe|/usr/bin/oscribe|' \
-        "$pkgdir/usr/lib/systemd/user/oscribe.service"
+    # systemd user service (system binary path)
+    install -Dm644 contrib/macaw.service \
+        "$pkgdir/usr/lib/systemd/user/macaw.service"
+    sed -i 's|ExecStart=.*|ExecStart=/usr/bin/macaw|' \
+        "$pkgdir/usr/lib/systemd/user/macaw.service"
+
+    # desktop launcher + icon (app menu entry)
+    install -Dm644 contrib/macaw.desktop \
+        "$pkgdir/usr/share/applications/macaw.desktop"
+    install -Dm644 contrib/macaw.png \
+        "$pkgdir/usr/share/icons/hicolor/256x256/apps/macaw.png"
 
     install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
 }

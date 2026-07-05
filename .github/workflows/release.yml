@@ -1,5 +1,11 @@
 name: Release
 
+# Tag a release to publish it:
+#   1. bump `version` in pyproject.toml (and `pkgver` in packaging/aur/PKGBUILD)
+#   2. git tag vX.Y.Z && git push --tags
+# This builds the wheel, sdist and a self-contained CPU AppImage, then creates a
+# GitHub Release with all artifacts + SHA256SUMS and auto-generated notes.
+
 on:
   push:
     tags:
@@ -13,10 +19,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
+      - name: Verify tag matches pyproject version
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          PYPROJECT=$(grep -m1 '^version = ' pyproject.toml | sed -E 's/version = "(.*)"/\1/')
+          if [ "$VERSION" != "$PYPROJECT" ]; then
+            echo "::error::Tag v$VERSION != pyproject version $PYPROJECT. Bump pyproject.toml first."
+            exit 1
+          fi
+          echo "Releasing v$VERSION"
 
       - name: Install build tools
         run: pip install build
@@ -24,19 +42,37 @@ jobs:
       - name: Build wheel and sdist
         run: python -m build
 
-      - name: Create source tarball
+      - name: Build AppImage (CPU / base Whisper)
+        run: |
+          bash packaging/appimage/build.sh dist/macaw-*.whl
+          mv macaw-*.AppImage dist/
+
+      - name: Source tarball (for the AUR PKGBUILD)
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          git archive --format=tar.gz --prefix="Oscribe-${VERSION}/" HEAD \
-            -o "dist/oscribe-${VERSION}.tar.gz"
+          git archive --format=tar.gz --prefix="Macaw-${VERSION}/" HEAD \
+            -o "dist/macaw-${VERSION}.tar.gz"
+
+      - name: Stage AUR PKGBUILD with this version
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          sed "s/^pkgver=.*/pkgver=${VERSION}/" packaging/aur/PKGBUILD > dist/PKGBUILD
+          cp packaging/aur/macaw.install dist/macaw.install
 
       - name: Generate checksums
         run: |
           cd dist
-          sha256sum * > SHA256SUMS
+          sha256sum ./* > SHA256SUMS
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
-          files: dist/*
+          fail_on_unmatched_files: true
+          files: |
+            dist/*.whl
+            dist/*.tar.gz
+            dist/*.AppImage
+            dist/PKGBUILD
+            dist/macaw.install
+            dist/SHA256SUMS

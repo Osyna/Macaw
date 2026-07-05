@@ -4,439 +4,441 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OScribe - Free Open Source Speech-to-Text</title>
+    <title>Macaw — Free Open Source Speech-to-Text</title>
+    <link rel="icon" type="image/png" href="assets/macaw.png">
+    <link rel="apple-touch-icon" href="assets/macaw.png">
+    <meta name="theme-color" content="#e5322b">
+    <meta name="description"
+        content="Macaw — a friendly, free, open-source local speech-to-text app for Linux. Speak, and it types. Your voice never leaves your machine.">
     <link rel="stylesheet" href="styles/output.css">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        .pixel { image-rendering: pixelated; image-rendering: crisp-edges; }
+        html { scroll-behavior: smooth; }
+    </style>
 </head>
 
-<body
-    class="bg-[#f0f2f5] min-h-screen p-2 sm:p-4 md:p-8 lg:p-12 flex items-center justify-center font-sans text-slate-800 antialiased selection:bg-brand-500 selection:text-white">
-    <div
-        class="opacity-0 bg-white w-full max-w-[1400px] shadow-[0_0_60px_-15px_rgba(59,130,246,0.15)] overflow-hidden relative border border-slate-100/50 animate-fade-enter">
-        <nav
-            class="flex items-center justify-between px-5 sm:px-8 py-5 lg:px-14 border-b border-slate-100/50 relative z-20 bg-white">
-            <div class="flex items-center gap-4 sm:gap-8 lg:gap-12">
-                <div id="logo-btn" class="flex items-center gap-2 cursor-pointer group">
-                    <div
-                        class="bg-black text-white p-2 group-hover:bg-slate-800 transition-colors shadow-lg shadow-black/20">
-                        <i data-lucide="mic" class="w-5 h-5 sm:w-6 sm:h-6"></i>
-                    </div>
-                    <span class="text-lg sm:text-xl font-bold tracking-tight text-slate-900">OScribe</span>
+<body id="top"
+    class="min-h-screen bg-[#fdf4ea] font-sans text-slate-800 antialiased selection:bg-brand-500 selection:text-white">
+
+    <!-- tropical background blobs -->
+    <div class="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
+        <div class="absolute -top-32 -left-24 w-[32rem] h-[32rem] bg-brand-500/20 blur-3xl rounded-full"></div>
+        <div class="absolute top-1/3 -right-24 w-[28rem] h-[28rem] bg-azure/20 blur-3xl rounded-full animate-float"></div>
+        <div class="absolute bottom-0 left-1/4 w-[26rem] h-[26rem] bg-sun/20 blur-3xl rounded-full animate-float-delayed"></div>
+    </div>
+
+    <!-- ── Nav ─────────────────────────────────────────────── -->
+    <nav class="sticky top-0 z-50 backdrop-blur-md bg-[#fdf4ea]/80 border-b border-slate-900/5">
+        <div class="max-w-6xl mx-auto flex items-center justify-between px-5 sm:px-8 py-4">
+            <a href="#top" class="flex items-center gap-2.5 group">
+                <img src="assets/macaw.png" alt="Macaw logo"
+                    class="pixel w-9 h-9 sm:w-10 sm:h-10 object-contain group-hover:-rotate-6 group-hover:scale-110 transition-transform duration-300">
+                <span class="text-xl font-extrabold tracking-tight text-slate-900">Macaw</span>
+            </a>
+            <div class="flex items-center gap-3 sm:gap-6 text-sm font-semibold text-slate-600">
+                <a href="#features" class="hidden sm:inline hover:text-brand-600 transition-colors">Features</a>
+                <a href="#models" class="hidden sm:inline hover:text-brand-600 transition-colors">Models</a>
+                <a href="#install" class="hidden sm:inline hover:text-brand-600 transition-colors">Install</a>
+                <a href="https://github.com/Osyna/Macaw" target="_blank"
+                    class="hidden sm:inline hover:text-brand-600 transition-colors">GitHub</a>
+                <a href="https://ko-fi.com/Q5Q21UZP02" target="_blank"
+                    class="hidden md:flex items-center gap-1.5 text-slate-500 hover:text-azure transition-colors">
+                    <i data-lucide="coffee" class="w-4 h-4"></i> Support
+                </a>
+                <a href="https://github.com/Osyna/Macaw/archive/refs/heads/main.zip"
+                    class="flex items-center gap-2 bg-brand-500 text-white px-4 sm:px-5 py-2.5 rounded-xl font-bold shadow-[3px_3px_0_0_#7a1410] hover:shadow-[5px_5px_0_0_#7a1410] hover:-translate-x-0.5 hover:-translate-y-0.5 transition-all">
+                    <i data-lucide="download" class="w-4 h-4"></i>
+                    <span class="hidden sm:inline">Download</span>
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-6xl mx-auto px-5 sm:px-8">
+
+        <!-- ── Hero ────────────────────────────────────────── -->
+        <section class="grid lg:grid-cols-[1.05fr_0.95fr] gap-10 lg:gap-6 items-center pt-12 sm:pt-20 pb-8 sm:pb-16">
+            <div class="animate-fade-enter">
+                <div
+                    class="inline-flex items-center gap-2 bg-white border-2 border-slate-900/5 text-brand-600 px-4 py-1.5 rounded-full text-xs sm:text-sm font-bold mb-6 shadow-sm">
+                    <span class="relative flex h-2 w-2">
+                        <span class="animate-ping absolute inline-flex h-full w-full bg-brand-400 opacity-75 rounded-full"></span>
+                        <span class="relative inline-flex h-2 w-2 bg-brand-500 rounded-full"></span>
+                    </span>
+                    100% free · open source · runs offline
                 </div>
-                <div class="flex items-center gap-4 lg:gap-8 text-sm font-medium text-slate-600">
-                    <button id="features-nav-btn" class="hover:text-brand-600 transition-colors">Features</button>
-                    <a href="https://github.com/Osyna/Oscribe"
-                        class="hidden sm:flex hover:text-brand-600 transition-colors items-center gap-1">
-                        GitHub <i data-lucide="external-link" class="w-3 h-3"></i>
+
+                <h1 class="text-4xl sm:text-5xl lg:text-[4.25rem] leading-[1.05] font-extrabold tracking-tight text-slate-900 mb-5">
+                    Speak, and your
+                    <span class="inline-flex items-baseline gap-2 sm:gap-3">
+                        <span class="relative whitespace-nowrap">
+                            <span class="absolute -inset-1 sm:-inset-2 bg-gradient-to-r from-brand-500 via-sun to-azure opacity-70 blur-lg animate-pulse"></span>
+                            <span class="relative">voice</span>
+                        </span>
+                        <span class="inline-flex items-end gap-1 sm:gap-1.5 h-7 sm:h-10 pb-1">
+                            <span class="w-1.5 lg:w-2 bg-brand-500 h-full origin-bottom rounded-sm animate-[eq_1s_ease-in-out_infinite]" style="animation-duration:.9s"></span>
+                            <span class="w-1.5 lg:w-2 bg-sun h-full origin-bottom rounded-sm animate-[eq_1s_ease-in-out_infinite]" style="animation-duration:1.2s;animation-delay:.3s"></span>
+                            <span class="w-1.5 lg:w-2 bg-azure h-full origin-bottom rounded-sm animate-[eq_1s_ease-in-out_infinite]" style="animation-duration:.8s"></span>
+                            <span class="w-1.5 lg:w-2 bg-brand-500 h-full origin-bottom rounded-sm animate-[eq_1s_ease-in-out_infinite]" style="animation-duration:1.4s;animation-delay:.4s"></span>
+                        </span>
+                    </span>
+                    becomes text.
+                </h1>
+
+                <p class="text-base sm:text-lg text-slate-500 leading-relaxed max-w-lg mb-8">
+                    Macaw is a friendly little dictation buddy for Linux. Press a hotkey, talk,
+                    and your words get typed into whatever you're using — or copied ready to paste.
+                    Everything runs on your own machine, so nothing you say ever leaves it.
+                </p>
+
+                <!-- one-line install -->
+                <div class="flex items-center gap-2 bg-slate-900 rounded-2xl pl-4 pr-2 py-2 mb-3 sm:mb-4 max-w-lg shadow-lg font-mono text-xs sm:text-[13px]">
+                    <span class="text-brand-500 font-bold select-none">$</span>
+                    <code class="flex-1 overflow-x-auto whitespace-nowrap text-slate-200 py-1">curl -fsSL https://raw.githubusercontent.com/Osyna/Macaw/main/install.sh | bash</code>
+                    <button type="button"
+                        data-copy="curl -fsSL https://raw.githubusercontent.com/Osyna/Macaw/main/install.sh | bash"
+                        class="copy-btn shrink-0 flex items-center gap-1.5 bg-white/10 hover:bg-white/20 text-white rounded-lg px-2.5 py-1.5 font-sans text-xs font-bold transition-colors">
+                        <i data-lucide="copy" class="w-3.5 h-3.5"></i><span class="copy-label">Copy</span>
+                    </button>
+                </div>
+
+                <div class="flex flex-col sm:flex-row gap-3 sm:gap-4 mb-10">
+                    <a href="https://github.com/Osyna/Macaw/archive/refs/heads/main.zip"
+                        class="flex items-center justify-center gap-3 bg-slate-900 text-white px-7 py-4 rounded-2xl font-bold shadow-[4px_4px_0_0_#e5322b] hover:shadow-[6px_6px_0_0_#e5322b] hover:-translate-x-0.5 hover:-translate-y-0.5 transition-all">
+                        <i data-lucide="arrow-down-to-line" class="w-5 h-5"></i>
+                        Download Macaw
+                    </a>
+                    <a href="https://github.com/Osyna/Macaw" target="_blank"
+                        class="flex items-center justify-center gap-3 bg-white border-2 border-slate-900/10 text-slate-700 px-7 py-4 rounded-2xl font-bold hover:border-slate-900/20 hover:-translate-y-0.5 transition-all">
+                        <i data-lucide="github" class="w-5 h-5"></i>
+                        View on GitHub
+                    </a>
+                </div>
+
+                <!-- why trio -->
+                <div class="grid grid-cols-3 gap-3 sm:gap-4 max-w-lg">
+                    <div class="flex flex-col items-center text-center gap-1.5 bg-white rounded-2xl border-2 border-slate-900/5 py-4 px-2 shadow-sm">
+                        <i data-lucide="shield-check" class="w-6 h-6 text-brand-500"></i>
+                        <span class="text-xs sm:text-sm font-bold text-slate-800">Private</span>
+                        <span class="text-[10px] sm:text-xs text-slate-400 leading-tight">stays offline</span>
+                    </div>
+                    <div class="flex flex-col items-center text-center gap-1.5 bg-white rounded-2xl border-2 border-slate-900/5 py-4 px-2 shadow-sm">
+                        <i data-lucide="zap" class="w-6 h-6 text-sun"></i>
+                        <span class="text-xs sm:text-sm font-bold text-slate-800">Fast</span>
+                        <span class="text-[10px] sm:text-xs text-slate-400 leading-tight">GPU or CPU</span>
+                    </div>
+                    <div class="flex flex-col items-center text-center gap-1.5 bg-white rounded-2xl border-2 border-slate-900/5 py-4 px-2 shadow-sm">
+                        <i data-lucide="heart" class="w-6 h-6 text-azure"></i>
+                        <span class="text-xs sm:text-sm font-bold text-slate-800">Free</span>
+                        <span class="text-[10px] sm:text-xs text-slate-400 leading-tight">forever</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- mascot -->
+            <div class="relative flex items-center justify-center animate-slide-in-right">
+                <div class="relative w-[20rem] h-[20rem] sm:w-[26rem] sm:h-[26rem] flex items-center justify-center">
+                    <div class="absolute inset-6 bg-gradient-to-br from-brand-500 via-sun to-azure opacity-90 rounded-full blur-2xl"></div>
+                    <div class="absolute inset-8 bg-white/70 rounded-full"></div>
+                    <img src="assets/macaw.png" alt="Macaw the friendly parrot mascot"
+                        class="pixel relative w-56 sm:w-72 object-contain drop-shadow-2xl animate-float">
+                </div>
+                <!-- speech bubble -->
+                <div class="absolute bottom-2 sm:bottom-6 left-0 sm:-left-2 bg-slate-900 text-white text-xs sm:text-sm font-mono px-4 py-2.5 rounded-2xl rounded-bl-sm shadow-xl flex items-center gap-2">
+                    <span class="flex items-end gap-0.5 h-3">
+                        <span class="w-0.5 bg-brand-500 h-2 origin-bottom rounded-sm animate-[eq_1s_ease-in-out_infinite]" style="animation-duration:.7s"></span>
+                        <span class="w-0.5 bg-sun h-3 origin-bottom rounded-sm animate-[eq_1s_ease-in-out_infinite]" style="animation-duration:1.1s"></span>
+                        <span class="w-0.5 bg-azure h-1.5 origin-bottom rounded-sm animate-[eq_1s_ease-in-out_infinite]" style="animation-duration:.9s;animation-delay:.2s"></span>
+                    </span>
+                    "hello world"
+                </div>
+            </div>
+        </section>
+
+        <!-- ── Features ────────────────────────────────────── -->
+        <section id="features" class="scroll-mt-24 py-12 sm:py-20">
+            <div class="text-center mb-10 sm:mb-16">
+                <span class="inline-flex items-center gap-2 text-brand-600 font-bold text-sm mb-3">
+                    <i data-lucide="sparkles" class="w-4 h-4"></i> What Macaw does
+                </span>
+                <h2 class="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-slate-900 mb-3">
+                    Everything you need to talk to your computer
+                </h2>
+                <p class="text-slate-500 max-w-2xl mx-auto text-base sm:text-lg">
+                    Simple on the outside, powerful underneath. Pick a model, hit your hotkey, and go.
+                </p>
+            </div>
+
+            <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6">
+
+                <!-- card -->
+                <div class="group bg-white rounded-3xl border-2 border-slate-900/5 p-7 hover:-translate-y-1 hover:shadow-[8px_8px_0_0_rgba(229,50,43,0.12)] transition-all duration-300">
+                    <div class="w-12 h-12 rounded-2xl bg-brand-500 text-white flex items-center justify-center shadow-[3px_3px_0_0_#7a1410] mb-5 group-hover:rotate-6 transition-transform">
+                        <i data-lucide="cpu" class="w-6 h-6"></i>
+                    </div>
+                    <h3 class="font-bold text-lg text-slate-900 mb-2">Choose your model</h3>
+                    <p class="text-slate-500 leading-relaxed">Ten Whisper models plus Moonshine, Parakeet and Voxtral. Trade a little speed for accuracy, or the other way around — your call.</p>
+                </div>
+
+                <div class="group bg-white rounded-3xl border-2 border-slate-900/5 p-7 hover:-translate-y-1 hover:shadow-[8px_8px_0_0_rgba(247,181,0,0.15)] transition-all duration-300">
+                    <div class="w-12 h-12 rounded-2xl bg-sun text-slate-900 flex items-center justify-center shadow-[3px_3px_0_0_#b98600] mb-5 group-hover:rotate-6 transition-transform">
+                        <i data-lucide="keyboard" class="w-6 h-6"></i>
+                    </div>
+                    <h3 class="font-bold text-lg text-slate-900 mb-2">Types for you</h3>
+                    <p class="text-slate-500 leading-relaxed">Just talk and your words land straight in the window you're using. Turn on live typing to watch them appear as you speak.</p>
+                </div>
+
+                <div class="group bg-white rounded-3xl border-2 border-slate-900/5 p-7 hover:-translate-y-1 hover:shadow-[8px_8px_0_0_rgba(47,111,208,0.15)] transition-all duration-300">
+                    <div class="w-12 h-12 rounded-2xl bg-azure text-white flex items-center justify-center shadow-[3px_3px_0_0_#1c467f] mb-5 group-hover:rotate-6 transition-transform">
+                        <i data-lucide="clipboard-paste" class="w-6 h-6"></i>
+                    </div>
+                    <h3 class="font-bold text-lg text-slate-900 mb-2">Or copy &amp; paste</h3>
+                    <p class="text-slate-500 leading-relaxed">Prefer to place text yourself? Macaw can drop your words on the clipboard, ready to paste wherever you like.</p>
+                </div>
+
+                <div class="group bg-white rounded-3xl border-2 border-slate-900/5 p-7 hover:-translate-y-1 hover:shadow-[8px_8px_0_0_rgba(229,50,43,0.12)] transition-all duration-300">
+                    <div class="w-12 h-12 rounded-2xl bg-brand-500 text-white flex items-center justify-center shadow-[3px_3px_0_0_#7a1410] mb-5 group-hover:rotate-6 transition-transform">
+                        <i data-lucide="mic-2" class="w-6 h-6"></i>
+                    </div>
+                    <h3 class="font-bold text-lg text-slate-900 mb-2">Any mic, any language</h3>
+                    <p class="text-slate-500 leading-relaxed">Pick your microphone and speak your language. Macaw understands dozens, from English and French to Japanese and beyond.</p>
+                </div>
+
+                <div class="group bg-white rounded-3xl border-2 border-slate-900/5 p-7 hover:-translate-y-1 hover:shadow-[8px_8px_0_0_rgba(247,181,0,0.15)] transition-all duration-300">
+                    <div class="w-12 h-12 rounded-2xl bg-sun text-slate-900 flex items-center justify-center shadow-[3px_3px_0_0_#b98600] mb-5 group-hover:rotate-6 transition-transform">
+                        <i data-lucide="quote" class="w-6 h-6"></i>
+                    </div>
+                    <h3 class="font-bold text-lg text-slate-900 mb-2">Smart punctuation</h3>
+                    <p class="text-slate-500 leading-relaxed">Periods, commas and question marks land where they should, so your text reads clean and is ready to send right away.</p>
+                </div>
+
+                <div class="group bg-white rounded-3xl border-2 border-slate-900/5 p-7 hover:-translate-y-1 hover:shadow-[8px_8px_0_0_rgba(47,111,208,0.15)] transition-all duration-300">
+                    <div class="w-12 h-12 rounded-2xl bg-azure text-white flex items-center justify-center shadow-[3px_3px_0_0_#1c467f] mb-5 group-hover:rotate-6 transition-transform">
+                        <i data-lucide="timer" class="w-6 h-6"></i>
+                    </div>
+                    <h3 class="font-bold text-lg text-slate-900 mb-2">Knows when you stop</h3>
+                    <p class="text-slate-500 leading-relaxed">Set how long Macaw waits after you go quiet before wrapping up the sentence. Pause to think as long as you need.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- ── Supported models ────────────────────────────── -->
+        <section id="models" class="scroll-mt-24 py-12 sm:py-20">
+            <div class="text-center mb-10 sm:mb-16">
+                <span class="inline-flex items-center gap-2 text-brand-600 font-bold text-sm mb-3">
+                    <i data-lucide="cpu" class="w-4 h-4"></i> Bring your own brain
+                </span>
+                <h2 class="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-slate-900 mb-3">
+                    16 speech models, five engines
+                </h2>
+                <p class="text-slate-500 max-w-2xl mx-auto text-base sm:text-lg">
+                    Swap models any time from Settings. Each one is open and downloads straight from its makers — here's who builds them.
+                </p>
+            </div>
+
+            <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6">
+
+                <!-- Whisper -->
+                <div class="bg-white rounded-3xl border-2 border-slate-900/5 p-7 flex flex-col hover:-translate-y-1 hover:shadow-[8px_8px_0_0_rgba(229,50,43,0.12)] transition-all duration-300">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center gap-2">
+                            <span class="w-3 h-3 rounded-sm bg-brand-500"></span>
+                            <h3 class="font-bold text-lg text-slate-900">Whisper</h3>
+                        </div>
+                        <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">99+ langs</span>
+                    </div>
+                    <p class="text-sm text-slate-500 leading-relaxed mb-4">OpenAI's Whisper, sped up with CTranslate2 by SYSTRAN. Ten sizes from tiny to large-v3-turbo, plus distilled English builds.</p>
+                    <div class="flex flex-wrap gap-1.5 mb-5">
+                        <span class="text-[11px] font-mono bg-brand-50 text-brand-600 rounded-md px-2 py-1">tiny</span>
+                        <span class="text-[11px] font-mono bg-brand-50 text-brand-600 rounded-md px-2 py-1">base</span>
+                        <span class="text-[11px] font-mono bg-brand-50 text-brand-600 rounded-md px-2 py-1">small</span>
+                        <span class="text-[11px] font-mono bg-brand-50 text-brand-600 rounded-md px-2 py-1">medium</span>
+                        <span class="text-[11px] font-mono bg-brand-50 text-brand-600 rounded-md px-2 py-1">large-v3</span>
+                        <span class="text-[11px] font-mono bg-brand-50 text-brand-600 rounded-md px-2 py-1">large-v3-turbo</span>
+                        <span class="text-[11px] font-mono bg-slate-100 text-slate-400 rounded-md px-2 py-1">+4 distil</span>
+                    </div>
+                    <a href="https://github.com/SYSTRAN/faster-whisper" target="_blank"
+                        class="mt-auto inline-flex items-center gap-1.5 text-sm font-bold text-slate-800 hover:text-brand-600 transition-colors">
+                        <i data-lucide="github" class="w-4 h-4"></i> SYSTRAN/faster-whisper
+                        <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+                    </a>
+                </div>
+
+                <!-- Moonshine -->
+                <div class="bg-white rounded-3xl border-2 border-slate-900/5 p-7 flex flex-col hover:-translate-y-1 hover:shadow-[8px_8px_0_0_rgba(247,181,0,0.15)] transition-all duration-300">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center gap-2">
+                            <span class="w-3 h-3 rounded-sm bg-sun"></span>
+                            <h3 class="font-bold text-lg text-slate-900">Moonshine</h3>
+                        </div>
+                        <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">English</span>
+                    </div>
+                    <p class="text-sm text-slate-500 leading-relaxed mb-4">Tiny, ultra-fast English models from Useful Sensors, built for real-time speech on modest hardware.</p>
+                    <div class="flex flex-wrap gap-1.5 mb-5">
+                        <span class="text-[11px] font-mono bg-amber-50 text-amber-600 rounded-md px-2 py-1">moonshine/tiny</span>
+                        <span class="text-[11px] font-mono bg-amber-50 text-amber-600 rounded-md px-2 py-1">moonshine/base</span>
+                    </div>
+                    <a href="https://github.com/usefulsensors/moonshine" target="_blank"
+                        class="mt-auto inline-flex items-center gap-1.5 text-sm font-bold text-slate-800 hover:text-brand-600 transition-colors">
+                        <i data-lucide="github" class="w-4 h-4"></i> usefulsensors/moonshine
+                        <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+                    </a>
+                </div>
+
+                <!-- Parakeet -->
+                <div class="bg-white rounded-3xl border-2 border-slate-900/5 p-7 flex flex-col hover:-translate-y-1 hover:shadow-[8px_8px_0_0_rgba(47,111,208,0.15)] transition-all duration-300">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center gap-2">
+                            <span class="w-3 h-3 rounded-sm bg-azure"></span>
+                            <h3 class="font-bold text-lg text-slate-900">Parakeet</h3>
+                        </div>
+                        <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">25 langs</span>
+                    </div>
+                    <p class="text-sm text-slate-500 leading-relaxed mb-4">NVIDIA's fast, accurate ASR from the NeMo toolkit. v3 adds 25 European languages. Great on GPU.</p>
+                    <div class="flex flex-wrap gap-1.5 mb-5">
+                        <span class="text-[11px] font-mono bg-blue-50 text-blue-600 rounded-md px-2 py-1">parakeet-tdt-0.6b-v2</span>
+                        <span class="text-[11px] font-mono bg-blue-50 text-blue-600 rounded-md px-2 py-1">parakeet-tdt-0.6b-v3</span>
+                    </div>
+                    <a href="https://github.com/NVIDIA/NeMo" target="_blank"
+                        class="mt-auto inline-flex items-center gap-1.5 text-sm font-bold text-slate-800 hover:text-brand-600 transition-colors">
+                        <i data-lucide="github" class="w-4 h-4"></i> NVIDIA/NeMo
+                        <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+                    </a>
+                </div>
+
+                <!-- Canary-Qwen -->
+                <div class="bg-white rounded-3xl border-2 border-slate-900/5 p-7 flex flex-col hover:-translate-y-1 hover:shadow-[8px_8px_0_0_rgba(229,50,43,0.12)] transition-all duration-300">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center gap-2">
+                            <span class="w-3 h-3 rounded-sm bg-brand-500"></span>
+                            <h3 class="font-bold text-lg text-slate-900">Canary-Qwen</h3>
+                        </div>
+                        <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">English</span>
+                    </div>
+                    <p class="text-sm text-slate-500 leading-relaxed mb-4">NVIDIA's speech-LLM hybrid — a Canary encoder paired with a Qwen language model for top-tier English accuracy.</p>
+                    <div class="flex flex-wrap gap-1.5 mb-5">
+                        <span class="text-[11px] font-mono bg-brand-50 text-brand-600 rounded-md px-2 py-1">canary-qwen-2.5b</span>
+                    </div>
+                    <a href="https://github.com/NVIDIA/NeMo" target="_blank"
+                        class="mt-auto inline-flex items-center gap-1.5 text-sm font-bold text-slate-800 hover:text-brand-600 transition-colors">
+                        <i data-lucide="github" class="w-4 h-4"></i> NVIDIA/NeMo
+                        <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+                    </a>
+                </div>
+
+                <!-- Voxtral -->
+                <div class="bg-white rounded-3xl border-2 border-slate-900/5 p-7 flex flex-col hover:-translate-y-1 hover:shadow-[8px_8px_0_0_rgba(247,181,0,0.15)] transition-all duration-300">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center gap-2">
+                            <span class="w-3 h-3 rounded-sm bg-sun"></span>
+                            <h3 class="font-bold text-lg text-slate-900">Voxtral</h3>
+                        </div>
+                        <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">13 langs</span>
+                    </div>
+                    <p class="text-sm text-slate-500 leading-relaxed mb-4">Mistral AI's speech model, running through Hugging Face Transformers. Multilingual and strong on longer audio.</p>
+                    <div class="flex flex-wrap gap-1.5 mb-5">
+                        <span class="text-[11px] font-mono bg-amber-50 text-amber-600 rounded-md px-2 py-1">Voxtral-Mini-3B</span>
+                    </div>
+                    <a href="https://huggingface.co/mistralai/Voxtral-Mini-3B-2507" target="_blank"
+                        class="mt-auto inline-flex items-center gap-1.5 text-sm font-bold text-slate-800 hover:text-brand-600 transition-colors">
+                        <i data-lucide="external-link" class="w-4 h-4"></i> mistralai/Voxtral-Mini-3B
+                    </a>
+                </div>
+
+                <!-- add your own -->
+                <div class="rounded-3xl border-2 border-dashed border-slate-300 p-7 flex flex-col items-start justify-center bg-transparent">
+                    <div class="w-12 h-12 rounded-2xl bg-slate-900 text-white flex items-center justify-center shadow-[3px_3px_0_0_rgba(0,0,0,0.15)] mb-4">
+                        <i data-lucide="package" class="w-6 h-6"></i>
+                    </div>
+                    <h3 class="font-bold text-lg text-slate-900 mb-2">Add your own</h3>
+                    <p class="text-sm text-slate-500 leading-relaxed mb-5">Drop a YAML file and a small backend to plug in any model. The framework handles the rest.</p>
+                    <a href="https://github.com/Osyna/Macaw/tree/main/src/macaw/stt" target="_blank"
+                        class="mt-auto inline-flex items-center gap-1.5 text-sm font-bold text-slate-800 hover:text-brand-600 transition-colors">
+                        <i data-lucide="github" class="w-4 h-4"></i> How it works
+                        <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
                     </a>
                 </div>
             </div>
-            <div class="flex items-center gap-4 sm:gap-6">
-                <a href="https://ko-fi.com/Q5Q21UZP02" target="_blank"
-                    class="hidden sm:flex text-slate-500 hover:text-[#72a4f2] text-sm font-medium transition-colors items-center gap-2">
-                    <i data-lucide="coffee" class="w-4 h-4"></i>
-                    Support
-                </a>
-                <a href="https://github.com/Osyna/Oscribe/archive/refs/heads/main.zip"
-                    class="bg-slate-900 hover:bg-slate-800 text-white px-4 sm:px-6 py-2 sm:py-2.5 font-medium transition-all transform hover:-translate-y-0.5 shadow-lg shadow-slate-900/20 text-xs sm:text-sm flex items-center gap-2">
-                    <span class="hidden sm:inline">Download</span>
-                    <i data-lucide="download" class="w-4 h-4"></i>
-                </a>
-            </div>
-        </nav>
-        <div class="relative overflow-hidden w-full pb-10">
-            <div id="carousel-track"
-                class="flex transition-transform duration-700 ease-[cubic-bezier(0.87,_0,_0.13,_1)] w-full">
-                <div class="w-full flex-shrink-0">
-                    <div
-                        class="grid lg:grid-cols-[1.1fr_0.9fr] gap-10 lg:gap-8 px-5 sm:px-8 lg:px-14 py-8 sm:py-12 lg:py-16">
-                        <div class="flex flex-col justify-center max-w-2xl z-10">
-                            <div
-                                class="inline-flex items-center gap-2 bg-brand-50 border border-brand-100 text-brand-600 px-3 py-1 sm:px-4 sm:py-1.5 text-xs sm:text-sm font-medium mb-6 sm:mb-8 w-max shadow-sm">
-                                <span class="relative flex h-2 w-2">
-                                    <span
-                                        class="animate-ping absolute inline-flex h-full w-full bg-brand-400 opacity-75"></span>
-                                    <span class="relative inline-flex h-2 w-2 bg-brand-500"></span>
-                                </span>
-                                100% Free & Open Source
-                            </div>
-                            <h1
-                                class="text-4xl sm:text-5xl lg:text-[4.5rem] leading-[1.1] font-bold tracking-tight text-slate-900 mb-4 sm:mb-6">
-                                Unlocking
-                                <span class="inline-flex items-center gap-2 sm:gap-3 align-middle">
-                                    <span class="relative whitespace-nowrap">
-                                        <span
-                                            class="absolute -inset-1 sm:-inset-2 bg-gradient-to-r from-brand-400 to-indigo-500 opacity-60 blur-lg animate-pulse z-0"></span>
-                                        <span class="relative text-black z-10">Voice</span>
-                                    </span>
-                                    <div
-                                        class="flex items-center justify-center gap-1 sm:gap-1.5 h-8 sm:h-10 lg:h-12 py-1 ml-1 sm:ml-2">
-                                        <div class="w-1.5 lg:w-2 bg-slate-800 h-full origin-bottom animate-[eq_1s_ease-in-out_infinite]"
-                                            style="animation-duration: 0.9s; animation-delay: 0.1s"></div>
-                                        <div class="w-1.5 lg:w-2 bg-slate-800 h-full origin-bottom animate-[eq_1s_ease-in-out_infinite]"
-                                            style="animation-duration: 1.2s; animation-delay: 0.3s"></div>
-                                        <div class="w-1.5 lg:w-2 bg-slate-800 h-full origin-bottom animate-[eq_1s_ease-in-out_infinite]"
-                                            style="animation-duration: 0.8s; animation-delay: 0.0s"></div>
-                                        <div class="w-1.5 lg:w-2 bg-slate-800 h-full origin-bottom animate-[eq_1s_ease-in-out_infinite]"
-                                            style="animation-duration: 1.4s; animation-delay: 0.4s"></div>
-                                        <div class="w-1.5 lg:w-2 bg-slate-800 h-full origin-bottom animate-[eq_1s_ease-in-out_infinite]"
-                                            style="animation-duration: 1.1s; animation-delay: 0.2s"></div>
-                                    </div>
-                                </span>
-                                <br />
-                                With OScribe
-                            </h1>
-                            <p class="text-base sm:text-lg text-slate-500 mb-8 sm:mb-10 leading-relaxed max-w-lg">
-                                The ultimate offline speech-to-text tool. Lightning fast, incredibly accurate, and
-                                completely free forever. Your data never leaves your machine.
-                            </p>
-                            <div
-                                class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 mb-12 sm:mb-16">
-                                <a id="download" href="https://github.com/Osyna/Oscribe/archive/refs/heads/main.zip"
-                                    class="bg-slate-900 hover:bg-slate-800 text-white px-6 sm:px-8 py-3.5 sm:py-4 font-medium transition-all transform hover:-translate-y-1 shadow-xl shadow-slate-900/20 flex items-center justify-center gap-3">
-                                    <i data-lucide="arrow-down-to-line" class="w-5 h-5"></i>
-                                    Direct Download
-                                </a>
-                                <a href="https://github.com/Osyna/Oscribe" target="_blank"
-                                    class="bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 px-6 sm:px-8 py-3.5 sm:py-4 font-medium transition-all transform hover:-translate-y-1 shadow-sm flex items-center justify-center gap-3">
-                                    <i data-lucide="github" class="w-5 h-5"></i>
-                                    View Source
-                                </a>
-                            </div>
-                            <div
-                                class="flex flex-col sm:flex-row flex-wrap items-start sm:items-end gap-6 sm:gap-12 mt-auto pt-6 sm:pt-8 border-t border-slate-100">
-                                <div>
-                                    <p class="text-xs font-bold tracking-widest text-slate-400 uppercase mb-2 sm:mb-3">
-                                        System</p>
-                                    <div
-                                        class="flex items-center gap-2 text-slate-700 font-medium text-base sm:text-lg">
-                                        <i data-lucide="terminal" class="w-5 h-5 text-brand-500"></i>
-                                        Arch Linux
-                                    </div>
-                                </div>
-                                <div>
-                                    <p class="text-xs font-bold tracking-widest text-slate-400 uppercase mb-2 sm:mb-3">
-                                        Keep it free</p>
-                                    <a href="https://ko-fi.com/Q5Q21UZP02" target="_blank"
-                                        class="inline-flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 text-sm font-medium transition-colors">
-                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                                            stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4">
-                                            <path d="M10 2v2" />
-                                            <path d="M14 2v2" />
-                                            <path
-                                                d="M16 8a1 1 0 0 1 1 1v8a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V9a1 1 0 0 1 1-1h14a4 4 0 1 1 0 8h-1" />
-                                            <path d="M6 2v2" />
-                                        </svg>
-                                        Support on Ko-fi
-                                    </a>
-                                </div>
-                            </div>
-                        </div>
-                        <div
-                            class="relative w-full h-[500px] sm:h-[600px] lg:h-[650px] flex items-center justify-center mt-8 lg:mt-0 lg:pl-4">
-                            <!-- Settings Animation Wrapper -->
-                            <div
-                                class="z-10 w-[95%] sm:w-full max-w-[380px] opacity-0 animate-slide-in-right relative flex justify-center">
-                                <div
-                                    class="bg-gradient-to-br from-[#1c1c22] to-[#0e0e11] w-full border border-white/5 border-t-white/20 border-l-white/10 shadow-[0_20px_40px_-10px_rgba(0,0,0,0.8),_inset_0_1px_0_rgba(255,255,255,0.1)] sm:shadow-[0_40px_80px_-15px_rgba(0,0,0,0.8),_inset_0_1px_0_rgba(255,255,255,0.1)] p-5 sm:p-6 lg:p-7 text-xs sm:text-sm flex flex-col gap-4 sm:gap-5 text-slate-300 relative transform sm:scale-100">
-                                    <h3
-                                        class="text-[10px] sm:text-[11px] tracking-[0.25em] font-bold text-slate-400 uppercase">
-                                        Settings</h3>
-                                    <div class="border-b border-white/5 pb-3 sm:pb-4">
-                                        <div
-                                            class="text-[9px] sm:text-[10px] tracking-wider text-slate-500 mb-2 sm:mb-3 uppercase font-medium">
-                                            Model</div>
-                                        <div class="flex items-center justify-between mb-1.5">
-                                            <span class="font-medium text-slate-200 text-[12px] sm:text-[13px]">Whisper
-                                                model</span>
-                                            <div class="relative">
-                                                <select id="model-select"
-                                                    class="bg-[#050508] shadow-inner border border-white/5 border-b-white/10 px-2 py-1 sm:px-2.5 sm:py-1.5 text-[11px] sm:text-xs text-slate-200 appearance-none outline-none cursor-pointer hover:bg-white/5 transition-colors pr-6">
-                                                    <option value="tiny">tiny (~75 MB)</option>
-                                                    <option value="base">base (~150 MB)</option>
-                                                    <option value="small">small (~500 MB)</option>
-                                                    <option value="distil-small.en">distil-small.en (~250 MB)</option>
-                                                    <option value="medium">medium (~1.5 GB)</option>
-                                                    <option value="distil-medium.en">distil-medium.en (~750 MB)</option>
-                                                    <option value="large-v3">large-v3 (~3 GB)</option>
-                                                    <option value="distil-large-v2">distil-large-v2 (~1.5 GB)</option>
-                                                    <option value="distil-large-v3">distil-large-v3 (~1.5 GB)</option>
-                                                    <option value="large-v3-turbo" selected>large-v3-turbo (~1.6 GB)
-                                                    </option>
-                                                </select>
-                                                <i data-lucide="chevron-down"
-                                                    class="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-500 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none"></i>
-                                            </div>
-                                        </div>
-                                        <div id="model-desc" class="text-[10px] sm:text-[11px] text-slate-500">fast +
-                                            accurate</div>
-                                    </div>
-                                    <div class="border-b border-white/5 pb-3 sm:pb-4">
-                                        <div
-                                            class="text-[9px] sm:text-[10px] tracking-wider text-slate-500 mb-2 sm:mb-3 uppercase font-medium">
-                                            Audio</div>
-                                        <div class="flex items-center justify-between mb-2 sm:mb-3">
-                                            <span
-                                                class="font-medium text-slate-200 text-[12px] sm:text-[13px]">Microphone</span>
-                                            <div
-                                                class="bg-[#050508] shadow-inner border border-white/5 border-b-white/10 px-2 py-1 sm:px-2.5 sm:py-1.5 text-[11px] sm:text-xs flex items-center gap-1 sm:gap-2 max-w-[140px] sm:max-w-[160px] cursor-not-allowed opacity-60">
-                                                <span class="truncate text-slate-400">System Default</span>
-                                            </div>
-                                        </div>
-                                        <div class="flex items-center justify-between">
-                                            <span
-                                                class="font-medium text-slate-200 text-[12px] sm:text-[13px]">Language</span>
-                                            <div class="relative">
-                                                <select
-                                                    class="bg-[#050508] shadow-inner border border-white/5 border-b-white/10 px-2 py-1 sm:px-2.5 sm:py-1.5 text-[11px] sm:text-xs text-slate-200 appearance-none outline-none cursor-pointer hover:bg-white/5 transition-colors pr-6 w-[100px] sm:w-[120px]">
-                                                    <option>English</option>
-                                                    <option selected>French</option>
-                                                    <option>German</option>
-                                                    <option>Spanish</option>
-                                                    <option>Italian</option>
-                                                    <option>Portuguese</option>
-                                                    <option>Dutch</option>
-                                                    <option>Polish</option>
-                                                    <option>Russian</option>
-                                                    <option>Japanese</option>
-                                                    <option>Chinese</option>
-                                                </select>
-                                                <i data-lucide="chevron-down"
-                                                    class="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-500 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none"></i>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="border-b border-white/5 pb-3 sm:pb-4">
-                                        <div
-                                            class="text-[9px] sm:text-[10px] tracking-wider text-slate-500 mb-2 sm:mb-3 uppercase font-medium">
-                                            Output</div>
-                                        <div class="flex items-center justify-between mb-2 sm:mb-3">
-                                            <div class="flex flex-col pr-2">
-                                                <span
-                                                    class="font-medium text-slate-200 text-[12px] sm:text-[13px]">Auto-type</span>
-                                                <span
-                                                    class="text-[10px] sm:text-[11px] text-slate-500 leading-tight mt-0.5">Type
-                                                    text directly into focused window</span>
-                                            </div>
-                                            <div id="toggle-autotype" data-state="on"
-                                                class="w-8 h-4 sm:w-9 sm:h-5 bg-white flex items-center p-0.5 shadow-[inset_0_2px_4px_rgba(0,0,0,0.5)] cursor-pointer flex-shrink-0 transition-colors duration-200">
-                                                <div
-                                                    class="w-3 h-3 sm:w-4 sm:h-4 bg-gradient-to-b from-gray-100 to-gray-300 shadow-md transform translate-x-3.5 sm:translate-x-4 transition-transform duration-200">
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div class="flex items-center justify-between mb-2 sm:mb-3">
-                                            <span class="font-medium text-slate-200 text-[12px] sm:text-[13px]">Copy to
-                                                clipboard</span>
-                                            <div id="toggle-clipboard" data-state="off"
-                                                class="w-8 h-4 sm:w-9 sm:h-5 bg-black/50 shadow-inner flex items-center p-0.5 border border-white/10 cursor-pointer flex-shrink-0 transition-colors duration-200">
-                                                <div
-                                                    class="w-3 h-3 sm:w-4 sm:h-4 bg-gradient-to-b from-slate-400 to-slate-500 shadow-sm transform translate-x-0 transition-transform duration-200">
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div class="flex items-center justify-between">
-                                            <div class="flex flex-col">
-                                                <span class="font-medium text-slate-200 text-[12px] sm:text-[13px]">Live
-                                                    typing (alpha)</span>
-                                                <span
-                                                    class="text-[10px] sm:text-[11px] text-slate-500 leading-tight mt-0.5">Text
-                                                    appears as you speak</span>
-                                            </div>
-                                            <div id="toggle-livetyping" data-state="on"
-                                                class="w-8 h-4 sm:w-9 sm:h-5 bg-white flex items-center p-0.5 shadow-[inset_0_2px_4px_rgba(0,0,0,0.5)] cursor-pointer flex-shrink-0 transition-colors duration-200">
-                                                <div
-                                                    class="w-3 h-3 sm:w-4 sm:h-4 bg-gradient-to-b from-gray-100 to-gray-300 shadow-md transform translate-x-3.5 sm:translate-x-4 transition-transform duration-200">
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="grid grid-cols-2 gap-3 sm:gap-4">
-                                        <div>
-                                            <div
-                                                class="text-[9px] sm:text-[10px] tracking-wider text-slate-500 mb-2 sm:mb-3 uppercase font-medium">
-                                                Timing</div>
-                                            <div class="flex flex-col gap-1.5 sm:gap-2">
-                                                <span
-                                                    class="font-medium text-slate-200 text-[12px] sm:text-[13px]">Silence
-                                                    timeout</span>
-                                                <div
-                                                    class="flex items-center border border-white/5 border-b-white/10 shadow-inner bg-[#050508] w-max select-none">
-                                                    <button id="timeout-dec-btn"
-                                                        class="px-2 py-0.5 sm:px-2.5 sm:py-1 hover:bg-white/10 border-r border-white/5 text-slate-400 hover:text-white transition-colors">-</button>
-                                                    <span id="timeout-display"
-                                                        class="px-2 py-0.5 sm:px-3 sm:py-1 text-[11px] sm:text-[13px] font-mono">3.0s</span>
-                                                    <button id="timeout-inc-btn"
-                                                        class="px-2 py-0.5 sm:px-2.5 sm:py-1 hover:bg-white/10 border-l border-white/5 text-slate-400 hover:text-white transition-colors">+</button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <div
-                                                class="text-[9px] sm:text-[10px] tracking-wider text-slate-500 mb-2 sm:mb-3 uppercase font-medium">
-                                                Feedback</div>
-                                            <div class="flex items-center justify-between mt-1">
-                                                <span
-                                                    class="font-medium text-slate-200 text-[12px] sm:text-[13px]">Punctuation
-                                                    hints</span>
-                                                <div id="toggle-punctuation" data-state="on"
-                                                    class="w-8 h-4 sm:w-9 sm:h-5 bg-white flex items-center p-0.5 shadow-[inset_0_2px_4px_rgba(0,0,0,0.5)] cursor-pointer flex-shrink-0 transition-colors duration-200">
-                                                    <div
-                                                        class="w-3 h-3 sm:w-4 sm:h-4 bg-gradient-to-b from-gray-100 to-gray-300 shadow-md transform translate-x-3.5 sm:translate-x-4 transition-transform duration-200">
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <button
-                                        class="w-full bg-gradient-to-b from-white to-slate-200 shadow-[0_5px_15px_rgba(255,255,255,0.15)] text-black font-bold text-[10px] sm:text-[11px] tracking-[0.2em] uppercase py-2.5 sm:py-3.5 hover:from-white hover:to-white hover:shadow-[0_8px_20px_rgba(255,255,255,0.25)] transition-all mt-1 sm:mt-2">
-                                        Apply
-                                    </button>
-                                </div>
-                            </div>
-                            <!-- Equalizer Animation Wrapper -->
-                            <div
-                                class="absolute -bottom-10 sm:-bottom-12 left-1/2 -translate-x-1/2 sm:translate-x-0 sm:-left-12 lg:-left-20 z-20 w-[85%] sm:w-[280px] lg:w-[320px] opacity-0 animate-slide-in-right-delayed">
-                                <div
-                                    class="bg-[#050508] p-4 sm:p-5 border border-white/10 shadow-[0_30px_70px_-10px_rgba(0,0,0,0.8)] w-full flex flex-col items-center justify-center">
-                                    <div
-                                        class="flex items-end justify-center gap-0.5 sm:gap-[3px] h-5 sm:h-6 opacity-70">
-                                        <div class="w-1 bg-slate-400 h-1.5"></div>
-                                        <div class="w-1 bg-slate-400 h-2"></div>
-                                        <div class="w-1 bg-slate-400 h-3"></div>
-                                        <div class="w-1 bg-slate-400 h-2"></div>
-                                        <div class="w-1 bg-slate-400 h-4"></div>
-                                        <div class="w-1 bg-slate-400 h-3"></div>
-                                        <div class="w-1 bg-slate-400 h-5"></div>
-                                        <div class="w-1 bg-slate-400 h-4"></div>
-                                        <div class="w-1 bg-slate-400 h-6"></div>
-                                        <div class="w-1 bg-slate-400 h-4"></div>
-                                        <div class="w-1 bg-slate-400 h-3"></div>
-                                        <div class="w-1 bg-slate-400 h-5"></div>
-                                        <div class="w-1 bg-slate-400 h-2"></div>
-                                        <div class="w-1 bg-slate-400 h-3"></div>
-                                        <div class="w-1 bg-slate-400 h-2"></div>
-                                        <div class="w-1 bg-slate-400 h-1.5"></div>
-                                    </div>
-                                </div>
-                            </div>
+        </section>
+
+        <!-- ── Install ─────────────────────────────────────── -->
+        <section id="install" class="scroll-mt-24 pb-16 sm:pb-24">
+            <div class="bg-slate-900 rounded-[2rem] overflow-hidden shadow-[0_30px_80px_-20px_rgba(229,50,43,0.35)]">
+                <div class="grid lg:grid-cols-2">
+                    <div class="p-8 sm:p-12">
+                        <span class="inline-flex items-center gap-2 text-sun font-bold text-sm mb-4">
+                            <i data-lucide="package" class="w-4 h-4"></i> Get Macaw
+                        </span>
+                        <h2 class="text-2xl sm:text-3xl font-extrabold text-white mb-4">Up and running in one line</h2>
+                        <p class="text-slate-400 leading-relaxed mb-6">
+                            The install script sets up Macaw on most Linux distros, with GPU support when you have it.
+                            Prefer something else? Grab a portable AppImage or install from the AUR.
+                        </p>
+                        <div class="flex flex-wrap gap-2 text-xs font-semibold">
+                            <span class="bg-white/5 text-slate-300 border border-white/10 rounded-full px-3 py-1.5">Install script</span>
+                            <span class="bg-white/5 text-slate-300 border border-white/10 rounded-full px-3 py-1.5">AppImage</span>
+                            <span class="bg-white/5 text-slate-300 border border-white/10 rounded-full px-3 py-1.5">AUR</span>
+                            <span class="bg-white/5 text-slate-300 border border-white/10 rounded-full px-3 py-1.5">uv / pipx</span>
                         </div>
                     </div>
-                </div>
-                <div class="w-full flex-shrink-0 flex items-start sm:items-center justify-center">
-                    <div
-                        class="px-5 sm:px-8 lg:px-14 py-4 sm:py-12 lg:py-16 w-full max-w-6xl mx-auto flex flex-col justify-start sm:justify-center min-h-0 sm:min-h-[650px]">
-                        <div class="text-center mb-8 sm:mb-16 mt-4 sm:mt-0">
-                            <h2
-                                class="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-slate-900 mb-3 sm:mb-4">
-                                Features</h2>
-                            <p class="text-slate-500 max-w-2xl mx-auto text-base sm:text-lg">Everything you need to
-                                turn
-                                your voice into text. It runs right on your computer, so your data stays private and
-                                safe.</p>
+                    <div class="bg-black/40 p-8 sm:p-12 flex flex-col justify-center gap-4 border-t lg:border-t-0 lg:border-l border-white/5">
+                        <div class="flex items-center gap-2 text-slate-500 text-xs font-mono">
+                            <span class="w-3 h-3 rounded-full bg-brand-500"></span>
+                            <span class="w-3 h-3 rounded-full bg-sun"></span>
+                            <span class="w-3 h-3 rounded-full bg-azure"></span>
+                            <span class="ml-2">terminal</span>
                         </div>
-                        <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6 lg:gap-8 w-full">
-                            <div
-                                class="bg-[#f8fafc] border border-slate-100 p-6 sm:p-8 hover:shadow-xl hover:shadow-brand-500/5 hover:border-brand-200 transition-all duration-300 group">
-                                <div
-                                    class="w-10 h-10 sm:w-12 sm:h-12 bg-black shadow-md flex items-center justify-center text-white mb-4 sm:mb-5 group-hover:scale-110 group-hover:bg-slate-800 transition-all">
-                                    <i data-lucide="cpu" class="w-5 h-5 sm:w-6 sm:h-6"></i>
-                                </div>
-                                <h3 class="font-bold text-base sm:text-lg text-slate-900 mb-2 sm:mb-3">Choose Your
-                                    Model
-                                </h3>
-                                <p class="text-sm sm:text-base text-slate-500 leading-relaxed">Pick from different
-                                    AI
-                                    models to find what works for you. You can choose to make it super fast or super
-                                    accurate.</p>
-                            </div>
-                            <div
-                                class="bg-[#f8fafc] border border-slate-100 p-6 sm:p-8 hover:shadow-xl hover:shadow-brand-500/5 hover:border-brand-200 transition-all duration-300 group">
-                                <div
-                                    class="w-10 h-10 sm:w-12 sm:h-12 bg-black shadow-md flex items-center justify-center text-white mb-4 sm:mb-5 group-hover:scale-110 group-hover:bg-slate-800 transition-all">
-                                    <i data-lucide="keyboard" class="w-5 h-5 sm:w-6 sm:h-6"></i>
-                                </div>
-                                <h3 class="font-bold text-base sm:text-lg text-slate-900 mb-2 sm:mb-3">Types For You
-                                </h3>
-                                <p class="text-sm sm:text-base text-slate-500 leading-relaxed">Just talk, and the
-                                    app
-                                    will type your words right into whatever you're using. You can even watch the
-                                    words
-                                    show up as you speak.</p>
-                            </div>
-                            <div
-                                class="bg-[#f8fafc] border border-slate-100 p-6 sm:p-8 hover:shadow-xl hover:shadow-brand-500/5 hover:border-brand-200 transition-all duration-300 group">
-                                <div
-                                    class="w-10 h-10 sm:w-12 sm:h-12 bg-black shadow-md flex items-center justify-center text-white mb-4 sm:mb-5 group-hover:scale-110 group-hover:bg-slate-800 transition-all">
-                                    <i data-lucide="clipboard-paste" class="w-5 h-5 sm:w-6 sm:h-6"></i>
-                                </div>
-                                <h3 class="font-bold text-base sm:text-lg text-slate-900 mb-2 sm:mb-3">Copy and
-                                    Paste
-                                </h3>
-                                <p class="text-sm sm:text-base text-slate-500 leading-relaxed">Don't want it to type
-                                    for
-                                    you? You can just have it copy your words so you can quickly paste them wherever
-                                    you
-                                    want.</p>
-                            </div>
-                            <div
-                                class="bg-[#f8fafc] border border-slate-100 p-6 sm:p-8 hover:shadow-xl hover:shadow-brand-500/5 hover:border-brand-200 transition-all duration-300 group">
-                                <div
-                                    class="w-10 h-10 sm:w-12 sm:h-12 bg-black shadow-md flex items-center justify-center text-white mb-4 sm:mb-5 group-hover:scale-110 group-hover:bg-slate-800 transition-all">
-                                    <i data-lucide="mic-2" class="w-5 h-5 sm:w-6 sm:h-6"></i>
-                                </div>
-                                <h3 class="font-bold text-base sm:text-lg text-slate-900 mb-2 sm:mb-3">Any Mic, Any
-                                    Language</h3>
-                                <p class="text-sm sm:text-base text-slate-500 leading-relaxed">Pick which microphone
-                                    you
-                                    want to use, and speak in your own language. It works with lots of different
-                                    languages from around the world.</p>
-                            </div>
-                            <div
-                                class="bg-[#f8fafc] border border-slate-100 p-6 sm:p-8 hover:shadow-xl hover:shadow-brand-500/5 hover:border-brand-200 transition-all duration-300 group">
-                                <div
-                                    class="w-10 h-10 sm:w-12 sm:h-12 bg-black shadow-md flex items-center justify-center text-white mb-4 sm:mb-5 group-hover:scale-110 group-hover:bg-slate-800 transition-all">
-                                    <i data-lucide="quote" class="w-5 h-5 sm:w-6 sm:h-6"></i>
-                                </div>
-                                <h3 class="font-bold text-base sm:text-lg text-slate-900 mb-2 sm:mb-3">Smart
-                                    Punctuation
-                                </h3>
-                                <p class="text-sm sm:text-base text-slate-500 leading-relaxed">The app is smart
-                                    enough
-                                    to add periods and commas where they belong, so your text is ready to send right
-                                    away.</p>
-                            </div>
-                            <div
-                                class="bg-[#f8fafc] border border-slate-100 p-6 sm:p-8 hover:shadow-xl hover:shadow-brand-500/5 hover:border-brand-200 transition-all duration-300 group">
-                                <div
-                                    class="w-10 h-10 sm:w-12 sm:h-12 bg-black shadow-md flex items-center justify-center text-white mb-4 sm:mb-5 group-hover:scale-110 group-hover:bg-slate-800 transition-all">
-                                    <i data-lucide="timer" class="w-5 h-5 sm:w-6 sm:h-6"></i>
-                                </div>
-                                <h3 class="font-bold text-base sm:text-lg text-slate-900 mb-2 sm:mb-3">Knows When
-                                    You
-                                    Stop</h3>
-                                <p class="text-sm sm:text-base text-slate-500 leading-relaxed">You decide how long
-                                    the
-                                    app should wait after you stop talking before it finishes the sentence. Work at
-                                    your
-                                    own pace.</p>
-                            </div>
-                        </div>
+                        <pre class="overflow-x-auto text-sm leading-relaxed font-mono"><code><span class="text-brand-500">$</span> <span class="text-slate-200">curl -fsSL https://raw.githubusercontent.com/</span>
+<span class="text-slate-200">  Osyna/Macaw/main/install.sh | bash</span>
+
+<span class="text-slate-500"># then just run</span>
+<span class="text-brand-500">$</span> <span class="text-sun">macaw</span></code></pre>
+                        <a href="https://github.com/Osyna/Macaw#install"
+                            class="inline-flex items-center gap-2 text-azure hover:text-white font-semibold text-sm transition-colors">
+                            See all install options
+                            <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+                        </a>
                     </div>
                 </div>
             </div>
-            <div class="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-3 z-30">
-                <button id="dot-0" class="w-8 h-2 bg-brand-500 transition-all duration-300 outline-none"></button>
-                <button id="dot-1"
-                    class="w-2 h-2 bg-slate-300 hover:bg-slate-400 transition-all duration-300 outline-none"></button>
+        </section>
+    </main>
+
+    <!-- ── Footer ──────────────────────────────────────────── -->
+    <footer class="border-t border-slate-900/5">
+        <div class="max-w-6xl mx-auto px-5 sm:px-8 py-10 flex flex-col sm:flex-row items-center justify-between gap-6">
+            <div class="flex items-center gap-2.5">
+                <img src="assets/macaw.png" alt="Macaw logo" class="pixel w-8 h-8 object-contain">
+                <span class="font-extrabold text-slate-900">Macaw</span>
+                <span class="text-slate-400 text-sm">— made with <span class="text-brand-500">♥</span>, runs on your machine.</span>
+            </div>
+            <div class="flex items-center gap-6 text-sm font-semibold text-slate-500">
+                <a href="https://github.com/Osyna/Macaw" target="_blank" class="hover:text-brand-600 transition-colors">GitHub</a>
+                <a href="https://github.com/Osyna/Macaw/releases" target="_blank" class="hover:text-brand-600 transition-colors">Releases</a>
+                <a href="https://ko-fi.com/Q5Q21UZP02" target="_blank" class="flex items-center gap-1.5 hover:text-azure transition-colors">
+                    <i data-lucide="coffee" class="w-4 h-4"></i> Support
+                </a>
             </div>
         </div>
-    </div>
+    </footer>
+
     <script src="scripts/icons.js"></script>
-    <script src="scripts/script.js"></script>
+    <script>
+        document.querySelectorAll('.copy-btn').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                navigator.clipboard && navigator.clipboard.writeText(btn.dataset.copy);
+                var label = btn.querySelector('.copy-label');
+                if (!label) return;
+                var prev = label.textContent;
+                label.textContent = 'Copied!';
+                setTimeout(function () { label.textContent = prev; }, 1500);
+            });
+        });
+    </script>
 </body>
 
 </html>

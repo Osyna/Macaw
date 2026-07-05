@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Macaw
+GenericName=Speech-to-text
+Comment=Fast local speech-to-text dictation
+Exec=macaw
+Icon=macaw
+Terminal=false
+Categories=Utility;Accessibility;
+Keywords=speech;dictation;transcription;voice;whisper;stt;
+StartupNotify=false

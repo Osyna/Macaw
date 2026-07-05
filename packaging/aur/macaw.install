@@ -1,0 +1,35 @@
+post_install() {
+    echo "==> Installing Python dependencies into macaw venv..."
+    # faster-whisper, onnxruntime, etc. are not in Arch repos —
+    # they are bundled inside the wheel as pip dependencies
+    echo ""
+    echo "==> Enable the macaw user service:"
+    echo "    systemctl --user daemon-reload"
+    echo "    systemctl --user enable --now macaw"
+    echo ""
+    echo "==> Bind a hotkey to toggle recording:"
+    echo "    Hyprland:  bind = , F9, exec, macaw-trigger"
+    echo "    Sway:      bindsym F9 exec macaw-trigger"
+    echo "    KDE/GNOME: bind F9 to macaw-trigger in keyboard settings"
+    echo ""
+    echo "==> Check logs: journalctl --user -u macaw -f"
+}
+
+post_upgrade() {
+    echo "==> Restarting macaw service..."
+    if systemctl --user is-active macaw &>/dev/null; then
+        systemctl --user restart macaw
+    fi
+}
+
+pre_remove() {
+    echo "==> Stopping and disabling macaw service..."
+    systemctl --user disable --now macaw 2>/dev/null || true
+}
+
+post_remove() {
+    echo "==> Downloaded Whisper models were left on disk."
+    echo "    Free the space (run as your user, not root) with:"
+    echo "    rm -rf \"\${HF_HOME:-\$HOME/.cache/huggingface}\"/hub/models--Systran--faster-*whisper*"
+    echo "    Config (if unwanted): rm -rf \"\${XDG_CONFIG_HOME:-\$HOME/.config}/macaw\""
+}

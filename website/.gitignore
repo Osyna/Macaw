@@ -1,0 +1,2 @@
+# locally-built Tailwind output (Docker rebuilds it on deploy)
+styles/output.css

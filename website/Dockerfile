@@ -44,11 +44,12 @@ RUN rm -rf /usr/share/nginx/html/* /etc/nginx/conf.d/default.conf && \
         } \
     }' > /etc/nginx/conf.d/optimized.conf && \
     mkdir -p /usr/share/nginx/html/styles /usr/share/nginx/html/scripts \
+             /usr/share/nginx/html/assets \
              /var/cache/nginx /var/log/nginx && \
     cp /work/index.html /usr/share/nginx/html/ && \
     cp /work/styles/output.css /usr/share/nginx/html/styles/ && \
     cp /work/scripts/icons.js /usr/share/nginx/html/scripts/ && \
-    cp /work/scripts/script.js /usr/share/nginx/html/scripts/ && \
+    cp -r /work/assets/. /usr/share/nginx/html/assets/ && \
     rm -rf /work && \
     chown -R nginx:nginx /var/cache/nginx /var/log/nginx /etc/nginx/conf.d /usr/share/nginx/html && \
     touch /var/run/nginx.pid && \

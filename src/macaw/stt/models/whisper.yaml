@@ -1,0 +1,112 @@
+# faster-whisper (CTranslate2). One YAML entry per model — add a model by
+# appending to `models:` below. Backend-level keys (source_url, extra, params)
+# apply to every model unless a model overrides them.
+backend: whisper
+source_url: https://github.com/SYSTRAN/faster-whisper
+extra: null            # in base deps
+
+params:                # shared tunables, rendered as controls in the Manager
+  - key: temperature
+    label: Temperature
+    kind: float
+    default: 0.0
+    min: 0.0
+    max: 1.0
+    step: 0.1
+    hint: "0 = deterministic; raise if it gets stuck repeating"
+  - key: beam_size
+    label: Beam size
+    kind: int
+    default: 1
+    min: 1
+    max: 10
+    step: 1
+    hint: "Higher is more accurate but slower (1 = greedy)"
+  - key: vad_filter
+    label: Silence filter (VAD)
+    kind: bool
+    default: true
+    hint: "Skip non-speech"
+
+models:
+  - id: tiny
+    label: Whisper tiny
+    repo: Systran/faster-whisper-tiny
+    size: "~75 MB"
+    speed: fastest
+    languages: "99+"
+    hardware: CPU / Any
+    vram: "—"
+  - id: base
+    label: Whisper base
+    repo: Systran/faster-whisper-base
+    size: "~150 MB"
+    speed: fast
+    languages: "99+"
+    hardware: CPU / Any
+    vram: "—"
+  - id: small
+    label: Whisper small
+    repo: Systran/faster-whisper-small
+    size: "~500 MB"
+    speed: balanced
+    languages: "99+"
+    hardware: CPU / GPU
+    vram: "~2 GB"
+  - id: distil-small.en
+    label: Whisper distil-small
+    repo: Systran/faster-distil-whisper-small.en
+    size: "~250 MB"
+    speed: fast
+    languages: EN
+    hardware: CPU / GPU
+    vram: "~1 GB"
+  - id: medium
+    label: Whisper medium
+    repo: Systran/faster-whisper-medium
+    size: "~1.5 GB"
+    speed: accurate
+    languages: "99+"
+    hardware: GPU recommended
+    vram: "~5 GB"
+  - id: distil-medium.en
+    label: Whisper distil-medium
+    repo: Systran/faster-distil-whisper-medium.en
+    size: "~750 MB"
+    speed: balanced
+    languages: EN
+    hardware: CPU / GPU
+    vram: "~2 GB"
+  - id: large-v3
+    label: Whisper large-v3
+    repo: Systran/faster-whisper-large-v3
+    size: "~3 GB"
+    speed: most accurate
+    languages: "99+"
+    hardware: NVIDIA / AMD GPU
+    vram: "~10 GB"
+  - id: distil-large-v2
+    label: Whisper distil-large-v2
+    repo: Systran/faster-distil-whisper-large-v2
+    size: "~1.5 GB"
+    speed: fast
+    languages: EN
+    hardware: GPU recommended
+    vram: "~6 GB"
+  - id: distil-large-v3
+    label: Whisper distil-large-v3
+    repo: Systran/faster-distil-whisper-large-v3
+    size: "~1.5 GB"
+    speed: fast
+    languages: EN
+    hardware: GPU recommended
+    vram: "~6 GB"
+  - id: large-v3-turbo
+    label: Whisper large-v3-turbo
+    repo: mobiuslabsgmbh/faster-whisper-large-v3-turbo
+    size: "~1.6 GB"
+    speed: fast
+    languages: "99+"
+    hardware: NVIDIA / AMD GPU
+    vram: "~6 GB"
+    notes: "Default — best balance"

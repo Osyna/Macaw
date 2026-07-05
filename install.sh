@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SERVICE_NAME="oscribe"
+SERVICE_NAME="macaw"
 SERVICE_FILE="$HOME/.config/systemd/user/${SERVICE_NAME}.service"
 UINPUT_RULE="/etc/udev/rules.d/99-uinput-input-group.rules"
-OSCRIBE_SRC=""
+MACAW_SRC=""
 CLEANUP_TMPDIR=""
 
 # Non-interactive detection (e.g. curl | bash)
@@ -54,40 +54,40 @@ cleanup_source() {
 }
 
 acquire_source() {
-    # Already in the oscribe repo?
-    if [[ -f "pyproject.toml" ]] && grep -q 'name = "oscribe"' pyproject.toml 2>/dev/null; then
-        OSCRIBE_SRC="$(pwd)"
-        info "Installing from local source: $OSCRIBE_SRC"
+    # Already in the macaw repo?
+    if [[ -f "pyproject.toml" ]] && grep -q 'name = "macaw"' pyproject.toml 2>/dev/null; then
+        MACAW_SRC="$(pwd)"
+        info "Installing from local source: $MACAW_SRC"
         return
     fi
 
-    step "Downloading oscribe source..."
+    step "Downloading macaw source..."
     CLEANUP_TMPDIR="$(mktemp -d)"
     trap cleanup_source EXIT
 
-    local repo_url="https://github.com/Osyna/Oscribe"
+    local repo_url="https://github.com/Osyna/Macaw"
 
     if has_cmd git; then
-        git clone --depth 1 "$repo_url" "$CLEANUP_TMPDIR/oscribe"
-        OSCRIBE_SRC="$CLEANUP_TMPDIR/oscribe"
+        git clone --depth 1 "$repo_url" "$CLEANUP_TMPDIR/macaw"
+        MACAW_SRC="$CLEANUP_TMPDIR/macaw"
     elif has_cmd curl; then
-        curl -fSL "$repo_url/archive/refs/heads/main.tar.gz" -o "$CLEANUP_TMPDIR/oscribe.tar.gz"
-        tar xzf "$CLEANUP_TMPDIR/oscribe.tar.gz" -C "$CLEANUP_TMPDIR"
-        OSCRIBE_SRC="$CLEANUP_TMPDIR/Oscribe-main"
+        curl -fSL "$repo_url/archive/refs/heads/main.tar.gz" -o "$CLEANUP_TMPDIR/macaw.tar.gz"
+        tar xzf "$CLEANUP_TMPDIR/macaw.tar.gz" -C "$CLEANUP_TMPDIR"
+        MACAW_SRC="$CLEANUP_TMPDIR/Macaw-main"
     elif has_cmd wget; then
-        wget -q "$repo_url/archive/refs/heads/main.tar.gz" -O "$CLEANUP_TMPDIR/oscribe.tar.gz"
-        tar xzf "$CLEANUP_TMPDIR/oscribe.tar.gz" -C "$CLEANUP_TMPDIR"
-        OSCRIBE_SRC="$CLEANUP_TMPDIR/Oscribe-main"
+        wget -q "$repo_url/archive/refs/heads/main.tar.gz" -O "$CLEANUP_TMPDIR/macaw.tar.gz"
+        tar xzf "$CLEANUP_TMPDIR/macaw.tar.gz" -C "$CLEANUP_TMPDIR"
+        MACAW_SRC="$CLEANUP_TMPDIR/Macaw-main"
     else
         error "Cannot download source: git, curl, or wget required."
         exit 1
     fi
 
-    if [[ ! -f "$OSCRIBE_SRC/pyproject.toml" ]]; then
+    if [[ ! -f "$MACAW_SRC/pyproject.toml" ]]; then
         error "Downloaded source is missing pyproject.toml."
         exit 1
     fi
-    info "Source acquired: $OSCRIBE_SRC"
+    info "Source acquired: $MACAW_SRC"
 }
 
 # --- Distro & display server detection ---
@@ -220,6 +220,47 @@ is_installed() {
 
 # --- Uninstall ---
 
+# Delete downloaded Whisper models from the HuggingFace cache.
+# Runs through the macaw venv python so it reuses faster-whisper's own
+# repo list — respects HF_HOME/HF_HUB_CACHE and never touches unrelated
+# HuggingFace models the user may have cached. Must run BEFORE the package
+# is uninstalled (needs the venv's faster_whisper + huggingface_hub).
+purge_models() {
+    local py result
+    py="$(get_macaw_python)"
+    result="$("$py" - <<'PY' 2>/dev/null
+try:
+    from faster_whisper.utils import _MODELS
+    from huggingface_hub import scan_cache_dir
+    repos = set(_MODELS.values())
+    info = scan_cache_dir()
+    sel = [r for r in info.repos if r.repo_id in repos]
+    revs = [rev.commit_hash for r in sel for rev in r.revisions]
+    if not revs:
+        print("NONE")
+    else:
+        total = sum(r.size_on_disk for r in sel)
+        info.delete_revisions(*revs).execute()
+        size = f"{total/1e9:.1f} GB" if total >= 1e9 else f"{total/1e6:.0f} MB"
+        print(f"OK:{len(sel)}:{size}")
+except Exception:
+    print("ERR")
+PY
+)"
+    case "${result%%:*}" in
+        OK)
+            info "Removed ${result#OK:} of cached models."
+            ;;
+        NONE)
+            info "No cached models to remove."
+            ;;
+        *)
+            warn "Could not auto-remove models. Clear them from macaw Settings,"
+            warn "or delete: \${HF_HOME:-~/.cache/huggingface}/hub/models--Systran--faster-*whisper*"
+            ;;
+    esac
+}
+
 uninstall() {
     info "Stopping and disabling service..."
     systemctl --user disable --now "$SERVICE_NAME" 2>/dev/null || true
@@ -238,14 +279,32 @@ uninstall() {
 
     systemctl --user daemon-reload
 
+    # Remove desktop launcher + icon
+    local data_home="${XDG_DATA_HOME:-$HOME/.local/share}"
+    rm -f "$data_home/applications/macaw.desktop" \
+          "$data_home/icons/hicolor/256x256/apps/macaw.png"
+    update-desktop-database "$data_home/applications" 2>/dev/null || true
+
+    # Purge downloaded models BEFORE removing the package (needs the venv).
+    if prompt_yn "Delete downloaded Whisper models (frees disk space)?" "y"; then
+        purge_models
+    fi
+
     if has_cmd uv; then
-        info "Uninstalling oscribe via uv..."
-        uv tool uninstall oscribe
+        info "Uninstalling macaw via uv..."
+        uv tool uninstall macaw
     elif has_cmd pip; then
-        info "Uninstalling oscribe via pip..."
-        pip uninstall -y oscribe
+        info "Uninstalling macaw via pip..."
+        pip uninstall -y macaw
     else
         warn "Neither uv nor pip found — remove the package manually."
+    fi
+
+    # Remove user config last (default no — keep it for a future reinstall).
+    local config_dir="${XDG_CONFIG_HOME:-$HOME/.config}/macaw"
+    if [[ -d "$config_dir" ]] && prompt_yn "Remove macaw config ($config_dir)?" "n"; then
+        rm -rf "$config_dir"
+        info "Removed $config_dir"
     fi
 
     info "Uninstall complete."
@@ -255,11 +314,11 @@ uninstall() {
 
 ensure_systemd() {
     if ! has_cmd systemctl; then
-        error "systemd not found. oscribe's install script requires systemd for service management."
+        error "systemd not found. macaw's install script requires systemd for service management."
         echo
         info "You can still install and run manually:"
-        echo "  uv tool install /path/to/oscribe"
-        echo "  oscribe"
+        echo "  uv tool install /path/to/macaw"
+        echo "  macaw"
         exit 1
     fi
 }
@@ -548,11 +607,11 @@ os.close(fd)
 
 # --- ROCm support ---
 
-# Get the Python interpreter from the oscribe tool venv.
-get_oscribe_python() {
+# Get the Python interpreter from the macaw tool venv.
+get_macaw_python() {
     if has_cmd uv; then
         local venv_dir
-        venv_dir="$(uv tool dir)/oscribe"
+        venv_dir="$(uv tool dir)/macaw"
         if [[ -x "${venv_dir}/bin/python" ]]; then
             echo "${venv_dir}/bin/python"
             return 0
@@ -605,9 +664,9 @@ verify_rocm_environment() {
 # compatible with the installed faster-whisper.
 # Outputs one line:  COMPATIBLE:<ver>  |  INCOMPATIBLE:<ver>:<constraint>  |  ERROR:<msg>
 find_compatible_rocm_ct2() {
-    local oscribe_python="$1"
+    local macaw_python="$1"
 
-    "$oscribe_python" -c '
+    "$macaw_python" -c '
 import json, sys, re, urllib.request
 
 # -- Get faster-whisper ctranslate2 constraint from installed metadata --
@@ -683,18 +742,18 @@ install_rocm_ctranslate2() {
         return 0
     fi
 
-    local oscribe_python
-    oscribe_python="$(get_oscribe_python)"
+    local macaw_python
+    macaw_python="$(get_macaw_python)"
 
     local pyver
-    pyver="$("$oscribe_python" -c 'import sys; print(f"cp{sys.version_info.major}{sys.version_info.minor}")')"
+    pyver="$("$macaw_python" -c 'import sys; print(f"cp{sys.version_info.major}{sys.version_info.minor}")')"
     info "Python version for wheel: $pyver"
 
     # 2. Find latest compatible CTranslate2 version with ROCm wheels
     local ct2_version=""
     step "Querying GitHub for CTranslate2 ROCm releases..."
     local find_result
-    find_result="$(find_compatible_rocm_ct2 "$oscribe_python")" || true
+    find_result="$(find_compatible_rocm_ct2 "$macaw_python")" || true
 
     if [[ -z "$find_result" ]]; then
         find_result="ERROR:Could not determine compatible version"
@@ -736,7 +795,7 @@ install_rocm_ctranslate2() {
             warn "You can install manually from:"
             warn "  https://github.com/OpenNMT/CTranslate2/releases"
             warn "Download the ROCm wheel for Python $pyver and install with:"
-            warn "  $oscribe_python -m pip install --force-reinstall <wheel_file>"
+            warn "  $macaw_python -m pip install --force-reinstall <wheel_file>"
             return 0
             ;;
     esac
@@ -754,7 +813,7 @@ install_rocm_ctranslate2() {
         warn "Download failed. You can install manually:"
         warn "  curl -LO ${ct2_release_url}/${zip_name}"
         warn "  unzip ${zip_name}"
-        warn "  $oscribe_python -m pip install --force-reinstall ctranslate2-*${pyver}*.whl"
+        warn "  $macaw_python -m pip install --force-reinstall ctranslate2-*${pyver}*.whl"
         return 0
     fi
 
@@ -779,15 +838,15 @@ install_rocm_ctranslate2() {
 
     info "Found wheel: $(basename "$wheel")"
 
-    # 5. Install into the oscribe venv
+    # 5. Install into the macaw venv
     if has_cmd uv; then
         local venv_dir
-        venv_dir="$(uv tool dir)/oscribe"
+        venv_dir="$(uv tool dir)/macaw"
         if [[ -d "$venv_dir" ]]; then
             uv pip install --python "${venv_dir}/bin/python" --force-reinstall "$wheel"
         else
-            error "Could not find oscribe tool venv at $venv_dir"
-            error "Install manually: $oscribe_python -m pip install --force-reinstall $(basename "$wheel")"
+            error "Could not find macaw tool venv at $venv_dir"
+            error "Install manually: $macaw_python -m pip install --force-reinstall $(basename "$wheel")"
             return 0
         fi
     else
@@ -797,7 +856,7 @@ install_rocm_ctranslate2() {
     # 6. Post-install verification: confirm GPU is actually detected
     step "Verifying ROCm GPU detection..."
     local verify_result
-    verify_result="$("$oscribe_python" -c '
+    verify_result="$("$macaw_python" -c '
 import ctranslate2
 n = ctranslate2.get_cuda_device_count()
 if n > 0:
@@ -820,21 +879,22 @@ else:
             warn "CTranslate2 ROCm installed but no GPU detected."
             warn "Check ROCm installation and GPU compatibility."
             warn "Transcription will fall back to CPU."
-            warn "Set OSCRIBE_FORCE_CPU=1 in the service env if GPU causes crashes."
+            warn "Set MACAW_FORCE_CPU=1 in the service env if GPU causes crashes."
             ;;
         *)
             warn "Could not verify GPU detection (CTranslate2 import may have failed)."
             warn "The service will attempt GPU at runtime and fall back to CPU if needed."
-            warn "Set OSCRIBE_FORCE_CPU=1 in the service env to force CPU mode."
+            warn "Set MACAW_FORCE_CPU=1 in the service env to force CPU mode."
             ;;
     esac
 }
 
 # --- Main install ---
-
-install() {
+# NOTE: not named `install` — that would shadow coreutils `install(1)`, which we
+# use below to place the icon, turning that call into infinite recursion.
+run_install() {
     echo
-    info "Installing oscribe — speech-to-text for Linux"
+    info "Installing macaw — speech-to-text for Linux"
     echo
 
     detect_distro
@@ -850,7 +910,7 @@ install() {
     ensure_ydotool_access
 
     echo
-    step "Installing oscribe..."
+    step "Installing macaw..."
 
     # Detect GPU for acceleration
     # faster-whisper uses CTranslate2 which supports CUDA (NVIDIA) natively
@@ -903,12 +963,15 @@ install() {
     esac
 
     if has_cmd uv; then
-        info "Installing oscribe via uv..."
-        uv tool install "${OSCRIBE_SRC}${pip_extra}" --force --reinstall
+        info "Installing macaw via uv..."
+        # uv picks the interpreter before resolving and won't backtrack, so it
+        # can grab a too-new CPython that lacks onnxruntime/CUDA wheels. Pin the
+        # range to match requires-python in pyproject.toml (raise together).
+        uv tool install --python '>=3.10,<3.14' "${MACAW_SRC}${pip_extra}" --force --reinstall
     else
-        info "Installing oscribe via pip..."
-        local pip_args=(install --user "${OSCRIBE_SRC}${pip_extra}")
-        if pip install --user --dry-run "$OSCRIBE_SRC" 2>&1 | grep -q "externally-managed"; then
+        info "Installing macaw via pip..."
+        local pip_args=(install --user "${MACAW_SRC}${pip_extra}")
+        if pip install --user --dry-run "$MACAW_SRC" 2>&1 | grep -q "externally-managed"; then
             warn "PEP 668 detected — using --break-system-packages (consider using uv instead)"
             pip_args+=(--break-system-packages)
         fi
@@ -921,27 +984,39 @@ install() {
     fi
 
     # Verify the command is available
-    local oscribe_bin
-    oscribe_bin="$(command -v oscribe 2>/dev/null || true)"
-    if [[ -z "$oscribe_bin" ]]; then
+    local macaw_bin
+    macaw_bin="$(command -v macaw 2>/dev/null || true)"
+    if [[ -z "$macaw_bin" ]]; then
         # Common case: ~/.local/bin not in PATH
-        if [[ -x "$HOME/.local/bin/oscribe" ]]; then
-            oscribe_bin="$HOME/.local/bin/oscribe"
-            warn "oscribe found at $oscribe_bin but not in PATH."
+        if [[ -x "$HOME/.local/bin/macaw" ]]; then
+            macaw_bin="$HOME/.local/bin/macaw"
+            warn "macaw found at $macaw_bin but not in PATH."
             warn "Add to your shell profile: export PATH=\"\$HOME/.local/bin:\$PATH\""
         else
-            error "oscribe command not found after install. Check your PATH."
+            error "macaw command not found after install. Check your PATH."
             exit 1
         fi
     fi
-    info "Installed: $oscribe_bin"
+    info "Installed: $macaw_bin"
 
     # Install systemd user service from static template
     mkdir -p "$(dirname "$SERVICE_FILE")"
-    cp "$OSCRIBE_SRC/contrib/oscribe.service" "$SERVICE_FILE"
+    cp "$MACAW_SRC/contrib/macaw.service" "$SERVICE_FILE"
     # Patch ExecStart to the actual binary path
-    sed -i "s|ExecStart=.*|ExecStart=$oscribe_bin|" "$SERVICE_FILE"
+    sed -i "s|ExecStart=.*|ExecStart=$macaw_bin|" "$SERVICE_FILE"
     info "Created $SERVICE_FILE"
+
+    # Desktop launcher + icon → macaw shows up in the application menu
+    local data_home="${XDG_DATA_HOME:-$HOME/.local/share}"
+    local apps_dir="$data_home/applications"
+    local icon_dir="$data_home/icons/hicolor/256x256/apps"
+    mkdir -p "$apps_dir" "$icon_dir"
+    install -Dm644 "$MACAW_SRC/contrib/macaw.png" "$icon_dir/macaw.png"
+    sed "s|^Exec=macaw$|Exec=$macaw_bin|" \
+        "$MACAW_SRC/contrib/macaw.desktop" > "$apps_dir/macaw.desktop"
+    update-desktop-database "$apps_dir" 2>/dev/null || true
+    gtk-update-icon-cache "$data_home/icons/hicolor" 2>/dev/null || true
+    info "Installed desktop launcher"
 
     # ROCm environment drop-in for AMD GPUs
     # NOTE: No LD_LIBRARY_PATH for CUDA — the Python code auto-detects
@@ -968,28 +1043,29 @@ EOF
     systemctl --user enable --now "$SERVICE_NAME"
 
     echo
-    info "oscribe is running!"
+    info "macaw is running!"
     echo
-    local trigger_bin
-    trigger_bin="$(command -v oscribe-trigger 2>/dev/null || echo "$HOME/.local/bin/oscribe-trigger")"
+    local trigger_cmd
+    trigger_cmd="$(command -v macaw 2>/dev/null || echo "$HOME/.local/bin/macaw") trigger"
     info "Bind a hotkey to toggle recording:"
     echo
-    echo "  Hyprland:  bind = , F9, exec, $trigger_bin"
-    echo "  Sway:      bindsym F9 exec $trigger_bin"
-    echo "  KDE/GNOME: bind F9 to $trigger_bin in keyboard settings"
+    echo "  Hyprland:  bind = , F9, exec, $trigger_cmd"
+    echo "  Sway:      bindsym F9 exec $trigger_cmd"
+    echo "  KDE/GNOME: bind F9 to '$trigger_cmd' in keyboard settings"
     echo
-    info "Check logs: journalctl --user -u oscribe -f"
+    info "Try:  macaw status   ·   macaw --help"
+    info "Check logs: journalctl --user -u macaw -f"
 }
 
 # --- Main ---
 
 if is_installed; then
-    warn "oscribe service is already installed."
+    warn "macaw service is already installed."
     if prompt_yn "Uninstall?" "n"; then
         uninstall
     else
         info "No changes made."
     fi
 else
-    install
+    run_install
 fi

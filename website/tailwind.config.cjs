@@ -7,15 +7,19 @@ module.exports = {
         sans: ['Outfit', 'sans-serif'],
       },
       colors: {
+        // Macaw scarlet — the logo's dominant red drives the brand
         brand: {
-          50: '#f0f5ff',
-          100: '#e0ebff',
-          200: '#bfdbfe',
-          400: '#60a5fa',
-          500: '#3b82f6',
-          600: '#2563eb',
-          900: '#1e3a8a',
-        }
+          50: '#fef3f2',
+          100: '#fde3e0',
+          200: '#fac4bd',
+          400: '#f0685c',
+          500: '#e5322b',
+          600: '#c81f1a',
+          900: '#7a1410',
+        },
+        // the parrot's wing bands: sunflower yellow + tropical blue
+        sun: '#f7b500',
+        azure: '#2f6fd0',
       },
       animation: {
         'float': 'float 6s ease-in-out infinite',

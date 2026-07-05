@@ -1,0 +1,23 @@
+# Moonshine (ONNX) — ultra-light English, runs in an isolated venv (extra: moonshine).
+backend: moonshine
+source_url: https://github.com/usefulsensors/moonshine
+extra: moonshine
+repo: UsefulSensors/moonshine   # weights ship as one ONNX bundle for both sizes
+
+models:
+  - id: moonshine/tiny
+    label: Moonshine tiny
+    size: "~27 MB"
+    speed: ultra light
+    languages: EN
+    streaming: true
+    hardware: CPU / Intel
+    vram: "—"
+  - id: moonshine/base
+    label: Moonshine base
+    size: "~60 MB"
+    speed: very fast
+    languages: EN
+    streaming: true
+    hardware: CPU / Intel
+    vram: "—"

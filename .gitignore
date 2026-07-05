@@ -22,3 +22,16 @@ wheels/
 .claude
 .cursor
 .gemini
+
+# Agent / tooling scratch
+.claude-flow
+CLAUDE.md
+.playwright-mcp/
+*.log
+
+# Local runtime config (real config lives in ~/.config/macaw/)
+/src/config.yaml
+/config.yaml
+
+# Stray marketing screenshots (belong in website/assets, not the repo root)
+/rl-*.png

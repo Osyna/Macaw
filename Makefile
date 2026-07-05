@@ -4,8 +4,8 @@ DIST    := dist
 .PHONY: dist wheel checksums release clean
 
 dist:
-	git archive --format=tar.gz --prefix="Oscribe-$(VERSION)/" HEAD \
-		-o "$(DIST)/oscribe-$(VERSION).tar.gz"
+	git archive --format=tar.gz --prefix="Macaw-$(VERSION)/" HEAD \
+		-o "$(DIST)/macaw-$(VERSION).tar.gz"
 
 wheel:
 	python -m build
