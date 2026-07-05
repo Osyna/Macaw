@@ -1,8 +1,7 @@
 name: Release
 
-# Tag a release to publish it:
-#   1. bump `version` in pyproject.toml (and `pkgver` in packaging/aur/PKGBUILD)
-#   2. git tag vX.Y.Z && git push --tags
+# Cut a release with `make tag VERSION=X.Y.Z` (bumps pyproject.toml + the AUR
+# PKGBUILD and tags), then `git push && git push origin vX.Y.Z`.
 # This builds the wheel, sdist and a self-contained CPU AppImage, then creates a
 # GitHub Release with all artifacts + SHA256SUMS and auto-generated notes.
 
@@ -47,12 +46,6 @@ jobs:
           bash packaging/appimage/build.sh dist/macaw-*.whl
           mv macaw-*.AppImage dist/
 
-      - name: Source tarball (for the AUR PKGBUILD)
-        run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          git archive --format=tar.gz --prefix="Macaw-${VERSION}/" HEAD \
-            -o "dist/macaw-${VERSION}.tar.gz"
-
       - name: Stage AUR PKGBUILD with this version
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
@@ -62,7 +55,7 @@ jobs:
       - name: Generate checksums
         run: |
           cd dist
-          sha256sum ./* > SHA256SUMS
+          sha256sum *.whl *.tar.gz *.AppImage PKGBUILD macaw.install > SHA256SUMS
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

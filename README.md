@@ -209,29 +209,43 @@ packages from macaw's own metadata, installs them into the running
 environment, and the backend becomes usable without a restart. *Install all
 optional backends* does the lot in one go.
 
-**Adding a new model** is the whole job — no other file changes:
+**Adding a new model** is two small files — a backend and a YAML entry:
 
 ```python
-# src/macaw/stt/mybackend.py
-from macaw.stt.base import Backend, ModelInfo
+# src/macaw/stt/mybackend.py — the code (metadata lives in YAML, not here)
+from macaw.stt.base import Backend
 from macaw.stt.registry import register
 
 @register
 class MyBackend(Backend):
-    key = "mybackend"
-    models = [ModelInfo("my-model", key, "My Model", "~1 GB", "fast", "EN")]
+    key = "mybackend"                               # models bind to this key
 
-    def load(self, model_path=None): ...           # load into memory
+    def load(self, model_path=None): ...            # load into memory
     def transcribe(self, audio, sample_rate=16_000) -> str: ...  # mono f32 16kHz
 ```
 
-Then import it in `src/macaw/stt/__init__.py` so it registers. It appears in
-the Settings dropdown automatically. See `tests/test_stt.py` for the contract.
+```yaml
+# src/macaw/stt/models/mybackend.yaml — the catalog metadata
+backend: mybackend            # matches Backend.key above; inherited by each model
+models:
+  - id: my-model
+    label: My Model
+    size: "~1 GB"
+    speed: fast
+    languages: EN
+    hardware: "CPU / Any"
+    vram: "—"
+```
+
+Import the module in `src/macaw/stt/__init__.py` so the class registers; the
+YAML is picked up automatically at import. The model then appears in the Model
+Manager with its hardware/VRAM/size — no other file changes. See
+`tests/test_stt.py` for the contract.
 
 If the backend's dependencies conflict with the main environment, subclass
-`SubprocessBackend` instead (declare `key` + `models` only) and add a loader to
-`stt/worker.py` — it then installs into an isolated venv and runs out-of-process
-for free.
+`SubprocessBackend` instead (set `key` only) and add a loader to
+`stt/worker.py` — it then installs into an isolated venv and runs
+out-of-process for free.
 
 
 ## Troubleshooting
@@ -254,6 +268,34 @@ journalctl --user -u macaw -f
 
 **VSCode / Electron apps not receiving paste**: On Wayland, `wtype` sends virtual keyboard events that Electron apps can misinterpret. The service uses Shift+Insert instead of Ctrl+V for `wtype`, and prefers `ydotool` (evdev-level) which works universally.
 
+
+## Releasing
+
+Releases live on [GitHub Releases](https://github.com/Osyna/Macaw/releases) and
+are built by CI (`.github/workflows/release.yml`) whenever a `vX.Y.Z` tag is
+pushed. Each release carries the wheel, the source sdist, a self-contained CPU
+AppImage, `SHA256SUMS`, and the staged AUR `PKGBUILD` + `macaw.install`.
+
+Cut a release in one step — `make tag` bumps the version in `pyproject.toml`
+**and** `packaging/aur/PKGBUILD`, commits, and creates the tag:
+
+```sh
+make tag VERSION=0.2.0
+git push && git push origin v0.2.0
+```
+
+The workflow verifies the tag matches `pyproject.toml`, builds every artifact,
+and publishes the GitHub Release with auto-generated notes.
+
+### Publishing to the AUR
+
+The AUR package (`yay -S macaw`) is a separate git repo. After the GitHub
+release exists, refresh it from an Arch checkout:
+
+```sh
+packaging/aur/bump.sh 0.2.0     # fetches the tag tarball, writes sha256 + .SRCINFO
+# then commit PKGBUILD + .SRCINFO to the macaw AUR repo and push
+```
 
 ## License
 
