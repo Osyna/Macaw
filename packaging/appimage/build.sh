@@ -33,5 +33,13 @@ printf '%s\n' "$wheel" > "$recipe/requirements.txt"
 
 python -m python_appimage build app -p "$PYVER" "$recipe"
 
+# python-appimage names the output after the .desktop `Name` (e.g.
+# Macaw-x86_64.AppImage). Rename to the versioned, lowercase artifact the
+# release workflow and README expect (macaw-<version>-<arch>.AppImage).
+ver="$(basename "$wheel" | sed -E 's/^macaw-([^-]+)-.*/\1/')"
+built="$(ls ./*.AppImage | head -1)"
+final="macaw-${ver}-$(uname -m).AppImage"
+[ "$built" = "./$final" ] || mv -f "$built" "$final"
+
 echo "==> Built:"
 ls -1 ./*.AppImage
