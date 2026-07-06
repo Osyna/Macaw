@@ -116,8 +116,8 @@ class Config:
             params = "model_params: {}"
         return (
             "# macaw configuration\n"
-            "# Edit by hand, via the Settings window, or `macaw config edit`.\n"
-            "# See `macaw list` (model ids) and `macaw devices` (mic indices).\n"
+            "# Edit by hand, via the Settings window, or `macaw --config edit`.\n"
+            "# See `macaw --list` (model ids) and `macaw --devices` (mic indices).\n"
             "\n"
             "# ── Model ────────────────────────────────────────────────\n"
             f"model: {_yv(self.model)}\n"

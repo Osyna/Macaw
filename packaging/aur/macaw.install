@@ -8,9 +8,9 @@ post_install() {
     echo "    systemctl --user enable --now macaw"
     echo ""
     echo "==> Bind a hotkey to toggle recording:"
-    echo "    Hyprland:  bind = , F9, exec, macaw-trigger"
-    echo "    Sway:      bindsym F9 exec macaw-trigger"
-    echo "    KDE/GNOME: bind F9 to macaw-trigger in keyboard settings"
+    echo "    Hyprland:  bind = , F9, exec, macaw --trigger"
+    echo "    Sway:      bindsym F9 exec macaw --trigger"
+    echo "    KDE/GNOME: bind F9 to macaw --trigger in keyboard settings"
     echo ""
     echo "==> Check logs: journalctl --user -u macaw -f"
 }

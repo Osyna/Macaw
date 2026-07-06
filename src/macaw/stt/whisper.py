@@ -105,17 +105,6 @@ class WhisperBackend(Backend):
     def unload(self) -> None:
         self._model = None
 
-    def is_cached(self) -> bool:
-        try:
-            import huggingface_hub
-
-            huggingface_hub.snapshot_download(
-                self.model.repo, local_files_only=True, allow_patterns=_ALLOW_PATTERNS
-            )
-            return True
-        except Exception:
-            return False
-
     def download(self, progress_callback=None) -> str:
         import huggingface_hub
 

@@ -107,20 +107,6 @@ QComboBox QScrollBar::sub-line:vertical {{
 _COMBO_STYLE = _build_combo_style()
 
 
-def refresh_theme() -> None:
-    """Re-resolve the palette from the active theme (for live switching)."""
-    global _T, BG, FG, MUTED, BORDER, CONTROL_BG, _COMBO_STYLE
-    _T = active_theme()
-    BG, FG, MUTED, BORDER, CONTROL_BG = (
-        _T.bg,
-        _T.fg,
-        _T.muted,
-        _T.border,
-        _T.control,
-    )
-    _COMBO_STYLE = _build_combo_style()
-
-
 class _StyledComboBox(QComboBox):
     """QComboBox subclass that forces the popup frame background to black."""
 

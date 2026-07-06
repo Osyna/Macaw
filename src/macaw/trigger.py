@@ -12,9 +12,6 @@ def _ipc_address() -> str:
     return "ipc:///tmp/macaw_service.ipc"
 
 
-IPC_ADDRESS = _ipc_address()
-
-
 def send_command(msg: str, timeout_ms: int = 2000) -> str | None:
     """Send a command to the running service. Returns its reply, or None on timeout."""
     ctx = zmq.Context()
@@ -32,15 +29,3 @@ def send_command(msg: str, timeout_ms: int = 2000) -> str | None:
     finally:
         sock.close()
         ctx.term()
-
-
-def main() -> None:
-    reply = send_command("TOGGLE")
-    if reply is None:
-        print("Service timed out. Is macaw running?")
-    else:
-        print(f"Service replied: {reply}")
-
-
-if __name__ == "__main__":
-    main()

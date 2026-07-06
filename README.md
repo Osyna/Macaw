@@ -26,10 +26,9 @@
 
 Press a hotkey, say your sentence, and it drops straight into whatever you're typing in, or onto your clipboard. Macaw runs [faster-whisper](https://github.com/SYSTRAN/faster-whisper) on your GPU or CPU, sits quietly in the tray, and works across Wayland (Hyprland, Sway, KDE, GNOME) and X11. Nothing gets uploaded. Nothing phones home.
 
-<!--
-  📸 Drop a short demo GIF here (aim for ~720px wide) — this is the money shot.
-  <p align="center"><img src="assets/demo.gif" width="720" alt="Macaw dictating into an editor"></p>
--->
+<p align="center">
+  <img src="assets/screenshot_settings.png" width="760" alt="Macaw — the settings window with a live microphone meter">
+</p>
 
 <details>
 <summary><b>Table of contents</b></summary>
@@ -59,14 +58,43 @@ Press a hotkey, say your sentence, and it drops straight into whatever you're ty
 
 ## Features
 
-- One hotkey to start and stop. It also stops on its own once you go quiet.
-- Type mode pastes straight into the focused window. Clipboard mode just copies.
-- Punctuation hints per language, so Whisper puts the commas and periods where you'd expect them.
-- Live typing (alpha): words appear as you speak, once two passes agree on them.
-- A tray icon with a settings window and a full model manager.
-- Picks a paste tool for you (ydotool, wtype, or xdotool) and falls back per window when one misbehaves.
-- Small sound cues for recording, processing, and done.
-- A recording overlay you can actually style: opacity, colours, accent, corners, and the equaliser's spacing, width, roundness, and fade.
+Macaw lives in the tray: one window for everything, and a recording overlay you can make your own.
+
+<table>
+<tr>
+<td width="50%" valign="middle">
+
+### Swap the brain, live
+
+Sixteen models across five engines — Whisper, Moonshine, Parakeet, Canary-Qwen, and Voxtral. Install any of them on demand into its own sandbox, tune temperature, beam size, and the VAD filter, and set the active model without touching a config file.
+
+</td>
+<td width="50%">
+  <img src="assets/screenshot_models.png" width="100%" alt="Macaw's model manager listing every speech model">
+</td>
+</tr>
+<tr>
+<td width="50%" valign="middle">
+
+### Make the overlay yours
+
+The recording indicator is fully themeable — opacity, bar colours, icon colour, border, corner radius, and the equaliser's spacing, width, roundness, and fade — with a live preview as you tweak.
+
+</td>
+<td width="50%">
+  <img src="assets/screenshot_customize_indicator.gif" width="100%" alt="Customising Macaw's recording overlay with a live preview">
+</td>
+</tr>
+</table>
+
+**Also in the box:**
+
+- **One hotkey** to start and stop — and it auto-stops when you go quiet.
+- **Type or clipboard** — paste straight into the focused window, or just copy.
+- **Punctuation hints** per language, so commas and periods land where you'd expect them.
+- **Live typing (alpha)** — words appear as you speak, once two passes agree on them.
+- **Smart paste** — picks ydotool, wtype, or xdotool for you, and falls back per window when one misbehaves.
+- **Sound cues** for recording, processing, and done.
 
 ## Models
 
@@ -84,7 +112,7 @@ The default is `large-v3-turbo`: 99+ languages, about 1.6 GB, and the best speed
 
 ## Install
 
-Every method gives you the `macaw` command, an app-menu launcher (the 🦜 icon), and a `macaw-trigger` binary for your hotkey.
+Every method gives you the `macaw` command and an app-menu launcher (the 🦜 icon). Bind `macaw --trigger` to your hotkey.
 
 | Method | Best for | Command |
 |--------|----------|---------|
@@ -129,7 +157,7 @@ It bundles Python, Qt, and the Whisper backend, so you don't need a system Pytho
 
 ```sh
 uv tool install "macaw[cuda] @ git+https://github.com/Osyna/Macaw"   # NVIDIA
-macaw download large-v3-turbo                                        # fetch a model
+macaw --download large-v3-turbo                                      # fetch a model
 ```
 
 The other backends (Parakeet, Voxtral, Moonshine) install from the Model Manager when you want them, or as extras: `macaw[nemo]`, `macaw[voxtral]`, `macaw[moonshine]`.
@@ -139,22 +167,22 @@ The other backends (Parakeet, Voxtral, Moonshine) install from the Model Manager
 | Command | What it does |
 |---------|--------------|
 | `macaw` | The tray service. Listens for toggle commands over IPC. |
-| `macaw-trigger` | Toggles the running service. Bind this to a key. |
+| `macaw --trigger` | Toggles the running service. Bind this to a key. |
 | `macaw-cli` | Standalone push-to-talk. No service needed. |
 
 ### Hotkey setup
 
-Bind `macaw-trigger` to a key in your compositor or desktop settings.
+Bind `macaw --trigger` to a key in your compositor or desktop settings.
 
 ```conf
 # Hyprland (hyprland.conf)
-bind = , F9, exec, ~/.local/bin/macaw-trigger
+bind = , F9, exec, macaw --trigger
 
 # Sway (config)
-bindsym F9 exec ~/.local/bin/macaw-trigger
+bindsym F9 exec macaw --trigger
 ```
 
-On KDE or GNOME, add a custom keyboard shortcut that runs `macaw-trigger`.
+On KDE or GNOME, add a custom keyboard shortcut that runs `macaw --trigger`.
 
 ## Configuration
 
@@ -172,10 +200,6 @@ punctuation_hints: true     # nudge Whisper toward natural punctuation
 streaming: false            # live typing as you speak (alpha)
 ```
 
-<!--
-  📸 A screenshot of the settings window fits nicely here.
-  <p align="center"><img src="assets/settings.png" width="720" alt="Macaw settings window"></p>
--->
 
 **Output modes.** In clipboard mode the text is copied and the overlay shows a checkmark. In type mode the overlay hides first, so it won't steal focus, then the text is pasted into whatever window was focused when you started.
 
@@ -186,7 +210,7 @@ streaming: false            # live typing as you speak (alpha)
 ## How it works
 
 ```
-macaw-trigger  --[ZMQ IPC]-->  macaw (service)
+macaw --trigger --[ZMQ IPC]--> macaw (service)
                                    |
                                    +-- AudioCapture (sounddevice)
                                    +-- Transcriber (facade) --> macaw.stt backends

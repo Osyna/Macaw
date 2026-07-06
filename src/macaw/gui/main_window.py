@@ -33,9 +33,11 @@ from PyQt6.QtWidgets import (
 from macaw.audio.capture import AudioCapture
 from macaw.audio.transcriber import Transcriber
 from macaw.config import Config
+from macaw.desktop import auto_type_available, auto_type_package
 from macaw.gui.download import ModelDownloadDialog
 from macaw.gui.equalizer import EqualizerWidget
 from macaw.gui.icon import logo_icon, logo_pixmap
+from macaw.gui.inputtool import InputToolInstallDialog
 from macaw.gui.install import DependencyInstallDialog
 from macaw.gui.settings import (
     _COMBO_STYLE,
@@ -68,33 +70,6 @@ DANGER = _T.danger
 CARD_BG = _T.surface
 ACCENT = _T.accent
 ACCENT_FG = _T.accent_fg
-
-
-def retheme() -> None:
-    """Re-resolve every GUI module's palette from the active theme, so a rebuilt
-    window picks up the new colors without a restart (live theme switching)."""
-    global BG, FG, MUTED, BORDER, CONTROL_BG, _COMBO_STYLE
-    global OK, WARN, DANGER, CARD_BG, ACCENT, ACCENT_FG, _T
-    from macaw.gui import download, equalizer, install, settings, window
-
-    settings.refresh_theme()
-    download.refresh_theme()
-    install.refresh_theme()
-    # main_window imported these by value (`from settings import BG…`), so its
-    # own copies must be re-pointed at the refreshed ones.
-    BG, FG, MUTED, BORDER, CONTROL_BG, _COMBO_STYLE = (
-        settings.BG,
-        settings.FG,
-        settings.MUTED,
-        settings.BORDER,
-        settings.CONTROL_BG,
-        settings._COMBO_STYLE,
-    )
-    _T = active_theme()
-    OK, WARN, DANGER = _T.ok, _T.warn, _T.danger
-    CARD_BG, ACCENT, ACCENT_FG = _T.surface, _T.accent, _T.accent_fg
-    equalizer.refresh_theme()
-    window.refresh_theme()
 
 
 def _fmt_size(n: int) -> str:
@@ -797,6 +772,15 @@ class SettingsTab(QWidget):
             self.lang_combo.addItem(name, code)
 
     def _on_output_toggle(self, on: bool) -> None:
+        if on and not auto_type_available():
+            dlg = InputToolInstallDialog(auto_type_package(), parent=self)
+            dlg.exec()
+            if not (dlg.installed and auto_type_available()):
+                # Declined or failed — auto-type can't work, revert to clipboard.
+                self.output_toggle.blockSignals(True)
+                self.output_toggle.setChecked(False)
+                self.output_toggle.blockSignals(False)
+                on = False
         self.output_label.setText("Type into window" if on else "Copy to clipboard")
         self.streaming_toggle.setEnabled(on)
         if not on:
@@ -812,7 +796,12 @@ class SettingsTab(QWidget):
             if cfg.device_index is None
             else max(0, self.device_combo.findData(cfg.device_index))
         )
+        self.output_toggle.blockSignals(True)
         self.output_toggle.setChecked(cfg.output_mode == "type")
+        self.output_toggle.blockSignals(False)
+        self.output_label.setText(
+            "Type into window" if cfg.output_mode == "type" else "Copy to clipboard"
+        )
         idx = self.position_combo.findData(cfg.window_position)
         if idx >= 0:
             self.position_combo.setCurrentIndex(idx)

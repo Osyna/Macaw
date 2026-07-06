@@ -11,13 +11,6 @@ from macaw.gui.theme import active_theme
 _theme = active_theme()
 
 
-def refresh_theme() -> None:
-    """Re-resolve equaliser colors from the active theme (live switching)."""
-    t = active_theme()
-    EqualizerWidget.IDLE_COLOR = QColor(t.eq_idle)
-    EqualizerWidget.EQ_COLORS = t.eq_colors
-
-
 def _lerp(a: QColor, b: QColor, t: float) -> QColor:
     t = max(0.0, min(1.0, t))
     return QColor(

@@ -1046,14 +1046,14 @@ EOF
     info "macaw is running!"
     echo
     local trigger_cmd
-    trigger_cmd="$(command -v macaw 2>/dev/null || echo "$HOME/.local/bin/macaw") trigger"
+    trigger_cmd="$(command -v macaw 2>/dev/null || echo "$HOME/.local/bin/macaw") --trigger"
     info "Bind a hotkey to toggle recording:"
     echo
     echo "  Hyprland:  bind = , F9, exec, $trigger_cmd"
     echo "  Sway:      bindsym F9 exec $trigger_cmd"
     echo "  KDE/GNOME: bind F9 to '$trigger_cmd' in keyboard settings"
     echo
-    info "Try:  macaw status   ·   macaw --help"
+    info "Try:  macaw --status   ·   macaw --help"
     info "Check logs: journalctl --user -u macaw -f"
 }
 

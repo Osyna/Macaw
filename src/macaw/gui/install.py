@@ -26,19 +26,6 @@ BORDER = _T.border
 DANGER = _T.danger
 
 
-def refresh_theme() -> None:
-    """Re-resolve the palette from the active theme (live switching)."""
-    global _T, BG, FG, MUTED, BORDER, DANGER
-    _T = active_theme()
-    BG, FG, MUTED, BORDER, DANGER = (
-        _T.bg,
-        _T.fg,
-        _T.muted,
-        _T.border,
-        _T.danger,
-    )
-
-
 class _InstallWorker(QThread):
     """Builds an isolated venv per extra and installs the backend into it.
 
@@ -118,7 +105,6 @@ class DependencyInstallDialog(QDialog):
         self.setModal(True)
         self._extras = extras
         self._worker: _InstallWorker | None = None
-        self._success = False
 
         self.setStyleSheet(f"""
             QDialog {{
@@ -172,14 +158,10 @@ class DependencyInstallDialog(QDialog):
         self._worker.start()
         self.exec()
 
-    def succeeded(self) -> bool:
-        return self._success
-
     def _on_line(self, text: str) -> None:
         self._status.setText(text[-200:])
 
     def _on_done(self, ok: bool, message: str) -> None:
-        self._success = ok
         if ok:
             self._title.setText("Installed ✓")
             self._status.setText("Ready to use. You can close this window.")

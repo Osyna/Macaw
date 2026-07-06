@@ -78,7 +78,7 @@ class _IPCWorker(QObject):
                     self.models_received.emit()
                     sock.send_string("OK")
                 elif msg == "PING":
-                    sock.send_string("OK")  # liveness probe for `macaw status`
+                    sock.send_string("OK")  # liveness probe for `macaw --status`
                 elif msg == "STOP":
                     sock.send_string("OK")
                     self.quit_received.emit()
@@ -253,7 +253,7 @@ class MacawService:
         self.capture = AudioCapture(device=cfg.device_index)
 
         if cfg.model != old.model:
-            self._switch_model(cfg.model, old.model)
+            self._switch_model(cfg.model)
         if any(getattr(old, f) != getattr(cfg, f) for f in self._LOOK):
             self._restart_for_look()
 
@@ -282,7 +282,7 @@ class MacawService:
                     pass
             os.execv(sys.executable, [sys.executable, "-m", "macaw"])
 
-    def _switch_model(self, model_name: str, old_model: str) -> None:
+    def _switch_model(self, model_name: str) -> None:
         """Load a newly-selected model. Only downloaded models can be selected
         (the Model Manager enforces that), so we never download here."""
         self.transcriber.unload_model()

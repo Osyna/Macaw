@@ -197,10 +197,6 @@ class Backend(abc.ABC):
             path = snapshot_download(repo)
         return path
 
-    def is_cached(self) -> bool:
-        """True if weights are already local (skips the download dialog)."""
-        return self.disk_size() > 0
-
     def disk_size(self, cache: dict[str, int] | None = None) -> int:
         """Bytes this model occupies on disk (0 if not downloaded).
 

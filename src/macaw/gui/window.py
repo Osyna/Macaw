@@ -11,12 +11,6 @@ from macaw.gui.theme import active_theme, qcolor
 _theme = active_theme()
 
 
-def refresh_theme() -> None:
-    """Re-resolve the overlay palette; paintEvent reads it live (live switching)."""
-    global _theme
-    _theme = active_theme()
-
-
 def _palette_color(theme, frac: float, alpha: int) -> QColor:
     """A colour sampled from a theme's eq palette at position frac
     (0=left … 1=right), linearly interpolated between stops."""
@@ -210,8 +204,6 @@ class RecordingWindow(QWidget):
     stop_signal = pyqtSignal()
 
     NUM_BARS = 24
-    BAR_WIDTH = 3
-    BAR_GAP = 2
     SMOOTHING = 0.32
 
     def __init__(self):

@@ -104,6 +104,21 @@ def _is_xwayland_window(window_address: str) -> bool | None:
     return None
 
 
+def auto_type_available() -> bool:
+    """True if a keystroke-injection tool for auto-type is installed."""
+    return any(_has(t) for t in ("ydotool", "wtype", "xdotool"))
+
+
+def auto_type_package(display: str | None = None) -> str:
+    """Recommended system package that provides auto-type for this session.
+
+    ydotool on Wayland (it also drives XWayland apps), xdotool on X11.
+    """
+    if (display or _display_server()) == "wayland":
+        return "ydotool"
+    return "xdotool"
+
+
 # ---------------------------------------------------------------------------
 # Public: DesktopHelper
 # ---------------------------------------------------------------------------
@@ -173,7 +188,6 @@ class DesktopHelper:
         # ydotool (evdev) is preferred — it works with both native Wayland
         # and XWayland apps.  wtype only works with native Wayland.
         self._paste_tools = self._detect_paste_tools()
-        self._paste_tool = self._paste_tools[0] if self._paste_tools else None
 
         # Window focus strategy -----------------------------------------
         self._focus_strategy = self._pick_focus_strategy()

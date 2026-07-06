@@ -14,8 +14,8 @@ these 15 roles. No stylesheet edits anywhere else.
         fg="#eee8d5", muted="#93a1a1", border="#0a4b5a",
         accent="#268bd2", accent_fg="#fdf6e3",
         ok="#859900", warn="#b58900", danger="#dc322f",
-        eq_idle="#0a4b5a", eq_active="#859900",
-        overlay_bg="#002b36", overlay_fg="#eee8d5",
+        eq_idle="#0a4b5a",
+        overlay_bg="#002b36",
     )
 
 Role meanings:
@@ -29,9 +29,7 @@ Role meanings:
     accent_fg   text drawn *on* accent (pick for contrast)
     ok/warn/danger   status colours (model states, warnings)
     eq_idle     equaliser bars when quiet
-    eq_active   equaliser bars when your voice is heard
     overlay_bg  floating recording bar background
-    overlay_fg  floating recording bar text / rings
     corners     per-corner radii (tl, tr, br, bl) — the bar's shape (0 = sharp)
     eq_colors   palette the voice equaliser sweeps through, left→right
     border_width / border_color   optional outline on the recording bar
@@ -60,9 +58,7 @@ class Theme:
     warn: str
     danger: str
     eq_idle: str
-    eq_active: str
     overlay_bg: str
-    overlay_fg: str
     # per-corner radii of the recording bar: (top-left, top-right, bottom-right,
     # bottom-left). Unequal corners give a shape an identity — e.g. a squared
     # bottom-left corner reads as a speech bubble.
@@ -113,9 +109,7 @@ _register(
         warn="#C9A227",
         danger="#CC4444",
         eq_idle="#3A3A3A",
-        eq_active="#4CAF7D",
         overlay_bg="#000000",
-        overlay_fg="#FFFFFF",
         corners=(3, 3, 3, 3),  # crisp, minimal — a terminal slab
         eq_colors=("#4CAF7D", "#2FBF9F", "#38BDF8"),  # green → teal → cyan
         border_color="#2A2A2A",
@@ -139,9 +133,7 @@ _register(
         warn="#B8860B",
         danger="#C81F1A",
         eq_idle="#E7D8C4",
-        eq_active="#E5322B",
         overlay_bg="#171310",
-        overlay_fg="#FDF4EA",
         corners=(18, 18, 18, 3),  # speech bubble — squared bottom-left corner
         eq_colors=("#E5322B", "#F7B500", "#2F6FD0"),  # scarlet → gold → azure wings
         border_color="#E5322B",
@@ -165,9 +157,7 @@ _register(
         warn="#B8860B",
         danger="#D14343",
         eq_idle="#D2D2D7",
-        eq_active="#2F6FD0",
         overlay_bg="#FFFFFF",
-        overlay_fg="#1D1D1F",
         corners=(16, 16, 16, 16),  # a soft, even pill
         eq_colors=("#2F6FD0", "#00A6A6", "#7C5CFC"),  # blue → teal → violet
         border_color="#D2D2D7",
@@ -191,9 +181,7 @@ _register(
         warn="#F9E2AF",
         danger="#F38BA8",
         eq_idle="#45475A",
-        eq_active="#A6E3A1",
         overlay_bg="#11111B",
-        overlay_fg="#CDD6F4",
         corners=(16, 16, 3, 16),  # mirror bubble — squared bottom-right corner
         eq_colors=("#F38BA8", "#CBA6F7", "#89B4FA", "#A6E3A1"),  # pink→mauve→blue→green
         border_color="#CBA6F7",

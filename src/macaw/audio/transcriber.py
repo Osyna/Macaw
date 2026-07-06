@@ -55,9 +55,6 @@ class Transcriber:
     ) -> str:
         return self._ensure_backend().download(progress_callback)
 
-    def is_model_cached(self) -> bool:
-        return self._ensure_backend().is_cached()
-
     def is_ready(self) -> bool:
         """True if the active model can transcribe now (dep present + downloaded)."""
         try:

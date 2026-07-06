@@ -10,22 +10,22 @@ import time
 EPILOG = """\
 examples:
   macaw                      start the background service (system tray)
-  macaw trigger              toggle recording — bind this to a hotkey
-  macaw status               is the service running? which model is active?
-  macaw stop                 stop the running service
-  macaw settings             open the Settings window
-  macaw models               open the Model Manager
-  macaw setup                pick and download a model (first-run friendly)
-  macaw list                 show every model and which are downloaded
-  macaw download large-v3    download a model's weights
-  macaw devices              list microphones and their indices
-  macaw config edit          open the config file in $EDITOR
-  macaw repl                 push-to-talk transcription in the terminal
+  macaw --trigger            toggle recording — bind this to a hotkey
+  macaw --status             is the service running? which model is active?
+  macaw --stop               stop the running service
+  macaw --settings           open the Settings window
+  macaw --models             open the Model Manager
+  macaw --setup              pick and download a model (first-run friendly)
+  macaw --list               show every model and which are downloaded
+  macaw --download large-v3  download a model's weights
+  macaw --devices            list microphones and their indices
+  macaw --config edit        open the config file in $EDITOR
+  macaw --repl               push-to-talk transcription in the terminal
 
 hotkey:
-  Bind `macaw trigger` to a key to start/stop dictation, e.g.
-    Hyprland:  bind = SUPER, R, exec, macaw trigger
-    Sway:      bindsym $mod+r exec macaw trigger
+  Bind `macaw --trigger` to a key to start/stop dictation, e.g.
+    Hyprland:  bind = SUPER, R, exec, macaw --trigger
+    Sway:      bindsym $mod+r exec macaw --trigger
 
 Config lives at ~/.config/macaw/config.yaml (grouped and commented).
 """
@@ -40,17 +40,36 @@ def _version() -> str:
         return "0.0.0+dev"
 
 
+# Sentinel for value-taking flags (--download / --config) so we can tell
+# "flag omitted" from "flag given with no value".
+_UNSET = object()
+
+
 def main(argv: list[str] | None = None) -> int:
-    argv = list(sys.argv[1:] if argv is None else argv)
-    # back-compat flags used by older launchers / desktop files / keybinds
-    if "--settings" in argv:
+    args = _parser().parse_args(list(sys.argv[1:] if argv is None else argv))
+    if args.trigger:
+        return cmd_trigger(args)
+    if args.stop:
+        return cmd_stop(args)
+    if args.status:
+        return cmd_status(args)
+    if args.settings:
         return _open("SETTINGS")
-    if "--models" in argv:
+    if args.models:
         return _open("MODELS")
-    if "--trigger" in argv:
-        return cmd_trigger(None)
-    args = _parser().parse_args(argv)
-    return args._func(args) or 0
+    if args.list:
+        return cmd_list(args)
+    if args.model is not _UNSET:
+        return cmd_download(args)
+    if args.setup:
+        return cmd_setup(args)
+    if args.devices:
+        return cmd_devices(args)
+    if args.action is not _UNSET:
+        return cmd_config(args)
+    if args.repl:
+        return cmd_repl(args)
+    return cmd_run(args)  # no action flag (or --run) → start the service
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -61,56 +80,72 @@ def _parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     p.add_argument("-v", "--version", action="version", version=f"macaw {_version()}")
-    sub = p.add_subparsers(title="commands", metavar="<command>")
 
-    # -- service control --
-    r = sub.add_parser("run", help="start the tray service (default with no command)")
-    r.set_defaults(_func=cmd_run)
-
-    tg = sub.add_parser("trigger", help="toggle recording (bind to a hotkey)")
-    tg.set_defaults(_func=cmd_trigger)
-
-    st = sub.add_parser("stop", help="stop the running service")
-    st.set_defaults(_func=cmd_stop)
-
-    stat = sub.add_parser("status", help="show whether the service is running")
-    stat.set_defaults(_func=cmd_status)
-
-    s = sub.add_parser("settings", help="open Settings in the running service")
-    s.set_defaults(_func=lambda a: _open("SETTINGS"))
-
-    m = sub.add_parser("models", help="open the Model Manager in the running service")
-    m.set_defaults(_func=lambda a: _open("MODELS"))
-
-    # -- models --
-    ls = sub.add_parser("list", help="list speech-to-text models and their status")
-    ls.set_defaults(_func=cmd_list)
-
-    dl = sub.add_parser("download", help="download a model's weights")
-    dl.add_argument("model", nargs="?", help="model id (default: the active model)")
-    dl.set_defaults(_func=cmd_download)
-
-    su = sub.add_parser("setup", help="interactive first-run setup (pick + download)")
-    su.set_defaults(_func=cmd_setup)
-
-    # -- audio / config --
-    d = sub.add_parser("devices", help="list input microphones and their indices")
-    d.set_defaults(_func=cmd_devices)
-
-    c = sub.add_parser("config", help="show, locate, or edit the config file")
-    c.add_argument(
-        "action",
-        nargs="?",
-        choices=["show", "path", "edit"],
-        default="show",
-        help="show (default) | path | edit",
+    g = p.add_argument_group(
+        "actions",
+        "Pick at most one. With none, macaw starts the tray service.",
     )
-    c.set_defaults(_func=cmd_config)
-
-    rp = sub.add_parser("repl", help="push-to-talk transcription in the terminal")
-    rp.set_defaults(_func=cmd_repl)
-
-    p.set_defaults(_func=cmd_run)  # no subcommand → run the service
+    x = g.add_mutually_exclusive_group()
+    x.add_argument(
+        "--run", action="store_true", help="start the tray service (the default)"
+    )
+    x.add_argument(
+        "--trigger",
+        action="store_true",
+        help="toggle recording on the running service (bind to a hotkey)",
+    )
+    x.add_argument("--stop", action="store_true", help="stop the running service")
+    x.add_argument(
+        "--status", action="store_true", help="show whether the service is running"
+    )
+    x.add_argument(
+        "--settings",
+        action="store_true",
+        help="open Settings in the running service",
+    )
+    x.add_argument(
+        "--models",
+        action="store_true",
+        help="open the Model Manager in the running service",
+    )
+    x.add_argument(
+        "--list",
+        action="store_true",
+        help="list speech-to-text models and their status",
+    )
+    x.add_argument(
+        "--download",
+        dest="model",
+        nargs="?",
+        const=None,
+        default=_UNSET,
+        metavar="MODEL",
+        help="download a model's weights (default: the active model)",
+    )
+    x.add_argument(
+        "--setup",
+        action="store_true",
+        help="interactive first-run setup (pick + download a model)",
+    )
+    x.add_argument(
+        "--devices",
+        action="store_true",
+        help="list input microphones and their indices",
+    )
+    x.add_argument(
+        "--config",
+        dest="action",
+        nargs="?",
+        const="show",
+        default=_UNSET,
+        choices=["show", "path", "edit"],
+        help="show (default), locate (path), or edit the config file",
+    )
+    x.add_argument(
+        "--repl",
+        action="store_true",
+        help="push-to-talk transcription in the terminal",
+    )
     return p
 
 
@@ -244,7 +279,7 @@ def cmd_list(_args: object) -> int:
             f"[{color}]{label}[/{color}]",
         )
     Console().print(table)
-    print("\nDownload one with:  macaw download <id>")
+    print("\nDownload one with:  macaw --download <id>")
     return 0
 
 
@@ -274,7 +309,7 @@ def cmd_download(args: object) -> int:
     model_id = getattr(args, "model", None) or Config.load().model
     if model_id not in _model_ids():
         console.print(f"[red]Unknown model:[/] {model_id}")
-        console.print("Run [bold]macaw list[/] to see valid ids.")
+        console.print("Run [bold]macaw --list[/] to see valid ids.")
         return 1
 
     info = get_model_info(model_id)
@@ -315,7 +350,7 @@ def cmd_setup(_args: object) -> int:
     from macaw.stt import create_backend, list_models
 
     console = Console()
-    console.print("[bold]macaw setup[/] — choose a speech-to-text model.\n")
+    console.print("[bold]macaw --setup[/] — choose a speech-to-text model.\n")
     cfg = Config.load()
     models = list_models()
     for i, info in enumerate(models):

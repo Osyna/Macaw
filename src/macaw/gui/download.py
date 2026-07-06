@@ -23,13 +23,6 @@ MUTED = _T.muted
 BORDER = _T.border
 
 
-def refresh_theme() -> None:
-    """Re-resolve the palette from the active theme (live switching)."""
-    global _T, BG, FG, MUTED, BORDER
-    _T = active_theme()
-    BG, FG, MUTED, BORDER = _T.bg, _T.fg, _T.muted, _T.border
-
-
 class _DownloadWorker(QThread):
     """Downloads and loads a Whisper model in a background thread."""
 
@@ -84,7 +77,6 @@ class ModelDownloadDialog(QDialog):
         self._transcriber = transcriber
         self._load_after = load_after
         self._worker: _DownloadWorker | None = None
-        self._success = False
 
         self.setStyleSheet(f"""
             QDialog {{
@@ -150,9 +142,6 @@ class ModelDownloadDialog(QDialog):
         self._worker.start()
         self.exec()
 
-    def succeeded(self) -> bool:
-        return self._success
-
     def _on_progress(self, pct: int) -> None:
         self._bar.setValue(pct)
         self._status.setText(f"{pct}%")
@@ -165,7 +154,6 @@ class ModelDownloadDialog(QDialog):
         else:
             self._title.setText("Downloaded")
             self._status.setText("Done")
-        self._success = True
         self.model_ready.emit()
         self.accept()
 
