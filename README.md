@@ -24,11 +24,13 @@
   </p>
 </div>
 
-Press a hotkey, say your sentence, and it drops straight into whatever you're typing in, or onto your clipboard. Macaw runs [faster-whisper](https://github.com/SYSTRAN/faster-whisper) on your GPU or CPU, sits quietly in the tray, and works across Wayland (Hyprland, Sway, KDE, GNOME) and X11. Nothing gets uploaded. Nothing phones home.
-
 <p align="center">
-  <img src="assets/screenshot_settings.png" width="760" alt="Macaw — the settings window with a live microphone meter">
+  <img src="assets/demo_macaw.gif" width="640" alt="Macaw's recording overlay listening as you speak">
+  <br>
+  <img src="assets/live_typing_demo.gif" width="640" alt="Macaw typing dictated speech live into a terminal">
 </p>
+
+Press a hotkey, say your sentence, and it drops straight into whatever you're typing in, or onto your clipboard. Macaw runs [faster-whisper](https://github.com/SYSTRAN/faster-whisper) on your GPU or CPU, sits quietly in the tray, and works across Wayland (Hyprland, Sway, KDE, GNOME) and X11. Nothing gets uploaded. Nothing phones home.
 
 <details>
 <summary><b>Table of contents</b></summary>
@@ -61,6 +63,18 @@ Press a hotkey, say your sentence, and it drops straight into whatever you're ty
 Macaw lives in the tray: one window for everything, and a recording overlay you can make your own.
 
 <table>
+<tr>
+<td width="50%" valign="middle">
+
+### Everything in one window
+
+Settings, a live microphone meter, and a full model manager in one tray window — pick your mic, language, output mode, and overlay position, and watch the bars light up green as it hears you.
+
+</td>
+<td width="50%">
+  <img src="assets/screenshot_settings.png" width="100%" alt="Macaw's settings window with a live microphone meter">
+</td>
+</tr>
 <tr>
 <td width="50%" valign="middle">
 
