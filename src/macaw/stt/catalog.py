@@ -116,7 +116,7 @@ def read_models(paths: list[Path]) -> list[ModelInfo]:
     out: list[ModelInfo] = []
     for path in paths:
         try:
-            data = yaml.safe_load(path.read_text()) or {}
+            data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
         except yaml.YAMLError as exc:
             raise CatalogError(f"{path.name}: invalid YAML ({exc})") from exc
         if not isinstance(data, dict):

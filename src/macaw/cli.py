@@ -430,7 +430,7 @@ def cmd_config(args: object) -> int:
         editor = os.environ.get("EDITOR") or os.environ.get("VISUAL") or "nano"
         return subprocess.call([editor, str(path)])
     print(f"# {path}\n")
-    print(path.read_text())
+    print(path.read_text(encoding="utf-8"))
     return 0
 
 

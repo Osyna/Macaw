@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+import sys
 import tempfile
 import time
 from pathlib import Path
@@ -61,13 +62,20 @@ def test_unload_reaps_worker_no_zombie():
     # leave a zombie in the process table (os.kill(pid, 0) would then succeed).
     b = _backend()
     b._proc = subprocess.Popen(
-        ["sleep", "30"], stdin=subprocess.PIPE, stdout=subprocess.PIPE
+        [sys.executable, "-c", "import time; time.sleep(30)"],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
     )
-    pid = b._proc.pid
+    proc = b._proc
+    pid = proc.pid
 
     b.unload()
     assert b._proc is None
 
+    if os.name == "nt":
+        # No zombie concept on Windows — "reaped" means the process exited.
+        assert proc.poll() is not None, "worker still running after unload()"
+        return
     time.sleep(0.2)  # give the kernel a beat to drop the reaped entry
     reaped = False
     try:

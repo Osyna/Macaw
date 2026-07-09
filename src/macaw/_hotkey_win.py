@@ -133,9 +133,9 @@ class HotkeyListener(QThread):
         logger.info("Hotkey listening (%s) via RegisterHotKey", self._spec)
         try:
             msg = wintypes.MSG()
-            while not self._stop and user32.GetMessageW(
-                ctypes.byref(msg), None, 0, 0
-            ) > 0:
+            while (
+                not self._stop and user32.GetMessageW(ctypes.byref(msg), None, 0, 0) > 0
+            ):
                 if msg.message == _WM_HOTKEY:
                     self.triggered.emit()
         finally:

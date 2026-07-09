@@ -44,9 +44,7 @@ def test_ipc_address_linux_falls_back_to_tmp(monkeypatch):
 def _patch_os_name(monkeypatch, name):
     # Patching the global os.name would break pathlib itself (Path() picks
     # WindowsPath from os.name at call time); shim only isolated's binding.
-    monkeypatch.setattr(
-        isolated, "os", SimpleNamespace(name=name, environ=os.environ)
-    )
+    monkeypatch.setattr(isolated, "os", SimpleNamespace(name=name, environ=os.environ))
 
 
 def test_venv_python_windows_layout(monkeypatch, tmp_path):
@@ -71,9 +69,10 @@ def test_find_uv_falls_back_to_bundled_next_to_executable(monkeypatch, tmp_path)
     monkeypatch.setattr(deps.shutil, "which", lambda _: None)
     fake_bin = tmp_path / "bin"
     fake_bin.mkdir()
-    (fake_bin / "uv").touch()
+    uv_name = "uv.exe" if os.name == "nt" else "uv"  # _find_uv picks per-OS
+    (fake_bin / uv_name).touch()
     monkeypatch.setattr(deps.sys, "executable", str(fake_bin / "python"))
-    assert deps._find_uv() == str(fake_bin / "uv")
+    assert deps._find_uv() == str(fake_bin / uv_name)
 
 
 # -- _hotkey_win (module imports cleanly on Linux; windll only inside run()) --

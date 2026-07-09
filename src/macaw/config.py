@@ -88,7 +88,7 @@ class Config:
         if path is _DEFAULT_CONFIG_PATH:
             _migrate_legacy()
         if path.exists():
-            with open(path) as f:
+            with open(path, encoding="utf-8") as f:
                 data = yaml.safe_load(f) or {}
             return cls(
                 device_index=data.get("device_index"),
@@ -132,7 +132,7 @@ class Config:
     def save(self, path: Path | None = None) -> None:
         path = path or _DEFAULT_CONFIG_PATH
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(self._render())
+        path.write_text(self._render(), encoding="utf-8")
 
     def _render(self) -> str:
         """A grouped, commented YAML file — readable and hand-editable."""
