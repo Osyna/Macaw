@@ -36,3 +36,4 @@ CLAUDE.md
 
 # Stray marketing screenshots (belong in website/assets, not the repo root)
 /rl-*.png
+dist-win/
