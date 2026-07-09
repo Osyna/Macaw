@@ -11,8 +11,6 @@ import os
 import sys
 from types import SimpleNamespace
 
-os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-
 from macaw import _hotkey_win, desktop, hotkey, trigger
 from macaw.stt import deps, isolated
 

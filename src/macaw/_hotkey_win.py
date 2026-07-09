@@ -17,10 +17,14 @@ import logging
 import time
 from ctypes import wintypes
 
-from PyQt6.QtCore import QThread, pyqtSignal
-
 # Circular-safe: these names are all defined before hotkey.py imports us.
-from macaw.hotkey import _KEY_ECODE_NAMES, _CaptureState, parse_spec
+from macaw.hotkey import (
+    _KEY_ECODE_NAMES,
+    QThread,
+    _CaptureState,
+    parse_spec,
+    pyqtSignal,
+)
 
 logger = logging.getLogger("macaw")
 

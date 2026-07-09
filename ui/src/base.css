@@ -1,0 +1,166 @@
+/* Defaults = oled theme; applyTheme() overwrites these on :root. */
+:root {
+  --bg: #0a0a0a;
+  --surface: #0e0e0e;
+  --control: #111111;
+  --fg: #ffffff;
+  --muted: #666666;
+  --border: #2a2a2a;
+  --accent: #4caf7d;
+  --accent-fg: #0a0a0a;
+  --ok: #4caf7d;
+  --warn: #c9a227;
+  --danger: #cc4444;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+}
+
+/* Tab bar */
+#tabbar {
+  display: flex;
+  gap: 4px;
+  padding: 8px 12px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  flex: 0 0 auto;
+}
+
+#tabbar .tab {
+  appearance: none;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+#tabbar .tab:hover {
+  color: var(--fg);
+  background: var(--control);
+}
+
+#tabbar .tab.active {
+  color: var(--accent-fg);
+  background: var(--accent);
+}
+
+main {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+}
+
+main > section {
+  display: none;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-y: auto;
+  padding: 14px 16px;
+}
+
+main > section.active {
+  display: block;
+}
+
+/* Shared form primitives */
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: var(--fg);
+  accent-color: var(--accent);
+}
+
+button {
+  appearance: none;
+  background: var(--control);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-fg);
+  font-weight: 600;
+}
+
+button.danger {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+input[type="text"],
+input[type="password"],
+input[type="number"],
+select,
+textarea {
+  background: var(--control);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 10px;
+}
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+label {
+  color: var(--fg);
+}
+
+::placeholder {
+  color: var(--muted);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}

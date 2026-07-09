@@ -37,3 +37,13 @@ CLAUDE.md
 # Stray marketing screenshots (belong in website/assets, not the repo root)
 /rl-*.png
 dist-win/
+
+# Tauri / frontend
+node_modules/
+ui/dist/
+src-tauri/target/
+src-tauri/gen/
+src-tauri/binaries/*
+!src-tauri/binaries/.gitkeep
+packaging/engine/entry.py
+dist-engine/

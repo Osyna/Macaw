@@ -10,11 +10,11 @@ dependencies = [
     "onnxruntime>=1.20,<1.24",
     "numpy>=2.0.0",
     "pyperclip>=1.9.0",
-    "pyqt6>=6.7.0",
     "pyzmq>=26.0.0",
     "pyyaml>=6.0",
     "rich>=13.0",
     "sounddevice>=0.5.0",
+    "websockets>=12",
 ]
 
 [project.optional-dependencies]
@@ -50,19 +50,20 @@ openai = [  # GPT-4o cloud transcription — installs into the MAIN env, no isol
     "openai>=1.0",
 ]
 hotkey = [  # global shortcut listener — evdev reads the kernel input layer,
-    "evdev>=1.6",  # so it works on X11 and every Wayland compositor
+    "evdev>=1.6; sys_platform == 'linux'",  # X11 + every Wayland compositor
 ]
 
 [project.scripts]
 macaw = "macaw.cli:main"
 macaw-cli = "macaw.cli:main"
+macaw-engine = "macaw.engine:main"
 
 [dependency-groups]
 dev = [
     "ruff>=0.11",
     "pre-commit>=4.0",
     "pytest>=8",
-    "evdev>=1.6",  # for the hotkey tests (resolve_spec against real ecodes)
+    "evdev>=1.6; sys_platform == 'linux'",  # hotkey tests (real ecodes); Windows skips via importorskip
 ]
 
 [build-system]

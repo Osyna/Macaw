@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import logging
 import os
 import subprocess
 import sys
@@ -9,7 +8,7 @@ import time
 
 EPILOG = """\
 examples:
-  macaw                      start the background service (system tray)
+  macaw                      start the background engine
   macaw --trigger            toggle recording — bind this to a hotkey
   macaw --status             is the service running? which model is active?
   macaw --stop               stop the running service
@@ -100,12 +99,10 @@ def _parser() -> argparse.ArgumentParser:
 
     g = p.add_argument_group(
         "actions",
-        "Pick at most one. With none, macaw starts the tray service.",
+        "Pick at most one. With none, macaw starts the engine.",
     )
     x = g.add_mutually_exclusive_group()
-    x.add_argument(
-        "--run", action="store_true", help="start the tray service (the default)"
-    )
+    x.add_argument("--run", action="store_true", help="start the engine (the default)")
     x.add_argument(
         "--trigger",
         action="store_true",
@@ -177,27 +174,21 @@ def _parser() -> argparse.ArgumentParser:
     return p
 
 
-# ── service / IPC ────────────────────────────────────────────────────
+# ── engine / IPC ─────────────────────────────────────────────────────
 
 
 def cmd_run(_args: object) -> int:
-    # If a service is already running (e.g. launched from the app menu while the
-    # systemd unit is active), open its Settings instead of starting a 2nd tray.
+    # If an engine is already running (e.g. launched by the Tauri app), ask its
+    # UI to show Settings instead of starting a 2nd instance.
     from macaw.trigger import send_command
 
     if send_command("SETTINGS", timeout_ms=500) is not None:
         print("Macaw is already running — opened Settings.")
         return 0
 
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s %(name)s %(levelname)s %(message)s",
-        datefmt="%H:%M:%S",
-    )
-    from macaw.service import MacawService
+    from macaw.engine import main as engine_main
 
-    MacawService().run()
-    return 0
+    return engine_main([])
 
 
 def _open(command: str) -> int:

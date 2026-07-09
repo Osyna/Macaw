@@ -1,18 +1,13 @@
-"""Global-shortcut feature checks. Run: python tests/test_hotkey.py
+"""Global-shortcut feature checks. Run: uv run pytest tests/test_hotkey.py
 
 Headless: no real input devices, no network. evdev is only imported inside the
-tests that need it (it lives in the dev group); the capture widget runs on the
-offscreen platform and is driven through its handler methods, not real events.
+tests that need it (it lives in the dev group); the matcher/capture state
+machines run on fake integer codes.
 """
 
 from __future__ import annotations
 
-import os
-
-os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-
 import pytest
-from PyQt6.QtWidgets import QApplication
 
 from macaw.hotkey import (
     _CaptureState,
@@ -24,9 +19,6 @@ from macaw.hotkey import (
     pretty,
     resolve_spec,
 )
-
-app = QApplication.instance() or QApplication([])
-
 
 # -- spec helpers ---------------------------------------------------------
 
@@ -177,61 +169,3 @@ def test_reverse_maps_covers_meta_space_and_ctrl():
     assert mod_by_code[ecodes.KEY_LEFTMETA] == "super"  # Super -> super
     assert mod_by_code[ecodes.KEY_RIGHTMETA] == "super"
     assert mod_by_code[ecodes.KEY_LEFTCTRL] == "ctrl"
-
-
-# -- ShortcutCapture widget, driven through its handlers (offscreen) -------
-
-
-def test_widget_set_spec_renders_pretty_super_label():
-    from macaw.gui.shortcut import ShortcutCapture
-
-    w = ShortcutCapture()
-    w.set_spec("ctrl+super+space")
-    assert w.spec() == "ctrl+super+space"
-    # Field shows the pretty form; capital 'Super' proves pretty() was applied
-    # (the raw spec only carries lowercase 'super').
-    assert "Super" in w._field.text()
-
-
-def test_widget_preview_shows_held_modifiers():
-    from macaw.gui.shortcut import ShortcutCapture
-
-    w = ShortcutCapture()
-    w._on_preview("ctrl+super")
-    assert "Ctrl + Super" in w._field.text()
-
-
-def test_widget_captured_then_finished_commits_and_emits():
-    from macaw.gui.shortcut import ShortcutCapture
-
-    w = ShortcutCapture()
-    emitted: list[str] = []
-    w.changed.connect(emitted.append)
-
-    w._on_captured("super+k")
-    w._on_finished()
-
-    assert w.spec() == "super+k"
-    assert emitted == ["super+k"]
-
-
-def test_capture_clear_empties_spec_and_emits():
-    from macaw.gui.shortcut import ShortcutCapture
-
-    w = ShortcutCapture()
-    w.set_spec("ctrl+alt+space")
-    emitted: list[str] = []
-    w.changed.connect(emitted.append)
-
-    w._do_clear()
-
-    assert w.spec() == ""
-    assert emitted == [""]
-
-
-if __name__ == "__main__":
-    for name, fn in sorted(globals().items()):
-        if name.startswith("test_") and callable(fn):
-            fn()
-            print(f"ok  {name}")
-    print("\nall passed")
