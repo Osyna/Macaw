@@ -2198,7 +2198,7 @@ cuda = [
     { name = "nvidia-cudnn-cu12" },
 ]
 hotkey = [
-    { name = "evdev" },
+    { name = "evdev", marker = "sys_platform == 'linux'" },
 ]
 moonshine = [
     { name = "useful-moonshine-onnx" },
@@ -2225,7 +2225,7 @@ voxtral = [
 
 [package.dev-dependencies]
 dev = [
-    { name = "evdev" },
+    { name = "evdev", marker = "sys_platform == 'linux'" },
     { name = "pre-commit" },
     { name = "pytest" },
     { name = "ruff" },
@@ -2234,7 +2234,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "accelerate", marker = "extra == 'voxtral'" },
-    { name = "evdev", marker = "extra == 'hotkey'", specifier = ">=1.6" },
+    { name = "evdev", marker = "sys_platform == 'linux' and extra == 'hotkey'", specifier = ">=1.6" },
     { name = "faster-whisper", specifier = ">=1.1.0" },
     { name = "huggingface-hub", marker = "extra == 'sherpa'", specifier = ">=0.20" },
     { name = "mistral-common", extras = ["audio"], marker = "extra == 'voxtral'", specifier = ">=1.8" },
@@ -2261,7 +2261,7 @@ provides-extras = ["cuda", "rocm", "moonshine", "nemo", "voxtral", "sherpa", "op
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "evdev", specifier = ">=1.6" },
+    { name = "evdev", marker = "sys_platform == 'linux'", specifier = ">=1.6" },
     { name = "pre-commit", specifier = ">=4.0" },
     { name = "pytest", specifier = ">=8" },
     { name = "ruff", specifier = ">=0.11" },
