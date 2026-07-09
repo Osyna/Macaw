@@ -1,4 +1,4 @@
-"""Backend registry + Transcriber facade checks. Run: python tests/test_stt.py"""
+"""Backend registry + Transcriber facade checks. Run: uv run pytest tests/test_stt.py"""
 
 from __future__ import annotations
 
@@ -38,6 +38,24 @@ def test_silence_gate_returns_empty_without_loading():
     assert t.transcribe(np.zeros(16_000, dtype=np.float32)) == ""
 
 
+def test_empty_model_is_not_ready():
+    # No model selected yet → never ready; the engine blocks recording on this.
+    assert Transcriber(model_size="").is_ready() is False
+
+
+def test_lang_select_is_a_per_model_capability():
+    # Multilingual models opt in; English-only variants opt out — a flipped
+    # flag would wrongly show/hide the per-model language chooser in the UI.
+    cases = {
+        "large-v3-turbo": True,  # whisper multilingual
+        "distil-large-v3": False,  # whisper EN-only override
+        "nvidia/parakeet-tdt-0.6b-v3": True,  # parakeet 25-lang
+        "nvidia/parakeet-tdt-0.6b-v2": False,  # parakeet EN-only
+    }
+    for model_id, expected in cases.items():
+        assert stt.get_model_info(model_id).lang_select is expected, model_id
+
+
 def test_switching_model_recreates_backend():
     t = Transcriber(model_size="large-v3-turbo")
     t._ensure_backend()
@@ -60,8 +78,10 @@ def test_backend_exposes_management_surface():
     assert b.hf_repos()  # whisper maps id -> repo
 
 
-def test_optional_backend_reports_unavailable_without_dep():
-    # nemo isn't installed in CI → available() is False, and it must not raise.
+def test_optional_backend_reports_unavailable_without_venv(monkeypatch, tmp_path):
+    # Isolated backends are available exactly when their venv exists; a fresh
+    # XDG_DATA_HOME has none — available() must be False and must not raise.
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
     assert stt.create_backend("nvidia/parakeet-tdt-0.6b-v3").available() is False
 
 
@@ -143,11 +163,3 @@ def test_adding_a_backend_is_the_whole_job():
     b = stt.create_backend("_dummy-model")
     b.load()
     assert b.transcribe(np.zeros(10, dtype=np.float32)) == "dummy output"
-
-
-if __name__ == "__main__":
-    for name, fn in sorted(globals().items()):
-        if name.startswith("test_") and callable(fn):
-            fn()
-            print(f"ok  {name}")
-    print("\nall passed")

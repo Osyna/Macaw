@@ -18,8 +18,58 @@ from __future__ import annotations
 
 import logging
 import sys
+import threading
 
-from PyQt6.QtCore import QThread, pyqtSignal
+
+class _BoundSignal:
+    """Qt-free signal. Callbacks run synchronously on the EMITTING thread —
+    no event-loop marshalling; bridge into your loop if you need affinity."""
+
+    def __init__(self) -> None:
+        self._fns: list = []
+
+    def connect(self, fn) -> None:
+        self._fns.append(fn)
+
+    def disconnect(self, fn) -> None:
+        self._fns.remove(fn)
+
+    def emit(self, *args) -> None:
+        for fn in list(self._fns):
+            fn(*args)
+
+
+class pyqtSignal:
+    """Descriptor mimicking PyQt's class-level signal declaration (per-instance)."""
+
+    def __init__(self, *_types) -> None:
+        self._attr = ""
+
+    def __set_name__(self, owner, name) -> None:
+        self._attr = f"_signal_{name}"
+
+    def __get__(self, obj, objtype=None):
+        if obj is None:
+            return self
+        sig = obj.__dict__.get(self._attr)
+        if sig is None:
+            sig = _BoundSignal()
+            obj.__dict__[self._attr] = sig
+        return sig
+
+
+class QThread(threading.Thread):
+    """Minimal stand-in for the QThread surface the listeners use."""
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(daemon=True)
+
+    def wait(self, ms: float | None = None) -> None:
+        self.join(None if ms is None else ms / 1000)
+
+    def isRunning(self) -> bool:
+        return self.is_alive()
+
 
 logger = logging.getLogger("macaw")
 

@@ -1,9 +1,11 @@
 name: Release
 
-# Cut a release with `make tag VERSION=X.Y.Z` (bumps pyproject.toml + the AUR
-# PKGBUILD and tags), then `git push && git push origin vX.Y.Z`.
-# This builds the wheel, sdist and a self-contained CPU AppImage, then creates a
-# GitHub Release with all artifacts + SHA256SUMS and auto-generated notes.
+# Cut a release with `make tag VERSION=X.Y.Z` (bumps pyproject.toml and tags),
+# then `git push && git push origin vX.Y.Z`.
+# Builds the wheel, sdist and the Linux Tauri bundles (AppImage/deb/rpm with the
+# PyInstaller engine as sidecar), then creates a GitHub Release with all
+# artifacts + SHA256SUMS and auto-generated notes.
+# The Windows installer is attached by windows.yml on the same tag.
 
 on:
   push:
@@ -15,7 +17,7 @@ permissions:
 
 jobs:
   release:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
         with:
@@ -24,6 +26,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
+      - uses: astral-sh/setup-uv@v5
 
       - name: Verify tag matches pyproject version
         run: |
@@ -35,27 +39,50 @@ jobs:
           fi
           echo "Releasing v$VERSION"
 
-      - name: Install build tools
-        run: pip install build
-
       - name: Build wheel and sdist
-        run: python -m build
+        run: uv build
 
-      - name: Build AppImage (CPU / base Whisper)
-        run: |
-          bash packaging/appimage/build.sh dist/macaw-*.whl
-          mv macaw-*.AppImage dist/
+      - name: Install Python deps
+        run: uv sync
 
-      - name: Stage AUR PKGBUILD with this version
+      - name: Build engine with PyInstaller
+        run: uv run --with pyinstaller pyinstaller packaging/engine/macaw-engine.spec --noconfirm
+
+      - name: Smoke-test the frozen engine
+        run: dist/macaw-engine --help
+
+      - name: Install Tauri system deps
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          sed "s/^pkgver=.*/pkgver=${VERSION}/" packaging/aur/PKGBUILD > dist/PKGBUILD
-          cp packaging/aur/macaw.install dist/macaw.install
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file \
+            libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Install frontend deps
+        run: bun install
+        working-directory: ui
+
+      - name: Stage engine sidecar
+        run: |
+          mkdir -p src-tauri/binaries
+          cp dist/macaw-engine src-tauri/binaries/macaw-engine-x86_64-unknown-linux-gnu
+
+      - name: Build Tauri app (AppImage/deb/rpm)
+        run: bunx @tauri-apps/cli@^2 build --bundles appimage,deb,rpm
+
+      - name: Collect bundles
+        run: |
+          cp src-tauri/target/release/bundle/appimage/*.AppImage dist/
+          cp src-tauri/target/release/bundle/deb/*.deb dist/
+          cp src-tauri/target/release/bundle/rpm/*.rpm dist/
 
       - name: Generate checksums
         run: |
           cd dist
-          sha256sum *.whl *.tar.gz *.AppImage PKGBUILD macaw.install > SHA256SUMS
+          sha256sum *.whl *.tar.gz *.AppImage *.deb *.rpm > SHA256SUMS
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -66,6 +93,6 @@ jobs:
             dist/*.whl
             dist/*.tar.gz
             dist/*.AppImage
-            dist/PKGBUILD
-            dist/macaw.install
+            dist/*.deb
+            dist/*.rpm
             dist/SHA256SUMS

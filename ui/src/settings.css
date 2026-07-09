@@ -1,0 +1,357 @@
+/* Settings tab. Colours ONLY via base.css vars. All classes st- prefixed. */
+
+.st-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 14px;
+  align-items: start;
+  padding: 14px;
+  color: var(--fg);
+}
+
+.st-grid [hidden] {
+  display: none !important;
+}
+
+/* Cards */
+.st-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px 16px;
+}
+
+.st-card.st-wide {
+  grid-column: 1 / -1;
+}
+
+.st-card h2 {
+  margin: 0 0 10px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.st-body,
+.st-col {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* Rows: label left, control right */
+.st-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 34px;
+}
+
+.st-row.st-stack {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+}
+
+.st-lbl {
+  font-size: 13px;
+  color: var(--fg);
+}
+
+.st-hint {
+  font-size: 11px;
+  color: var(--muted);
+  margin: -2px 0 6px;
+}
+
+.st-warn {
+  font-size: 11px;
+  color: var(--warn);
+  margin: -2px 0 6px;
+}
+
+/* Controls (base.css styles select/input/button surfaces; we size them) */
+.st-select {
+  max-width: 220px;
+}
+
+.st-num {
+  width: 74px;
+}
+
+.st-grid input[type="range"] {
+  width: 140px;
+  accent-color: var(--accent);
+}
+
+.st-grid input[type="radio"] {
+  accent-color: var(--accent);
+  margin: 0;
+}
+
+.st-grid input[type="color"] {
+  width: 34px;
+  height: 26px;
+  padding: 2px;
+  background: var(--control);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.st-radios {
+  display: flex;
+  gap: 14px;
+}
+
+.st-radio {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.st-slider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.st-pct {
+  font-size: 12px;
+  color: var(--muted);
+  min-width: 38px;
+  text-align: right;
+}
+
+.st-mini {
+  padding: 3px 8px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.st-mini:hover:not(:disabled) {
+  color: var(--fg);
+}
+
+/* Toggle switch */
+.st-switch {
+  position: relative;
+  display: inline-block;
+  flex: none;
+  width: 38px;
+  height: 22px;
+  cursor: pointer;
+}
+
+.st-switch input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.st-knob {
+  position: absolute;
+  inset: 0;
+  background: var(--control);
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.st-knob::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--muted);
+  transition: transform 0.15s, background 0.15s;
+}
+
+.st-switch input:checked + .st-knob {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.st-switch input:checked + .st-knob::after {
+  transform: translateX(16px);
+  background: var(--accent-fg);
+}
+
+.st-switch input:disabled + .st-knob {
+  opacity: 0.45;
+}
+
+.st-switch input:focus-visible + .st-knob {
+  outline: 1px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* Hotkey */
+.st-hotkey {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.st-kbd {
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+  color: var(--fg);
+  background: var(--control);
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: 6px;
+  padding: 3px 8px;
+}
+
+.st-capturing {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* Live overlay preview */
+.st-stage {
+  position: relative;
+  height: 150px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin-bottom: 12px;
+}
+
+.st-cap {
+  position: absolute;
+  top: 8px;
+  left: 12px;
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: var(--muted);
+}
+
+.st-pill {
+  position: relative;
+  flex: none;
+}
+
+.st-bars {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.st-bar {
+  flex: none;
+}
+
+/* Appearance two-column control grid */
+.st-grid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 32px;
+}
+
+@media (max-width: 760px) {
+  .st-grid2 {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Corner editor */
+.st-corner-uni {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.st-quad {
+  display: flex;
+  gap: 8px;
+}
+
+.st-quad-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.st-quad-cell .st-num {
+  width: 54px;
+}
+
+.st-quad-lbl {
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: var(--muted);
+}
+
+/* Equaliser colour editor */
+.st-eq {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0 4px;
+}
+
+.st-eq-item {
+  display: flex;
+  align-items: center;
+  background: var(--control);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 2px;
+}
+
+.st-eq-item input[type="color"] {
+  width: 30px;
+  height: 22px;
+  border: none;
+  background: none;
+  padding: 0;
+}
+
+.st-eq-rm {
+  border: none;
+  background: none;
+  color: var(--muted);
+  font-size: 13px;
+  padding: 0 5px;
+  cursor: pointer;
+}
+
+.st-eq-rm:hover:not(:disabled) {
+  color: var(--danger);
+}
+
+.st-eq-rm:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* Themed (= unset) colour override */
+.st-color {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.st-color.st-themed input[type="color"] {
+  opacity: 0.55;
+}

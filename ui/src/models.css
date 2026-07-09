@@ -1,0 +1,477 @@
+/* Models tab — colors come exclusively from theme.ts CSS vars. */
+
+.models {
+  position: relative;
+  gap: 20px;
+  height: 100%;
+  min-height: 0;
+}
+/* display comes from the tab switcher (base.css hides inactive sections);
+   .active must win that specificity war with a class-qualified rule. */
+main > section.models.active {
+  display: flex;
+}
+.models.m-off .m-left,
+.models.m-off .m-detail {
+  opacity: 0.45;
+  pointer-events: none;
+}
+.m-offline {
+  display: none;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 2;
+  padding: 5px;
+  text-align: center;
+  background: var(--warn);
+  color: var(--bg);
+  font-size: 12px;
+  border-radius: 6px;
+}
+
+/* -- left column: model cards ------------------------------------ */
+
+.m-left {
+  flex: none;
+  width: 320px;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.m-title {
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+.m-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-right: 2px;
+}
+.m-empty {
+  color: var(--muted);
+  font-size: 12px;
+  padding: 12px 4px;
+}
+.m-card {
+  background: var(--control);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.m-card:hover {
+  border-color: var(--muted);
+}
+.m-card.sel {
+  border-color: var(--accent);
+  background: var(--surface);
+}
+.m-card.dim .m-card-label {
+  color: var(--muted);
+}
+.m-card-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.m-card-label {
+  flex: 1;
+  min-width: 0;
+  color: var(--fg);
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.m-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.m-chip {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 1px 8px;
+  font-size: 10px;
+  color: var(--fg);
+}
+.m-card-bottom {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.m-stars {
+  font-size: 13px;
+  letter-spacing: 1px;
+  line-height: 1;
+}
+.m-stars-on {
+  color: var(--warn);
+}
+.m-stars-off {
+  color: var(--muted);
+}
+.m-badge {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0 7px;
+  font-size: 10px;
+  line-height: 16px;
+  color: var(--muted);
+}
+.m-badge-rec {
+  color: var(--ok);
+  border-color: var(--ok);
+}
+.m-badge-active {
+  color: var(--accent-fg);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.m-spin {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: m-rot 0.8s linear infinite;
+}
+@keyframes m-rot {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* -- right: detail panel ------------------------------------------ */
+
+.m-detail {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-bottom: 16px;
+}
+.m-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 14px;
+}
+.m-name {
+  margin: 0;
+  color: var(--fg);
+  font-size: 20px;
+  font-weight: 600;
+}
+.m-meta {
+  color: var(--muted);
+  font-size: 12px;
+}
+.m-status {
+  font-size: 12px;
+}
+.m-status.ok {
+  color: var(--ok);
+}
+.m-status.warn {
+  color: var(--warn);
+}
+.m-status.muted {
+  color: var(--muted);
+}
+.m-notes p {
+  margin: 0 0 4px;
+  color: var(--fg);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.m-pro,
+.m-con {
+  font-size: 13px;
+  line-height: 1.45;
+}
+.m-pro {
+  color: var(--ok);
+}
+.m-con {
+  color: var(--danger);
+}
+.m-specs {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 12px 24px;
+}
+.m-kv .m-k {
+  color: var(--muted);
+  font-size: 9px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+.m-kv .m-v {
+  color: var(--fg);
+  font-size: 13px;
+}
+.m-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 28px;
+}
+.m-link {
+  color: var(--ok);
+  font-size: 12px;
+  text-decoration: none;
+  word-break: break-all;
+}
+.m-link:hover {
+  text-decoration: underline;
+}
+.m-sep {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 4px 0;
+}
+
+/* -- sections (api key / language / params) ----------------------- */
+
+.m-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.m-sec-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+}
+.m-hint {
+  color: var(--muted);
+  font-size: 11px;
+}
+.m-key-set {
+  color: var(--ok);
+  font-size: 11px;
+  letter-spacing: normal;
+  text-transform: none;
+}
+.m-key-unset {
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: normal;
+  text-transform: none;
+}
+.m-keyrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 420px;
+}
+.m-keyrow .m-input {
+  flex: 1;
+  min-width: 0;
+}
+.m-input,
+.m-select {
+  background: var(--control);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 13px;
+  font-family: inherit;
+}
+.m-input:focus,
+.m-select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.m-num {
+  width: 90px;
+}
+.m-select {
+  width: 180px;
+}
+.m-params {
+  max-width: 460px;
+}
+.m-param-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.m-param-label {
+  flex: 1;
+  color: var(--fg);
+  font-size: 13px;
+}
+
+/* toggle switch (bool params) */
+.m-toggle {
+  position: relative;
+  flex: none;
+  width: 40px;
+  height: 22px;
+}
+.m-toggle input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.m-toggle-track {
+  position: absolute;
+  inset: 0;
+  background: var(--control);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  pointer-events: none;
+  transition: background 0.15s, border-color 0.15s;
+}
+.m-toggle-track::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--muted);
+  transition: transform 0.15s, background 0.15s;
+}
+.m-toggle input:checked + .m-toggle-track {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.m-toggle input:checked + .m-toggle-track::after {
+  transform: translateX(18px);
+  background: var(--accent-fg);
+}
+
+/* -- actions / activity -------------------------------------------- */
+
+.m-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.m-btn {
+  background: transparent;
+  color: var(--fg);
+  border: 1px solid var(--fg);
+  border-radius: 6px;
+  padding: 5px 14px;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+}
+.m-btn:hover {
+  background: var(--control);
+}
+.m-btn:disabled {
+  color: var(--border);
+  border-color: var(--border);
+  background: transparent;
+  cursor: default;
+}
+.m-btn.m-ok {
+  color: var(--ok);
+  border-color: var(--ok);
+}
+.m-btn.m-accent {
+  color: var(--accent-fg);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.m-btn.m-accent:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+.m-btn.m-danger {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+.m-btn.m-danger.m-armed {
+  background: var(--danger);
+  color: var(--bg);
+}
+.m-btn.m-ghost {
+  color: var(--muted);
+  border-color: var(--border);
+  padding: 5px 10px;
+}
+.m-pill-active {
+  color: var(--ok);
+  border: 1px solid var(--ok);
+  border-radius: 999px;
+  padding: 4px 14px;
+  font-size: 12px;
+}
+.m-activity {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.m-activity .m-btn {
+  align-self: flex-start;
+}
+.m-bar {
+  height: 8px;
+  background: var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.m-bar-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 4px;
+  transition: width 0.2s;
+}
+.m-bar.m-ind .m-bar-fill {
+  width: 30%;
+  animation: m-slide 1.2s ease-in-out infinite;
+}
+@keyframes m-slide {
+  0% {
+    margin-left: -30%;
+  }
+  100% {
+    margin-left: 100%;
+  }
+}
+.m-op-msg {
+  color: var(--muted);
+  font-size: 12px;
+  font-style: italic;
+}
+.m-op-msg.err {
+  color: var(--danger);
+  font-style: normal;
+}
