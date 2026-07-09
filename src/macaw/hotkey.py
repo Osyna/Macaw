@@ -1,18 +1,23 @@
-"""Global shortcut support via evdev.
+"""Global shortcut support.
 
-Reading the kernel input layer (``/dev/input/event*``) works identically on X11
-and on every Wayland compositor, so this is the one hotkey mechanism that is
-portable across Linux desktops. It needs read access to input devices — i.e.
+Linux: reading the kernel input layer (``/dev/input/event*``) works identically
+on X11 and on every Wayland compositor, so this is the one hotkey mechanism that
+is portable across Linux desktops. It needs read access to input devices — i.e.
 membership in the ``input`` group (the same access ydotool already requires).
-
 The listener only *monitors*; it never grabs the keys, so the combo still
-reaches whatever else is listening. Spec strings are canonical, e.g.
-``"ctrl+alt+space"`` — modifiers plus one main key.
+reaches whatever else is listening.
+
+Windows: ``macaw._hotkey_win`` provides the same classes via RegisterHotKey and
+a low-level keyboard hook; the re-export at the bottom picks the platform.
+
+Spec strings are canonical, e.g. ``"ctrl+alt+space"`` — modifiers plus one main
+key. Parse/format/validate helpers below are pure and shared by both backends.
 """
 
 from __future__ import annotations
 
 import logging
+import sys
 
 from PyQt6.QtCore import QThread, pyqtSignal
 
@@ -372,3 +377,7 @@ class HotkeyCapture(QThread):
                     d.close()
                 except Exception:  # noqa: BLE001
                     pass
+
+
+if sys.platform == "win32":  # pragma: no cover — exercised on Windows only
+    pass

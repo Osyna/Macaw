@@ -2,6 +2,10 @@
 
 Notable changes to Macaw. Older releases live on the [releases page](https://github.com/Osyna/Macaw/releases).
 
+## Unreleased
+
+- **Windows (win64, beta)** — Macaw now runs natively on Windows. Global hotkey via `RegisterHotKey`, typing via `SendInput`, IPC over loopback TCP, and a PyInstaller zip on every release (`Macaw.exe` tray app + `macaw-cli.exe` console twin, `uv.exe` bundled so sandboxed model installs work out of the box). Whisper, sherpa-onnx, Moonshine, Voxtral, and GPT-4o cloud all work; NeMo stays Linux-only.
+
 ## v0.3.0 — Eight new brains, one honest Manager
 
 The model catalog triples down: **24 models across 7 engines**, and the Manager finally tells you which one *you* should run.

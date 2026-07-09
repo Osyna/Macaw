@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import ctypes
 import json
 import logging
 import os
 import shutil
 import subprocess
+import sys
 import time
 
 logger = logging.getLogger("macaw")
@@ -106,6 +108,8 @@ def _is_xwayland_window(window_address: str) -> bool | None:
 
 def auto_type_available() -> bool:
     """True if a keystroke-injection tool for auto-type is installed."""
+    if sys.platform == "win32":
+        return True  # SendInput is part of the OS
     return any(_has(t) for t in ("ydotool", "wtype", "xdotool"))
 
 
@@ -113,7 +117,10 @@ def auto_type_package(display: str | None = None) -> str:
     """Recommended system package that provides auto-type for this session.
 
     ydotool on Wayland (it also drives XWayland apps), xdotool on X11.
+    Windows needs nothing — SendInput is built in.
     """
+    if display is None and sys.platform == "win32":
+        return ""
     if (display or _display_server()) == "wayland":
         return "ydotool"
     return "xdotool"
@@ -545,3 +552,170 @@ def _sway_find_focused(node: dict) -> int | None:
         if result is not None:
             return result
     return None
+
+
+# ---------------------------------------------------------------------------
+# Windows backend (SendInput + pyperclip). Same public surface as DesktopHelper.
+# ---------------------------------------------------------------------------
+
+_INPUT_KEYBOARD = 1
+_KEYEVENTF_KEYUP = 0x0002
+_KEYEVENTF_UNICODE = 0x0004
+_VK_CONTROL = 0x11
+_VK_RETURN = 0x0D
+_VK_V = 0x56
+
+
+class _KEYBDINPUT(ctypes.Structure):
+    _fields_ = [
+        ("wVk", ctypes.c_ushort),
+        ("wScan", ctypes.c_ushort),
+        ("dwFlags", ctypes.c_ulong),
+        ("time", ctypes.c_ulong),
+        ("dwExtraInfo", ctypes.c_void_p),
+    ]
+
+
+class _INPUT(ctypes.Structure):
+    class _U(ctypes.Union):
+        # MOUSEINPUT (32 bytes on x64) is the largest union member; pad to it so
+        # sizeof(_INPUT) matches the Win32 INPUT struct SendInput validates.
+        _fields_ = [("ki", _KEYBDINPUT), ("pad", ctypes.c_ubyte * 32)]
+
+    _anonymous_ = ("u",)
+    _fields_ = [("type", ctypes.c_ulong), ("u", _U)]
+
+
+def _key_event(vk: int = 0, scan: int = 0, flags: int = 0) -> _INPUT:
+    ev = _INPUT()
+    ev.type = _INPUT_KEYBOARD
+    ev.ki = _KEYBDINPUT(vk, scan, flags, 0, None)
+    return ev
+
+
+def _send_events(events: list[_INPUT]) -> bool:
+    """Feed events to SendInput in one atomic batch. True if all were injected."""
+    if not events:
+        return True
+    arr = (_INPUT * len(events))(*events)
+    sent = ctypes.windll.user32.SendInput(len(events), arr, ctypes.sizeof(_INPUT))
+    return sent == len(events)
+
+
+def _text_events(text: str) -> list[_INPUT]:
+    """KEYEVENTF_UNICODE press/release pairs for `text` (newline -> Enter)."""
+    events: list[_INPUT] = []
+    for ch in text:
+        if ch == "\r":
+            continue
+        if ch == "\n":
+            events.append(_key_event(vk=_VK_RETURN))
+            events.append(_key_event(vk=_VK_RETURN, flags=_KEYEVENTF_KEYUP))
+            continue
+        # UTF-16 code units — surrogate pairs handle emoji and friends.
+        raw = ch.encode("utf-16-le")
+        for i in range(0, len(raw), 2):
+            unit = raw[i] | (raw[i + 1] << 8)
+            events.append(_key_event(scan=unit, flags=_KEYEVENTF_UNICODE))
+            events.append(
+                _key_event(scan=unit, flags=_KEYEVENTF_UNICODE | _KEYEVENTF_KEYUP)
+            )
+    return events
+
+
+class _WinDesktop:
+    """DesktopHelper for Windows: clipboard via pyperclip (native Win32 inside),
+    window focus via GetForegroundWindow, keystrokes via SendInput."""
+
+    def __init__(self) -> None:
+        self.display = "windows"
+        self.compositor = None
+        self._window_class = ""
+        logger.info("Desktop: windows (SendInput + pyperclip)")
+
+    # -- clipboard operations -------------------------------------------
+
+    def clipboard_read(self) -> bytes | None:
+        try:
+            import pyperclip
+
+            return pyperclip.paste().encode("utf-8")
+        except Exception:  # noqa: BLE001
+            return None
+
+    def clipboard_write(self, text: str) -> bool:
+        try:
+            import pyperclip
+
+            pyperclip.copy(text)
+            return True
+        except Exception:  # noqa: BLE001
+            return False
+
+    def clipboard_restore(self, data: bytes | None) -> None:
+        try:
+            import pyperclip
+
+            pyperclip.copy((data or b"").decode("utf-8", "replace"))
+        except Exception:  # noqa: BLE001
+            pass
+
+    # -- window focus ---------------------------------------------------
+
+    def capture_active_window(self) -> str | None:
+        hwnd = ctypes.windll.user32.GetForegroundWindow()
+        return str(hwnd) if hwnd else None
+
+    def focus_window(self, window_id: str | None) -> None:
+        # ponytail: SetForegroundWindow is best-effort — Windows refuses it for
+        # background processes sometimes; the target usually still has focus.
+        if not window_id:
+            return
+        try:
+            ctypes.windll.user32.SetForegroundWindow(int(window_id))
+        except Exception:  # noqa: BLE001
+            pass
+
+    # -- paste / typing ---------------------------------------------------
+
+    def simulate_paste(self, window_id: str | None = None) -> bool:
+        return _send_events(
+            [
+                _key_event(vk=_VK_CONTROL),
+                _key_event(vk=_VK_V),
+                _key_event(vk=_VK_V, flags=_KEYEVENTF_KEYUP),
+                _key_event(vk=_VK_CONTROL, flags=_KEYEVENTF_KEYUP),
+            ]
+        )
+
+    def _type_directly(self, text: str, window_id: str | None = None) -> bool:
+        events = _text_events(text)
+        ok = True
+        for i in range(0, len(events), 512):  # keep SendInput batches sane
+            ok = _send_events(events[i : i + 512]) and ok
+        return ok
+
+    # -- high-level: type text into the focused window ------------------
+
+    def type_into_window(self, text: str, window_id: str | None = None) -> None:
+        if window_id:
+            self.focus_window(window_id)
+            time.sleep(0.05)
+        saved = self.clipboard_read()
+        try:
+            if self.clipboard_write(text):
+                time.sleep(0.03)
+                if self.simulate_paste():
+                    logger.debug("Desktop: pasted via clipboard")
+                    return
+        finally:
+            time.sleep(0.15)
+            self.clipboard_restore(saved)
+        if self._type_directly(text):
+            logger.debug("Desktop: typed directly (slow path)")
+            return
+        logger.warning("Desktop: all typing methods failed")
+
+
+if sys.platform == "win32":  # pragma: no cover — exercised on Windows only
+    DesktopHelper = _WinDesktop  # noqa: F811 — deliberate platform override

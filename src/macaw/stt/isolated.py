@@ -32,6 +32,8 @@ def venv_dir(extra: str) -> Path:
 
 
 def venv_python(extra: str) -> Path:
+    if os.name == "nt":
+        return venv_dir(extra) / "Scripts" / "python.exe"
     return venv_dir(extra) / "bin" / "python"
 
 
@@ -166,6 +168,8 @@ class SubprocessBackend(Backend):
             text=True,
             bufsize=1,
             env=_worker_env(),
+            # Windows: never pop a console window for the background worker.
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
         status = self._read_message()
         if status.get("status") != "ready":

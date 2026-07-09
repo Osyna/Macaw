@@ -7,7 +7,7 @@
 
   <h3>Talk, and Macaw types it. All on your own machine.</h3>
 
-  <p><b>Local-first&nbsp;&nbsp;•&nbsp;&nbsp;Offline by default&nbsp;&nbsp;•&nbsp;&nbsp;No subscription&nbsp;&nbsp;•&nbsp;&nbsp;Wayland &amp; X11</b></p>
+  <p><b>Local-first&nbsp;&nbsp;•&nbsp;&nbsp;Offline by default&nbsp;&nbsp;•&nbsp;&nbsp;No subscription&nbsp;&nbsp;•&nbsp;&nbsp;Wayland &amp; X11&nbsp;&nbsp;•&nbsp;&nbsp;Windows (beta)</b></p>
 
 [![stars-badge-img]][stars-badge]
 [![release-badge-img]][release-badge]
@@ -54,7 +54,7 @@ Press a hotkey, say your sentence, and it drops straight into whatever you're ty
 
 - 🔒 **Local by default.** Every local engine runs fully on your machine — no account, no round-trip. The two GPT-4o cloud models are strictly opt-in, with your own key.
 - 🆓 **Free and open.** MIT-licensed, and the models are open too. No subscription, no per-minute meter.
-- 🐧 **Made for Linux.** Wayland or X11, a tray icon, a systemd user service, and one hotkey to fire it.
+- 🐧 **Made for Linux.** Wayland or X11, a tray icon, a systemd user service, and one hotkey to fire it. A native win64 build (beta) covers Windows too.
 - 🔁 **Swap the brain.** Start on Whisper, move to Parakeet, Voxtral, Moonshine, or the featherweight sherpa-onnx CPU models whenever you feel like it.
 - ⚡ **Uses your GPU.** CUDA when it's there, CPU when it isn't, and nothing to wire up either way.
 
@@ -171,6 +171,18 @@ chmod +x macaw-*-x86_64.AppImage
 ```
 
 It bundles Python, Qt, and the Whisper backend, so you don't need a system Python. The GPU backends aren't included; use the script or AUR for those.
+
+### Windows (experimental)
+
+Grab `macaw-<version>-win64.zip` from the [latest release](https://github.com/Osyna/Macaw/releases/latest), unzip anywhere, and run `Macaw.exe` (tray app) — `macaw-cli.exe` is the same app with a console, handy for `--status`, `--repl`, and reading logs.
+
+What's different on Windows:
+
+- **Hotkey** uses the native `RegisterHotKey` API — set it in Settings as usual (no `input` group, no evdev).
+- **Typing** uses `SendInput` — no ydotool/wtype/xdotool needed.
+- **Models:** Whisper, sherpa-onnx, Moonshine, Voxtral, and the GPT-4o cloud models work; **NeMo (Parakeet GPU / Canary-Qwen) is Linux-only.** `uv.exe` ships in the zip, so sandboxed installs from the Model Manager just work.
+- **Autostart:** press `Win+R`, run `shell:startup`, and drop a shortcut to `Macaw.exe` there.
+- Config lives at `%USERPROFILE%\.config\macaw\config.yaml`.
 
 ### GPU and extra models
 

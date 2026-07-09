@@ -11,6 +11,7 @@ import os
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+import pytest
 from PyQt6.QtWidgets import QApplication
 
 from macaw.hotkey import (
@@ -111,6 +112,7 @@ def test_matcher_requires_every_group_held():
 
 
 def test_resolve_spec_maps_tokens_to_ecodes():
+    pytest.importorskip("evdev")
     from evdev import ecodes
 
     key_code, groups = resolve_spec("ctrl+space")
@@ -119,12 +121,14 @@ def test_resolve_spec_maps_tokens_to_ecodes():
 
 
 def test_resolve_spec_without_modifier_has_empty_groups():
+    pytest.importorskip("evdev")
     from evdev import ecodes
 
     assert resolve_spec("space") == (ecodes.KEY_SPACE, [])
 
 
 def test_resolve_spec_rejects_unknown_key():
+    pytest.importorskip("evdev")
     assert resolve_spec("ctrl+zzz") is None
 
 
@@ -165,6 +169,7 @@ def test_capture_state_modifier_release_previews_remainder():
 
 
 def test_reverse_maps_covers_meta_space_and_ctrl():
+    pytest.importorskip("evdev")
     from evdev import ecodes
 
     key_by_code, mod_by_code = _reverse_maps()

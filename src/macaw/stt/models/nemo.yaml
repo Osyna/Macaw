@@ -23,7 +23,7 @@ models:
     notes: |-
       + Blazing-fast, highly accurate English on an NVIDIA GPU, with automatic punctuation and capitalization.
       + Runs the full-precision NeMo model on CUDA — the quickest way to transcribe English in Macaw.
-      − English only; requires an NVIDIA GPU.
+      − English only; requires an NVIDIA GPU. NeMo runs on Linux only.
   - id: nvidia/parakeet-tdt-0.6b-v3
     backend: parakeet
     label: Parakeet TDT v3 (NeMo)
@@ -40,7 +40,7 @@ models:
       + Multilingual Parakeet: 25 European languages, very fast and very accurate on an NVIDIA GPU.
       + Automatic punctuation, capitalization and word-level timestamps.
       + Runs at full precision on the GPU, so it is faster and a little more accurate than the CPU/ONNX build — this is why it is rated a notch above "Parakeet TDT v3 (ONNX)".
-      − Requires an NVIDIA GPU (CUDA); no CPU fallback.
+      − Requires an NVIDIA GPU (CUDA); no CPU fallback. NeMo runs on Linux only.
   - id: nvidia/canary-qwen-2.5b
     backend: canary-qwen
     label: Canary-Qwen 2.5B
@@ -56,4 +56,4 @@ models:
     notes: |-
       + Tops the open ASR leaderboard for English — the best transcript quality available here.
       + Excellent on difficult audio, punctuation and sentence formatting.
-      − Large 5 GB download, slower to load, and GPU-only.
+      − Large 5 GB download, slower to load, and GPU-only. NeMo runs on Linux only.

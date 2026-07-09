@@ -77,7 +77,14 @@ class _InstallWorker(QThread):
     def _stream(self, cmd: list[str]) -> int:
         logger.info("Install step: %s", " ".join(cmd))
         self._proc = subprocess.Popen(
-            cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+            creationflags=getattr(
+                subprocess, "CREATE_NO_WINDOW", 0
+            ),  # win: no console flash
         )
         assert self._proc.stdout is not None
         for raw in self._proc.stdout:

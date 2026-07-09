@@ -7,6 +7,7 @@ import queue
 import signal
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 
@@ -250,7 +251,7 @@ class MacawService:
         self.main_window.open_settings()
 
     def _reopen_marker(self) -> str:
-        runtime = os.environ.get("XDG_RUNTIME_DIR", "/tmp")
+        runtime = os.environ.get("XDG_RUNTIME_DIR") or tempfile.gettempdir()
         return os.path.join(runtime, "macaw-reopen-settings")
 
     def _show_models(self) -> None:
@@ -354,15 +355,25 @@ class MacawService:
             # Managed by systemd — let it cycle the unit cleanly.
             subprocess.Popen(["systemctl", "--user", "restart", "macaw.service"])
             self.app.quit()
+            return
+        # Foreground: drop the IPC socket file, then start a fresh process.
+        addr = IPC_ADDRESS
+        if addr.startswith("ipc://"):
+            try:
+                os.unlink(addr[len("ipc://") :])
+            except OSError:
+                pass
+        argv = (
+            [sys.executable]
+            if getattr(sys, "frozen", False)  # PyInstaller bundle: exe IS the app
+            else [sys.executable, "-m", "macaw"]
+        )
+        if os.name == "nt":
+            # exec* on Windows doesn't replace the process; spawn + quit instead.
+            subprocess.Popen(argv)
+            self.app.quit()
         else:
-            # Foreground: drop the IPC socket file, then re-exec a fresh process.
-            addr = IPC_ADDRESS
-            if addr.startswith("ipc://"):
-                try:
-                    os.unlink(addr[len("ipc://") :])
-                except OSError:
-                    pass
-            os.execv(sys.executable, [sys.executable, "-m", "macaw"])
+            os.execv(argv[0], argv)
 
     def _start_hotkey(self) -> None:
         """(Re)start the global-shortcut listener to match the current config."""
