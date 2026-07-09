@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import json
 import os
-import select
 import socket
 import subprocess
 import sys
@@ -97,24 +96,31 @@ class EngineProc:
         )
 
     def wait_ready(self, timeout: float = READY_TIMEOUT) -> None:
-        """Block until `READY ws=<port>` appears on stdout (logs are merged)."""
-        buf = b""
-        fd = self.proc.stdout.fileno()
-        deadline = time.monotonic() + timeout
-        while time.monotonic() < deadline:
-            r, _, _ = select.select([fd], [], [], 0.2)
-            if r:
-                chunk = os.read(fd, 4096)
-                if not chunk:
-                    break
-                buf += chunk
-                if f"READY ws={self.port}".encode() in buf:
-                    # Drain further output so the pipe can never block the engine.
-                    threading.Thread(target=self.proc.stdout.read, daemon=True).start()
+        """Block until `READY ws=<port>` appears on stdout (logs are merged).
+
+        A reader thread + event instead of select(): on Windows, select()
+        only accepts sockets — a pipe fd raises WinError 10038.
+        """
+        ready = threading.Event()
+        lines: list[bytes] = []
+        marker = f"READY ws={self.port}".encode()
+
+        def pump() -> None:
+            for line in self.proc.stdout:
+                lines.append(line)
+                if marker in line:
+                    ready.set()
+                    # Keep draining so the pipe can never block the engine.
+                    for _ in self.proc.stdout:
+                        pass
                     return
-            if self.proc.poll() is not None:
-                break
-        out = buf.decode(errors="replace")
+            ready.set()  # EOF — dead engine; the check below reports it
+
+        threading.Thread(target=pump, daemon=True).start()
+        ready.wait(timeout)
+        if any(marker in ln for ln in lines):
+            return
+        out = b"".join(lines).decode(errors="replace")
         raise AssertionError(f"engine not READY (exit={self.proc.poll()}):\n{out}")
 
     def shutdown(self) -> None:
