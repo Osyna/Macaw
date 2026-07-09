@@ -24,11 +24,17 @@ class ModelInfo:
     speed: str  # e.g. "very fast"
     languages: str  # e.g. "99+", "EN", "25"
     streaming: bool = False
+    lang_select: bool = False  # show a per-model language chooser in the card
+    cloud: bool = False  # cloud API model (no local weights; needs an API key)
+    recommended: bool = False  # surfaced as the recommended pick in the Manager
     extra: str | None = None  # pip extra required, e.g. "nemo"; None if in base deps
     # -- hardware recommendations (shown in the Model Manager) --
     hardware: str = "CPU / Any"  # e.g. "NVIDIA / AMD GPU", "CPU / Intel"
     vram: str = "—"  # e.g. "~6 GB", "—" for CPU-light models
     notes: str = ""  # any extra hint
+    rating: int = 0  # curated 0–5 stars, read-only, drives the list sort order
+    min_specs: str = ""  # minimal system to run it (shown in the Manager)
+    rec_specs: str = ""  # recommended system (shown in the Manager)
     # -- provenance (shown in the Model Manager) --
     source_url: str = ""  # GitHub/library page implementing this backend
     repo: str = ""  # HF repo id for the weights → download link + cache size

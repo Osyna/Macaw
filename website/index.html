@@ -9,7 +9,7 @@
     <link rel="apple-touch-icon" href="assets/macaw.png">
     <meta name="theme-color" content="#e5322b">
     <meta name="description"
-        content="Macaw — a friendly, free, open-source local speech-to-text app for Linux. Speak, and it types. Your voice never leaves your machine.">
+        content="Macaw — a friendly, free, open-source local-first speech-to-text app for Linux. Speak, and it types. Offline by default; cloud only if you opt in.">
     <link rel="stylesheet" href="styles/output.css">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -181,7 +181,7 @@
                         <i data-lucide="cpu" class="w-6 h-6"></i>
                     </div>
                     <h3 class="font-bold text-lg text-slate-900 mb-2">Choose your model</h3>
-                    <p class="text-slate-500 leading-relaxed">Ten Whisper models plus Moonshine, Parakeet and Voxtral. Trade a little speed for accuracy, or the other way around — your call.</p>
+                    <p class="text-slate-500 leading-relaxed">Two dozen models across seven engines — Whisper, Moonshine, Parakeet, Canary-Qwen, Voxtral, sherpa-onnx, and opt-in GPT-4o cloud. Trade a little speed for accuracy, or the other way around — your call.</p>
                 </div>
 
                 <div class="group bg-white rounded-3xl border-2 border-slate-900/5 p-7 hover:-translate-y-1 hover:shadow-[8px_8px_0_0_rgba(247,181,0,0.15)] transition-all duration-300">
@@ -233,7 +233,7 @@
                     <i data-lucide="cpu" class="w-4 h-4"></i> Bring your own brain
                 </span>
                 <h2 class="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-slate-900 mb-3">
-                    16 speech models, five engines
+                    24 speech models, seven engines
                 </h2>
                 <p class="text-slate-500 max-w-2xl mx-auto text-base sm:text-lg">
                     Swap models any time from Settings. Each one is open and downloads straight from its makers — here's who builds them.
@@ -346,6 +346,49 @@
                     <a href="https://huggingface.co/mistralai/Voxtral-Mini-3B-2507" target="_blank"
                         class="mt-auto inline-flex items-center gap-1.5 text-sm font-bold text-slate-800 hover:text-brand-600 transition-colors">
                         <i data-lucide="external-link" class="w-4 h-4"></i> mistralai/Voxtral-Mini-3B
+                    </a>
+                </div>
+
+                <!-- sherpa-onnx -->
+                <div class="bg-white rounded-3xl border-2 border-slate-900/5 p-7 flex flex-col hover:-translate-y-1 hover:shadow-[8px_8px_0_0_rgba(47,111,208,0.15)] transition-all duration-300">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center gap-2">
+                            <span class="w-3 h-3 rounded-sm bg-azure"></span>
+                            <h3 class="font-bold text-lg text-slate-900">sherpa-onnx</h3>
+                        </div>
+                        <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">EN · ZH · 25</span>
+                    </div>
+                    <p class="text-sm text-slate-500 leading-relaxed mb-4">Featherweight ONNX models from k2-fsa that fly on plain CPUs — including real-time streaming and bilingual Chinese-English.</p>
+                    <div class="flex flex-wrap gap-1.5 mb-5">
+                        <span class="text-[11px] font-mono bg-blue-50 text-blue-600 rounded-md px-2 py-1">parakeet-onnx v2/v3</span>
+                        <span class="text-[11px] font-mono bg-blue-50 text-blue-600 rounded-md px-2 py-1">zipformer</span>
+                        <span class="text-[11px] font-mono bg-blue-50 text-blue-600 rounded-md px-2 py-1">paraformer</span>
+                        <span class="text-[11px] font-mono bg-slate-100 text-slate-400 rounded-md px-2 py-1">+2 streaming</span>
+                    </div>
+                    <a href="https://github.com/k2-fsa/sherpa-onnx" target="_blank"
+                        class="mt-auto inline-flex items-center gap-1.5 text-sm font-bold text-slate-800 hover:text-brand-600 transition-colors">
+                        <i data-lucide="github" class="w-4 h-4"></i> k2-fsa/sherpa-onnx
+                        <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+                    </a>
+                </div>
+
+                <!-- OpenAI cloud -->
+                <div class="bg-white rounded-3xl border-2 border-slate-900/5 p-7 flex flex-col hover:-translate-y-1 hover:shadow-[8px_8px_0_0_rgba(229,50,43,0.12)] transition-all duration-300">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center gap-2">
+                            <span class="w-3 h-3 rounded-sm bg-brand-500"></span>
+                            <h3 class="font-bold text-lg text-slate-900">GPT-4o cloud</h3>
+                        </div>
+                        <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">99+ langs</span>
+                    </div>
+                    <p class="text-sm text-slate-500 leading-relaxed mb-4">The one exception to "local": OpenAI's transcribe models, strictly opt-in. Bring your own API key — nothing leaves your machine unless you pick them.</p>
+                    <div class="flex flex-wrap gap-1.5 mb-5">
+                        <span class="text-[11px] font-mono bg-brand-50 text-brand-600 rounded-md px-2 py-1">gpt-4o-transcribe</span>
+                        <span class="text-[11px] font-mono bg-brand-50 text-brand-600 rounded-md px-2 py-1">gpt-4o-mini-transcribe</span>
+                    </div>
+                    <a href="https://platform.openai.com/docs/guides/speech-to-text" target="_blank"
+                        class="mt-auto inline-flex items-center gap-1.5 text-sm font-bold text-slate-800 hover:text-brand-600 transition-colors">
+                        <i data-lucide="external-link" class="w-4 h-4"></i> OpenAI speech-to-text
                     </a>
                 </div>
 

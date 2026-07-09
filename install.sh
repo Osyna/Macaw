@@ -220,19 +220,19 @@ is_installed() {
 
 # --- Uninstall ---
 
-# Delete downloaded Whisper models from the HuggingFace cache.
-# Runs through the macaw venv python so it reuses faster-whisper's own
-# repo list — respects HF_HOME/HF_HUB_CACHE and never touches unrelated
-# HuggingFace models the user may have cached. Must run BEFORE the package
-# is uninstalled (needs the venv's faster_whisper + huggingface_hub).
+# Delete every macaw catalog model from the HuggingFace cache.
+# Runs through the macaw venv python so it reuses macaw's own catalog of model
+# repos (all backends, not just Whisper) — respects HF_HOME/HF_HUB_CACHE and
+# never touches unrelated HuggingFace models. Must run BEFORE the package is
+# uninstalled (needs the venv's macaw + huggingface_hub).
 purge_models() {
     local py result
     py="$(get_macaw_python)"
     result="$("$py" - <<'PY' 2>/dev/null
 try:
-    from faster_whisper.utils import _MODELS
     from huggingface_hub import scan_cache_dir
-    repos = set(_MODELS.values())
+    from macaw.stt import list_models
+    repos = {m.repo for m in list_models() if m.repo}
     info = scan_cache_dir()
     sel = [r for r in info.repos if r.repo_id in repos]
     revs = [rev.commit_hash for r in sel for rev in r.revisions]
@@ -255,8 +255,8 @@ PY
             info "No cached models to remove."
             ;;
         *)
-            warn "Could not auto-remove models. Clear them from macaw Settings,"
-            warn "or delete: \${HF_HOME:-~/.cache/huggingface}/hub/models--Systran--faster-*whisper*"
+            warn "Could not auto-remove models. Delete them from the Model Manager,"
+            warn "or clear \${HF_HOME:-~/.cache/huggingface}/hub manually."
             ;;
     esac
 }
@@ -285,9 +285,14 @@ uninstall() {
           "$data_home/icons/hicolor/256x256/apps/macaw.png"
     update-desktop-database "$data_home/applications" 2>/dev/null || true
 
-    # Purge downloaded models BEFORE removing the package (needs the venv).
-    if prompt_yn "Delete downloaded Whisper models (frees disk space)?" "y"; then
+    # Purge downloaded models + isolated backend venvs BEFORE removing the
+    # package (purge_models needs the tool venv's python to read the catalog).
+    if prompt_yn "Delete downloaded models and backends (frees disk space)?" "y"; then
         purge_models
+        if [[ -d "$data_home/macaw" ]]; then
+            rm -rf "$data_home/macaw"
+            info "Removed backend environments ($data_home/macaw)"
+        fi
     fi
 
     if has_cmd uv; then
@@ -915,19 +920,19 @@ run_install() {
     # Detect GPU for acceleration
     # faster-whisper uses CTranslate2 which supports CUDA (NVIDIA) natively
     # and ROCm (AMD) via a separate wheel from GitHub releases.
-    local pip_extra=""
+    local pip_extra="[hotkey]"  # evdev for the global shortcut (feature off by default)
     local gpu_type="none"
     local has_rocm=false
 
     # Check for NVIDIA GPU
     if has_cmd nvidia-smi; then
         gpu_type="nvidia"
-        pip_extra="[cuda]"
+        pip_extra="[cuda,hotkey]"
     else
         for nvcc_path in nvcc /opt/cuda/bin/nvcc /usr/local/cuda/bin/nvcc; do
             if has_cmd "$nvcc_path" || [[ -x "$nvcc_path" ]]; then
                 gpu_type="nvidia"
-                pip_extra="[cuda]"
+                pip_extra="[cuda,hotkey]"
                 break
             fi
         done

@@ -41,6 +41,17 @@ voxtral = [  # Mistral Voxtral
     "torch",
     "accelerate",
 ]
+sherpa = [  # sherpa-onnx ONNX models (Zipformer/Paraformer/Parakeet) — CPU, isolated venv
+    "sherpa-onnx>=1.11.2",
+    "numpy>=2.0.0",           # required at runtime but not declared by sherpa-onnx
+    "huggingface-hub>=0.20",  # fetches the ONNX weights on first use
+]
+openai = [  # GPT-4o cloud transcription — installs into the MAIN env, no isolated venv
+    "openai>=1.0",
+]
+hotkey = [  # global shortcut listener — evdev reads the kernel input layer,
+    "evdev>=1.6",  # so it works on X11 and every Wayland compositor
+]
 
 [project.scripts]
 macaw = "macaw.cli:main"
@@ -51,6 +62,7 @@ dev = [
     "ruff>=0.11",
     "pre-commit>=4.0",
     "pytest>=8",
+    "evdev>=1.6",  # for the hotkey tests (resolve_spec against real ecodes)
 ]
 
 [build-system]

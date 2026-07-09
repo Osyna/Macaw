@@ -3,24 +3,10 @@ from __future__ import annotations
 import logging
 
 from PyQt6.QtCore import QThread, pyqtSignal
-from PyQt6.QtWidgets import (
-    QDialog,
-    QLabel,
-    QProgressBar,
-    QPushButton,
-    QVBoxLayout,
-)
 
 from macaw.audio.transcriber import Transcriber
-from macaw.gui.theme import active_theme
 
 logger = logging.getLogger("macaw")
-
-_T = active_theme()
-BG = _T.bg
-FG = _T.fg
-MUTED = _T.muted
-BORDER = _T.border
 
 
 class _DownloadWorker(QThread):
@@ -59,112 +45,21 @@ class _DownloadWorker(QThread):
         self._cancelled = True
 
 
-class ModelDownloadDialog(QDialog):
-    """Modal dialog showing model download + load progress."""
-
-    model_ready = pyqtSignal()
-
-    def __init__(
-        self,
-        transcriber: Transcriber,
-        parent=None,
-        load_after: bool = True,
-    ) -> None:
-        super().__init__(parent)
-        self.setWindowTitle("Macaw")
-        self.setFixedSize(360, 180)
-        self.setModal(True)
-        self._transcriber = transcriber
-        self._load_after = load_after
-        self._worker: _DownloadWorker | None = None
-
-        self.setStyleSheet(f"""
-            QDialog {{
-                background: {BG};
-                color: {FG};
-                font-family: system-ui, -apple-system, sans-serif;
-            }}
-        """)
-
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(24, 24, 24, 24)
-        layout.setSpacing(12)
-
-        self._title = QLabel(f"Downloading {transcriber.model_size}...")
-        self._title.setStyleSheet(f"color: {FG}; font-size: 13px; font-weight: 500;")
-        layout.addWidget(self._title)
-
-        self._bar = QProgressBar()
-        self._bar.setRange(0, 100)
-        self._bar.setValue(0)
-        self._bar.setStyleSheet(f"""
-            QProgressBar {{
-                background: {BORDER};
-                border: 1px solid {BORDER};
-                height: 8px;
-                text-align: center;
-                color: transparent;
-            }}
-            QProgressBar::chunk {{
-                background: {FG};
-            }}
-        """)
-        layout.addWidget(self._bar)
-
-        self._status = QLabel("")
-        self._status.setStyleSheet(f"color: {MUTED}; font-size: 11px;")
-        layout.addWidget(self._status)
-
-        self._cancel_btn = QPushButton("Cancel")
-        self._cancel_btn.setFixedSize(80, 30)
-        self._cancel_btn.setStyleSheet(f"""
-            QPushButton {{
-                background: transparent;
-                color: {MUTED};
-                border: 1px solid {BORDER};
-                padding: 6px 12px;
-                font-size: 11px;
-            }}
-            QPushButton:hover {{
-                color: {FG};
-                border-color: {MUTED};
-            }}
-        """)
-        self._cancel_btn.clicked.connect(self._on_cancel)
-        layout.addWidget(self._cancel_btn)
-
-    def start(self) -> None:
-        """Start the download and show the dialog."""
-        self._worker = _DownloadWorker(self._transcriber, load_after=self._load_after)
-        self._worker.progress.connect(self._on_progress)
-        self._worker.finished.connect(self._on_finished)
-        self._worker.error.connect(self._on_error)
-        self._worker.start()
-        self.exec()
-
-    def _on_progress(self, pct: int) -> None:
-        self._bar.setValue(pct)
-        self._status.setText(f"{pct}%")
-
-    def _on_finished(self, path: str) -> None:
-        self._bar.setValue(100)
-        if self._load_after:
-            self._title.setText("Loading model...")
-            self._status.setText("Initializing...")
-        else:
-            self._title.setText("Downloaded")
-            self._status.setText("Done")
-        self.model_ready.emit()
-        self.accept()
-
-    def _on_error(self, msg: str) -> None:
-        self._title.setText("Download failed")
-        self._status.setText(msg)
-        self._bar.setRange(0, 100)
-        self._bar.setValue(0)
-        self._cancel_btn.setText("Close")
-
-    def _on_cancel(self) -> None:
-        if self._worker:
-            self._worker.cancel()
-        self.reject()
+_LOADING_QUOTES = [
+    "Warming up the vocal cords…",
+    "Teaching the parrot new words…",
+    "Summoning the phonemes…",
+    "Bribing the GPU…",
+    "Untangling the neural spaghetti…",
+    "Aligning the mel spectrograms…",
+    "Waking the transformer…",
+    "Feeding the parrot a cracker…",
+    "Quantizing the vibes…",
+    "Reticulating splines…",
+    "Polishing the attention heads…",
+    "Convincing the tensors to cooperate…",
+    "Decoding the squawks…",
+    "Spinning up the beam search…",
+    "Loading loquacious layers…",
+    "Tuning the eardrums…",
+]

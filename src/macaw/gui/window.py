@@ -6,9 +6,9 @@ from PyQt6.QtCore import QPointF, QRectF, Qt, QTimer, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QColor, QLinearGradient, QPainter, QPainterPath, QPen
 from PyQt6.QtWidgets import QApplication, QWidget
 
-from macaw.gui.theme import active_theme, qcolor
+from macaw.gui.theme import active_indicator, qcolor
 
-_theme = active_theme()
+_theme = active_indicator()
 
 
 def _palette_color(theme, frac: float, alpha: int) -> QColor:
@@ -57,7 +57,7 @@ def _shape_path(rect: QRectF, corners) -> QPainterPath:
 # ── shared rect-based painters (used by the overlay AND the Settings preview) ──
 
 
-def _paint_overlay(p, rect, theme, state, bars, phase, done) -> None:
+def _paint_overlay(p, rect, theme, state, bars, phase, done, text="") -> None:
     """Draw the whole recording bar into `rect` using `theme`."""
     a = int(255 * max(0.3, min(1.0, theme.overlay_opacity)))
     bw = max(0, int(theme.border_width))
@@ -89,6 +89,8 @@ def _paint_overlay(p, rect, theme, state, bars, phase, done) -> None:
         p.restore()
     elif state == "done":
         _paint_done(p, r, theme, done)
+    elif state == "message":
+        _paint_message(p, r, theme, text)
 
 
 def _bar_layout(rect, theme, n):
@@ -200,13 +202,23 @@ def _paint_done(p, rect, theme, prog) -> None:
         )
 
 
+def _paint_message(p, rect, theme, text: str) -> None:
+    """Centred status text inside the pill (e.g. 'No Model Selected')."""
+    p.setPen(qcolor(theme.fg))
+    f = p.font()
+    f.setPixelSize(max(11, int(rect.height() * 0.30)))
+    f.setBold(True)
+    p.setFont(f)
+    p.drawText(rect.toRect(), Qt.AlignmentFlag.AlignCenter, text)
+
+
 class RecordingWindow(QWidget):
     stop_signal = pyqtSignal()
 
     NUM_BARS = 24
     SMOOTHING = 0.32
 
-    def __init__(self):
+    def __init__(self, width: int = 210, height: int = 52):
         super().__init__()
         self.setWindowTitle("LiveTranscriberOverlay")
         self.setWindowFlags(
@@ -215,7 +227,8 @@ class RecordingWindow(QWidget):
             | Qt.WindowType.Tool
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-        self.setFixedSize(210, 52)
+        self.setFixedSize(width, height)
+        self._theme = _theme  # indicator look; updated live via apply_look()
 
         self.state = "recording"
         self.pulse_phase = 0
@@ -231,27 +244,49 @@ class RecordingWindow(QWidget):
 
         # Done
         self.done_progress = 0.0
+        self.message = ""  # text shown while state == "message"
 
         # Position
         self._placement = "bottom_center"
         self._padding = 32
+        self._custom = (0, 0)
 
         # Animation
         self.timer = QTimer(self)
         self.timer.timeout.connect(self._tick)
         self.timer.start(30)
 
-    def position(self, placement="bottom_center", padding=32):
+    def apply_look(self, theme, width: int, height: int) -> None:
+        """Apply a new indicator look + size live — no restart. The service
+        calls this when the user changes the Appearance settings."""
+        self._theme = theme
+        self.setFixedSize(width, height)
+        if self.isVisible():
+            self._apply_position()
+            self._hyprctl_move()
+        self.update()
+
+    def show_message(self, text: str) -> None:
+        """Show a status message in the overlay (e.g. 'No Model Selected')."""
+        self.message = text
+        self.state = "message"
+        self.update()
+
+    def position(self, placement="bottom_center", padding=32, custom=(0, 0)):
         self._placement = placement
         self._padding = padding
+        self._custom = custom
         self._apply_position()
 
-    def _apply_position(self):
+    def _target_xy(self):
+        """Top-left (x, y) for the current placement. 'custom' uses the exact
+        user coords; every preset is derived from the screen + padding."""
+        if self._placement == "custom":
+            return self._custom
         screen = QApplication.primaryScreen().geometry()
         sw, sh = screen.width(), screen.height()
         ww, wh = self.width(), self.height()
         p = self._padding
-
         positions = {
             "top_left": (p, p),
             "top_center": ((sw - ww) // 2, p),
@@ -261,34 +296,23 @@ class RecordingWindow(QWidget):
             "bottom_center": ((sw - ww) // 2, sh - wh - p),
             "bottom_right": (sw - ww - p, sh - wh - p),
         }
+        return positions.get(self._placement, positions["bottom_center"])
 
-        x, y = positions.get(self._placement, positions["bottom_center"])
+    def _apply_position(self):
+        x, y = self._target_xy()
         self.move(x, y)
 
     def showEvent(self, event):
         super().showEvent(event)
+        self.raise_()  # keep the overlay above the settings window (same app)
+        QTimer.singleShot(60, self.raise_)  # re-assert after Wayland maps it
         # Reapply position after window is mapped (Wayland ignores move before show)
         QTimer.singleShot(10, self._apply_position)
         # Hyprland fallback: force position via hyprctl after window appears
         QTimer.singleShot(50, self._hyprctl_move)
 
     def _hyprctl_move(self):
-        screen = QApplication.primaryScreen().geometry()
-        sw, sh = screen.width(), screen.height()
-        ww, wh = self.width(), self.height()
-        p = self._padding
-
-        positions = {
-            "top_left": (p, p),
-            "top_center": ((sw - ww) // 2, p),
-            "top_right": (sw - ww - p, p),
-            "center": ((sw - ww) // 2, (sh - wh) // 2),
-            "bottom_left": (p, sh - wh - p),
-            "bottom_center": ((sw - ww) // 2, sh - wh - p),
-            "bottom_right": (sw - ww - p, sh - wh - p),
-        }
-
-        x, y = positions.get(self._placement, positions["bottom_center"])
+        x, y = self._target_xy()
         try:
             subprocess.Popen(
                 [
@@ -359,11 +383,12 @@ class RecordingWindow(QWidget):
         _paint_overlay(
             p,
             self.rect(),
-            _theme,
+            self._theme,
             self.state,
             self.bar_heights,
             self.pulse_phase,
             self.done_progress,
+            self.message,
         )
         p.end()
 
@@ -379,7 +404,8 @@ class RecordingPreview(QWidget):
     Appearance panel. Cycles recording → analysing → done using a *pending*
     theme so the user sees shape, opacity, colours and accent before applying."""
 
-    NUM_BARS = 20
+    NUM_BARS = 24  # match the real overlay so the preview looks identical
+    MARGIN = 20  # backdrop inset; the pill keeps the overlay's real proportions
 
     def __init__(self, theme, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -446,7 +472,7 @@ class RecordingPreview(QWidget):
         p.setPen(Qt.PenStyle.NoPen)
         p.setBrush(grad)
         p.drawRoundedRect(QRectF(r), 10, 10)
-        pill = QRectF(r).adjusted(30, 15, -30, -15)
+        pill = QRectF(r).adjusted(self.MARGIN, self.MARGIN, -self.MARGIN, -self.MARGIN)
         _paint_overlay(
             p,
             pill,

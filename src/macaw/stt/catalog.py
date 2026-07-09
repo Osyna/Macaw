@@ -48,7 +48,16 @@ logger = logging.getLogger("macaw")
 
 MODELS_DIR = Path(__file__).parent / "models"
 _REQUIRED = ("id", "backend", "label", "size", "speed", "languages")
-_INHERITED = ("backend", "source_url", "extra", "repo", "params")
+_INHERITED = (
+    "backend",
+    "source_url",
+    "extra",
+    "repo",
+    "params",
+    "lang_select",
+    "min_specs",
+    "rec_specs",
+)
 
 
 class CatalogError(RuntimeError):
@@ -86,10 +95,16 @@ def _model_info(entry: dict, defaults: dict, source: str) -> ModelInfo:
         speed=str(m["speed"]),
         languages=str(m["languages"]),
         streaming=bool(m.get("streaming", False)),
+        lang_select=bool(m.get("lang_select", False)),
+        cloud=bool(m.get("cloud", False)),
+        recommended=bool(m.get("recommended", False)),
         extra=m.get("extra"),
         hardware=str(m.get("hardware", "CPU / Any")),
         vram=str(m.get("vram", "—")),
         notes=str(m.get("notes", "")),
+        rating=int(m.get("rating", 0)),
+        min_specs=str(m.get("min_specs", "")),
+        rec_specs=str(m.get("rec_specs", "")),
         source_url=str(m.get("source_url", "")),
         repo=str(m.get("repo", "")),
         params=params,

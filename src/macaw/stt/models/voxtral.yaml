@@ -2,6 +2,9 @@
 backend: voxtral
 source_url: https://github.com/huggingface/transformers
 extra: voxtral
+lang_select: true      # Voxtral supports multiple languages
+min_specs: "NVIDIA GPU 10 GB · 16 GB RAM"
+rec_specs: "NVIDIA GPU 12 GB+ · 16 GB RAM"
 
 models:
   - id: mistralai/Voxtral-Mini-3B-2507
@@ -13,3 +16,8 @@ models:
     streaming: true
     hardware: NVIDIA GPU
     vram: "~9 GB"
+    rating: 4
+    notes: |-
+      + Strong multilingual accuracy across 13 languages, from Mistral.
+      + Modern audio-LLM architecture that handles natural, conversational speech well.
+      − Large ~6 GB download and high VRAM (~9 GB); slower on first load.

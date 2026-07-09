@@ -16,9 +16,18 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 
 import numpy as np
+
+# Running as `python .../macaw/stt/worker.py` puts THIS file's directory on
+# sys.path[0], where sibling modules (nemo.py, whisper.py, …) shadow the real
+# backend packages of the same name; importing one then pulls in `macaw`, which
+# isn't in the isolated venv. Drop that entry so `import nemo` finds the real
+# package, not macaw's backend module.
+_selfdir = os.path.dirname(os.path.abspath(__file__))
+sys.path[:] = [p for p in sys.path if p and os.path.abspath(p) != _selfdir]
 
 # Keep a clean channel for the protocol; send everything else to stderr.
 _PROTO = sys.stdout
@@ -59,12 +68,34 @@ def _load_parakeet(model: str, language: str):
 
 
 def _load_canary(model: str, language: str):
+    import torch
     from nemo.collections.speechlm2.models import SALM
 
-    m = SALM.from_pretrained(model)
+    # SALM is an LLM-style speech model: no .transcribe(); ASR is done via
+    # generate() with an audio-locator prompt (see NeMo speechlm2/models/salm.py).
+    m = SALM.from_pretrained(model).eval()
+    if torch.cuda.is_available():
+        m = m.to("cuda")
 
     def run(audio):
-        return _nemo_text(m.transcribe([audio]))
+        audio_t = torch.as_tensor(
+            audio, dtype=torch.float32, device=m.device
+        ).unsqueeze(0)
+        audio_lens = torch.tensor([audio_t.shape[1]], dtype=torch.long, device=m.device)
+        ids = m.generate(
+            prompts=[
+                [
+                    {
+                        "role": "user",
+                        "content": f"Transcribe the following: {m.audio_locator_tag}",
+                    }
+                ]
+            ],
+            audios=audio_t,
+            audio_lens=audio_lens,
+            max_new_tokens=256,
+        )
+        return m.tokenizer.ids_to_text(ids[0].cpu()).strip()
 
     return run
 
@@ -83,8 +114,12 @@ def _load_voxtral(model: str, language: str):
 
     def run(audio):
         inputs = processor.apply_transcription_request(
-            language=language, audio=audio, sampling_rate=16_000
-        ).to(device)
+            audio=audio,
+            model_id=model,  # required positional in transformers 5.x
+            language=language,
+            sampling_rate=16_000,
+            format=["wav"],  # required for ndarray; len must match n_audio (1)
+        ).to(device, dtype=net.dtype)
         with torch.no_grad():
             ids = net.generate(**inputs, max_new_tokens=512)
         text = processor.batch_decode(
@@ -102,12 +137,161 @@ def _nemo_text(out) -> str:
     return str(getattr(item, "text", item)).strip()
 
 
+# -- sherpa-onnx: ONNX Zipformer / Paraformer / Parakeet in one CPU venv -------
+# Construction details (repo, files, recognizer kind) live here because the
+# isolated worker can't import macaw; sherpa.yaml carries only the user-facing
+# metadata + repo link. ponytail: the repo id is the sole intentional duplication.
+
+_SHERPA_MODELS = {
+    "sherpa-parakeet-tdt-v3": {
+        "repo": "csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8",
+        "kind": "offline_transducer",
+        "model_type": "nemo_transducer",
+        "encoder": "encoder.int8.onnx",
+        "decoder": "decoder.int8.onnx",
+        "joiner": "joiner.int8.onnx",
+        "tokens": "tokens.txt",
+    },
+    "sherpa-parakeet-tdt-v2": {
+        "repo": "csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8",
+        "kind": "offline_transducer",
+        "model_type": "nemo_transducer",
+        "encoder": "encoder.int8.onnx",
+        "decoder": "decoder.int8.onnx",
+        "joiner": "joiner.int8.onnx",
+        "tokens": "tokens.txt",
+    },
+    "sherpa-zipformer-bilingual-zh-en": {
+        "repo": "csukuangfj/sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20",
+        "kind": "online_transducer",
+        "encoder": "encoder-epoch-99-avg-1.int8.onnx",
+        "decoder": "decoder-epoch-99-avg-1.int8.onnx",
+        "joiner": "joiner-epoch-99-avg-1.int8.onnx",
+        "tokens": "tokens.txt",
+        "lowercase": True,  # LibriSpeech English tokens are all-caps
+    },
+    "sherpa-paraformer-bilingual-zh-en": {
+        "repo": "csukuangfj/sherpa-onnx-streaming-paraformer-bilingual-zh-en",
+        "kind": "online_paraformer",
+        "encoder": "encoder.int8.onnx",
+        "decoder": "decoder.int8.onnx",
+        "tokens": "tokens.txt",
+    },
+    "sherpa-zipformer-en-20m": {
+        "repo": "csukuangfj/sherpa-onnx-streaming-zipformer-en-20M-2023-02-17",
+        "kind": "online_transducer",
+        "encoder": "encoder-epoch-99-avg-1.int8.onnx",
+        "decoder": "decoder-epoch-99-avg-1.int8.onnx",
+        "joiner": "joiner-epoch-99-avg-1.int8.onnx",
+        "tokens": "tokens.txt",
+        "lowercase": True,  # English zipformer emits all-caps
+    },
+    "sherpa-zipformer-zh-14m": {
+        "repo": "csukuangfj/sherpa-onnx-streaming-zipformer-zh-14M-2023-02-23",
+        "kind": "online_transducer",
+        "encoder": "encoder-epoch-99-avg-1.int8.onnx",
+        "decoder": "decoder-epoch-99-avg-1.int8.onnx",
+        "joiner": "joiner-epoch-99-avg-1.int8.onnx",
+        "tokens": "tokens.txt",
+    },
+}
+
+_SHERPA_TAIL = np.zeros(int(0.5 * 16_000), dtype=np.float32)  # flush streaming tail
+
+
+def _load_sherpa(model: str, language: str):
+    import sherpa_onnx
+    from huggingface_hub import snapshot_download
+
+    cfg = _SHERPA_MODELS[model]
+    files = [cfg[k] for k in ("encoder", "decoder", "joiner", "tokens") if k in cfg]
+    root = snapshot_download(cfg["repo"], allow_patterns=files)
+
+    def path(name: str) -> str:
+        return os.path.join(root, name)
+
+    lower = cfg.get("lowercase", False)
+
+    def _post(text: str) -> str:
+        return text.strip().lower() if lower else text.strip()
+
+    if cfg["kind"] == "offline_transducer":
+        rec = sherpa_onnx.OfflineRecognizer.from_transducer(
+            encoder=path(cfg["encoder"]),
+            decoder=path(cfg["decoder"]),
+            joiner=path(cfg["joiner"]),
+            tokens=path(cfg["tokens"]),
+            num_threads=2,
+            model_type=cfg["model_type"],
+            provider="cpu",
+        )
+
+        def _offline(audio):
+            s = rec.create_stream()
+            s.accept_waveform(16_000, audio)
+            rec.decode_stream(s)
+            return _post(s.result.text)
+
+        return _offline
+
+    if cfg["kind"] == "online_paraformer":
+        rec = sherpa_onnx.OnlineRecognizer.from_paraformer(
+            tokens=path(cfg["tokens"]),
+            encoder=path(cfg["encoder"]),
+            decoder=path(cfg["decoder"]),
+            num_threads=2,
+            provider="cpu",
+        )
+    else:  # online_transducer (streaming Zipformer)
+        rec = sherpa_onnx.OnlineRecognizer.from_transducer(
+            tokens=path(cfg["tokens"]),
+            encoder=path(cfg["encoder"]),
+            decoder=path(cfg["decoder"]),
+            joiner=path(cfg["joiner"]),
+            num_threads=2,
+            provider="cpu",
+        )
+
+    def _online(audio):
+        s = rec.create_stream()
+        s.accept_waveform(16_000, audio)
+        s.accept_waveform(16_000, _SHERPA_TAIL)  # tail padding emits final frames
+        s.input_finished()
+        while rec.is_ready(s):
+            rec.decode_stream(s)
+        return _post(rec.get_result(s))
+
+    return _online
+
+
 LOADERS = {
     "moonshine": _load_moonshine,
     "parakeet": _load_parakeet,
     "canary-qwen": _load_canary,
     "voxtral": _load_voxtral,
+    "sherpa": _load_sherpa,
 }
+
+
+def _setup_net() -> None:
+    """Honour macaw's proxy + SSL settings for HF downloads. The proxy arrives
+    via inherited HTTP(S)_PROXY env; MACAW_SSL_VERIFY=0 disables cert checks."""
+    if os.environ.get("MACAW_SSL_VERIFY", "1") != "0":
+        return
+    try:
+        import requests
+        import urllib3
+        from huggingface_hub import configure_http_backend
+
+        def _session():
+            s = requests.Session()
+            s.verify = False
+            return s
+
+        configure_http_backend(_session)
+        urllib3.disable_warnings()
+    except Exception:  # noqa: BLE001
+        pass
 
 
 def main() -> None:
@@ -116,6 +300,7 @@ def main() -> None:
     ap.add_argument("--model", required=True)
     ap.add_argument("--language", default="en")
     args = ap.parse_args()
+    _setup_net()
 
     try:
         transcribe = LOADERS[args.backend](args.model, args.language)

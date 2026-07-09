@@ -3,6 +3,8 @@ backend: moonshine
 source_url: https://github.com/usefulsensors/moonshine
 extra: moonshine
 repo: UsefulSensors/moonshine   # weights ship as one ONNX bundle for both sizes
+min_specs: "2-core CPU · 2 GB RAM"
+rec_specs: "4-core CPU · 4 GB RAM"
 
 models:
   - id: moonshine/tiny
@@ -13,6 +15,11 @@ models:
     streaming: true
     hardware: CPU / Intel
     vram: "—"
+    rating: 3
+    notes: |-
+      + Ultra-light with very low latency on CPU — purpose-built for quick dictation and short commands.
+      + Real-time streaming output on modest hardware.
+      − English only, modest accuracy.
   - id: moonshine/base
     label: Moonshine base
     size: "~60 MB"
@@ -21,3 +28,8 @@ models:
     streaming: true
     hardware: CPU / Intel
     vram: "—"
+    rating: 3
+    notes: |-
+      + Better accuracy than tiny while staying CPU-light and low latency.
+      + Good on-device English streaming.
+      − English only.

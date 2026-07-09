@@ -30,6 +30,12 @@ FG = _T.fg
 MUTED = _T.muted
 BORDER = _T.border
 CONTROL_BG = _T.control
+OK = _T.ok
+WARN = _T.warn
+DANGER = _T.danger
+CARD_BG = _T.surface
+ACCENT = _T.accent
+ACCENT_FG = _T.accent_fg
 
 
 # ── shared stylesheet fragments ─────────────────────────────────
@@ -352,3 +358,10 @@ def _close_button(on_click) -> QPushButton:
     )
     btn.clicked.connect(on_click)
     return btn
+
+
+def _combo(width: int) -> _StyledComboBox:
+    c = _StyledComboBox()
+    c.setStyleSheet(_COMBO_STYLE)
+    c.setFixedWidth(width)
+    return c

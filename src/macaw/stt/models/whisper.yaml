@@ -1,9 +1,13 @@
 # faster-whisper (CTranslate2). One YAML entry per model — add a model by
 # appending to `models:` below. Backend-level keys (source_url, extra, params)
-# apply to every model unless a model overrides them.
+# apply to every model unless a model overrides them. `rating` is a curated
+# 0–5 ranking (read-only in the UI); it drives the default list order.
+# `notes` is a block scalar: lines starting with "+" render as green pros,
+# "−" as red cons, and plain lines as neutral context in the detail card.
 backend: whisper
 source_url: https://github.com/SYSTRAN/faster-whisper
 extra: null            # in base deps
+lang_select: true      # multilingual models show a language chooser (EN-only override below)
 
 params:                # shared tunables, rendered as controls in the Manager
   - key: temperature
@@ -37,6 +41,13 @@ models:
     languages: "99+"
     hardware: CPU / Any
     vram: "—"
+    rating: 2
+    notes: |-
+      + Fastest and smallest Whisper — starts instantly and runs on literally any CPU.
+      + Still covers 99+ languages despite its tiny footprint.
+      − Lowest accuracy of the family: fine for short commands, but drops words on noise, accents and long sentences.
+    min_specs: "2-core CPU · 2 GB RAM"
+    rec_specs: "Any modern CPU · 4 GB RAM"
   - id: base
     label: Whisper base
     repo: Systran/faster-whisper-base
@@ -45,6 +56,13 @@ models:
     languages: "99+"
     hardware: CPU / Any
     vram: "—"
+    rating: 2
+    notes: |-
+      + Quick on any CPU and clearly more accurate than tiny.
+      + 99+ languages — a sensible default for low-end and older machines.
+      − Still misses hard audio, background noise and heavy accents.
+    min_specs: "2-core CPU · 2 GB RAM"
+    rec_specs: "4-core CPU · 4 GB RAM"
   - id: small
     label: Whisper small
     repo: Systran/faster-whisper-small
@@ -53,14 +71,29 @@ models:
     languages: "99+"
     hardware: CPU / GPU
     vram: "~2 GB"
+    rating: 3
+    notes: |-
+      + The no-GPU accuracy sweet spot — a real step up from base while staying CPU-friendly.
+      + Full 99+ language coverage with solid punctuation.
+      − Noticeably slower on CPU; a GPU makes it comfortable.
+    min_specs: "4-core CPU · 4 GB RAM"
+    rec_specs: "6-core CPU or any GPU · 8 GB RAM"
   - id: distil-small.en
     label: Whisper distil-small
     repo: Systran/faster-distil-whisper-small.en
     size: "~250 MB"
     speed: fast
     languages: EN
+    lang_select: false
     hardware: CPU / GPU
     vram: "~1 GB"
+    rating: 3
+    notes: |-
+      + Distilled English-only build: faster than small with almost the same English accuracy.
+      + Small download and light on memory.
+      − English only — no multilingual support.
+    min_specs: "2-core CPU · 2 GB RAM"
+    rec_specs: "4-core CPU · 4 GB RAM"
   - id: medium
     label: Whisper medium
     repo: Systran/faster-whisper-medium
@@ -69,14 +102,29 @@ models:
     languages: "99+"
     hardware: GPU recommended
     vram: "~5 GB"
+    rating: 4
+    notes: |-
+      + High multilingual accuracy across 99+ languages — great dictation quality.
+      + Handles noise and accents far better than the small models.
+      − Heavy on CPU; really wants a GPU to feel responsive.
+    min_specs: "8-core CPU · 8 GB RAM (slow) or any GPU"
+    rec_specs: "NVIDIA GPU 6 GB · 16 GB RAM"
   - id: distil-medium.en
     label: Whisper distil-medium
     repo: Systran/faster-distil-whisper-medium.en
     size: "~750 MB"
     speed: balanced
     languages: EN
+    lang_select: false
     hardware: CPU / GPU
     vram: "~2 GB"
+    rating: 4
+    notes: |-
+      + Near-medium English accuracy at a fraction of the compute and VRAM.
+      + Runs fast on a modest GPU or a strong CPU.
+      − English only.
+    min_specs: "4-core CPU · 4 GB RAM"
+    rec_specs: "Any GPU or 8-core CPU · 8 GB RAM"
   - id: large-v3
     label: Whisper large-v3
     repo: Systran/faster-whisper-large-v3
@@ -85,22 +133,45 @@ models:
     languages: "99+"
     hardware: NVIDIA / AMD GPU
     vram: "~10 GB"
+    rating: 5
+    notes: |-
+      + The most accurate Whisper — best-in-class on noise, accents and punctuation across 99+ languages.
+      + The reference choice when transcription quality matters more than speed.
+      − Slow without a strong GPU and needs roughly 10 GB of VRAM.
+    min_specs: "NVIDIA GPU 10 GB (or 16 GB RAM, slow)"
+    rec_specs: "NVIDIA GPU 12 GB+ · 16 GB RAM"
   - id: distil-large-v2
     label: Whisper distil-large-v2
     repo: Systran/faster-distil-whisper-large-v2
     size: "~1.5 GB"
     speed: fast
     languages: EN
+    lang_select: false
     hardware: GPU recommended
     vram: "~6 GB"
+    rating: 4
+    notes: |-
+      + Distilled English large: about 2x faster than large-v2 with close accuracy.
+      + Good GPU value for English-only dictation.
+      − English only.
+    min_specs: "NVIDIA GPU 6 GB"
+    rec_specs: "NVIDIA GPU 8 GB · 16 GB RAM"
   - id: distil-large-v3
     label: Whisper distil-large-v3
     repo: Systran/faster-distil-whisper-large-v3
     size: "~1.5 GB"
     speed: fast
     languages: EN
+    lang_select: false
     hardware: GPU recommended
     vram: "~6 GB"
+    rating: 4
+    notes: |-
+      + Best distilled English model: large-v3-level quality at much higher speed.
+      + Efficient on a mid-range GPU.
+      − English only, no multilingual.
+    min_specs: "NVIDIA GPU 6 GB"
+    rec_specs: "NVIDIA GPU 8 GB · 16 GB RAM"
   - id: large-v3-turbo
     label: Whisper large-v3-turbo
     repo: mobiuslabsgmbh/faster-whisper-large-v3-turbo
@@ -109,4 +180,11 @@ models:
     languages: "99+"
     hardware: NVIDIA / AMD GPU
     vram: "~6 GB"
-    notes: "Default — best balance"
+    rating: 5
+    notes: |-
+      + Best all-round pick: near large-v3 accuracy at roughly 4x the speed.
+      + Full 99+ language support — the recommended default for most users.
+      + Fits comfortably in about 6 GB of VRAM.
+      − Wants a GPU for full speed; slow on CPU alone.
+    min_specs: "NVIDIA GPU 6 GB (or 16 GB RAM, slower)"
+    rec_specs: "NVIDIA GPU 8 GB · 16 GB RAM"

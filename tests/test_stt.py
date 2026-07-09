@@ -89,7 +89,40 @@ def test_isolated_backend_tracks_venv_state():
     b = stt.create_backend("moonshine/tiny")
     assert b.available() == isolated.is_installed("moonshine")
     assert b.is_ready() == b.available()
-    assert b.hf_repos() == []  # weights live in the venv, not the shared HF cache
+    # weights live in the SHARED HF cache (keyed by repo), not the isolated venv
+    assert b.hf_repos() == ["UsefulSensors/moonshine"]
+
+
+def test_isolated_delete_removes_weights_and_shared_venv():
+    from macaw.stt import isolated as iso
+
+    # Parakeet v2/v3 and Canary all share the 'nemo' venv; each has a distinct repo.
+    b = stt.create_backend("nvidia/parakeet-tdt-0.6b-v2")
+    assert b.hf_repos() == ["nvidia/parakeet-tdt-0.6b-v2"]
+
+    orig = (iso.hf_repo_delete, iso.remove, iso.hf_cache_sizes)
+    deleted_repos: list[str] = []
+    removed_extras: list[str] = []
+    WEIGHTS, VENV = 2_500_000_000, 6_000_000_000
+    iso.hf_repo_delete = lambda repos: (deleted_repos.extend(repos), WEIGHTS)[1]
+    iso.remove = lambda extra: (removed_extras.append(extra), VENV)[1]
+    try:
+        # Sibling (Canary) still has weights → shared 'nemo' venv must survive.
+        iso.hf_cache_sizes = lambda: {"nvidia/canary-qwen-2.5b": 5_000_000_000}
+        freed = b.delete()
+        assert deleted_repos == ["nvidia/parakeet-tdt-0.6b-v2"]
+        assert removed_extras == []  # venv kept for the sibling
+        assert freed == WEIGHTS
+
+        # Nothing else cached → free the weights AND the now-unused venv.
+        deleted_repos.clear()
+        iso.hf_cache_sizes = lambda: {}
+        freed = b.delete()
+        assert deleted_repos == ["nvidia/parakeet-tdt-0.6b-v2"]
+        assert removed_extras == ["nemo"]
+        assert freed == WEIGHTS + VENV
+    finally:
+        iso.hf_repo_delete, iso.remove, iso.hf_cache_sizes = orig
 
 
 def test_adding_a_backend_is_the_whole_job():

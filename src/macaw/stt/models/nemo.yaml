@@ -1,14 +1,17 @@
 # NVIDIA NeMo models (Parakeet TDT + Canary-Qwen). Two backends share one file;
 # each model names its `backend`. They run in the isolated 'nemo' venv (CUDA GPU).
 # The catalog file-level `backend`/`source_url` are defaults; a model may override.
+# Labels say "(NeMo)" to distinguish them from the CPU/ONNX Parakeet in sherpa.yaml.
 backend: parakeet
 source_url: https://github.com/NVIDIA/NeMo
 extra: nemo
+min_specs: "NVIDIA GPU 4 GB · 8 GB RAM"
+rec_specs: "NVIDIA GPU 6 GB · 16 GB RAM"
 
 models:
   - id: nvidia/parakeet-tdt-0.6b-v2
     backend: parakeet
-    label: Parakeet TDT v2
+    label: Parakeet TDT v2 (NeMo)
     repo: nvidia/parakeet-tdt-0.6b-v2
     size: "~2.5 GB"
     speed: very fast
@@ -16,16 +19,28 @@ models:
     streaming: true
     hardware: NVIDIA GPU
     vram: "~3 GB"
+    rating: 4
+    notes: |-
+      + Blazing-fast, highly accurate English on an NVIDIA GPU, with automatic punctuation and capitalization.
+      + Runs the full-precision NeMo model on CUDA — the quickest way to transcribe English in Macaw.
+      − English only; requires an NVIDIA GPU.
   - id: nvidia/parakeet-tdt-0.6b-v3
     backend: parakeet
-    label: Parakeet TDT v3
+    label: Parakeet TDT v3 (NeMo)
     repo: nvidia/parakeet-tdt-0.6b-v3
     size: "~2.5 GB"
     speed: very fast
     languages: "25"
+    lang_select: true
     streaming: true
     hardware: NVIDIA GPU
     vram: "~3 GB"
+    rating: 5
+    notes: |-
+      + Multilingual Parakeet: 25 European languages, very fast and very accurate on an NVIDIA GPU.
+      + Automatic punctuation, capitalization and word-level timestamps.
+      + Runs at full precision on the GPU, so it is faster and a little more accurate than the CPU/ONNX build — this is why it is rated a notch above "Parakeet TDT v3 (ONNX)".
+      − Requires an NVIDIA GPU (CUDA); no CPU fallback.
   - id: nvidia/canary-qwen-2.5b
     backend: canary-qwen
     label: Canary-Qwen 2.5B
@@ -35,4 +50,10 @@ models:
     languages: EN
     hardware: NVIDIA GPU
     vram: "~6 GB"
-    notes: "Top ASR-leaderboard accuracy"
+    rating: 5
+    min_specs: "NVIDIA GPU 6 GB · 16 GB RAM"
+    rec_specs: "NVIDIA GPU 8 GB+ · 16 GB RAM"
+    notes: |-
+      + Tops the open ASR leaderboard for English — the best transcript quality available here.
+      + Excellent on difficult audio, punctuation and sentence formatting.
+      − Large 5 GB download, slower to load, and GPU-only.

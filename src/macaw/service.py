@@ -25,6 +25,7 @@ from PyQt6.QtCore import (
 from PyQt6.QtGui import QAction
 from PyQt6.QtWidgets import QApplication, QMenu, QMessageBox, QSystemTrayIcon
 
+from macaw import net
 from macaw.audio import sounds
 from macaw.audio.capture import AudioCapture
 from macaw.audio.transcriber import Transcriber
@@ -32,16 +33,17 @@ from macaw.config import _DEFAULT_CONFIG_PATH, Config
 from macaw.desktop import DesktopHelper
 from macaw.gui.icon import create_tray_icon, logo_icon
 from macaw.gui.main_window import MainWindow
+from macaw.gui.theme import active_indicator
 from macaw.gui.window import RecordingWindow
+from macaw.stt import get_model_info
+from macaw.trigger import _ipc_address
 
 logger = logging.getLogger("macaw")
 
 
-def _ipc_address() -> str:
-    runtime = os.environ.get("XDG_RUNTIME_DIR")
-    if runtime:
-        return f"ipc://{runtime}/macaw.ipc"
-    return "ipc:///tmp/macaw_service.ipc"
+def _lang_for(cfg: Config) -> str:
+    """The active model's language: its per-model choice, else the default."""
+    return cfg.model_languages.get(cfg.model) or cfg.language or "en"
 
 
 IPC_ADDRESS = _ipc_address()
@@ -88,9 +90,30 @@ class _IPCWorker(QObject):
                 logger.error("IPC error: %s", exc)
 
 
+class _ModelLoadThread(QThread):
+    """Loads the active model off the UI thread so activating never freezes,
+    and turns a load failure into a signal instead of an uncaught crash."""
+
+    done = pyqtSignal(bool, str)  # (ok, error)
+
+    def __init__(self, transcriber) -> None:
+        super().__init__()
+        self._transcriber = transcriber
+
+    def run(self) -> None:
+        try:
+            self._transcriber.load_model()
+            self.done.emit(True, "")
+        except Exception as exc:  # noqa: BLE001 — report it, never crash the UI
+            self.done.emit(False, str(exc))
+
+
 class MacawService:
     def __init__(self) -> None:
         self.app = QApplication(sys.argv)
+        # PyQt6 aborts the process on an unhandled exception in a slot; log it
+        # and keep running so a transcription/capture hiccup can't kill Macaw.
+        sys.excepthook = self._excepthook
         self.app.setQuitOnLastWindowClosed(False)
         # Stable identity → Wayland app_id / X11 class becomes "macaw" (not
         # "python3"), so compositor window rules can target the app reliably.
@@ -99,6 +122,7 @@ class MacawService:
         self.app.setWindowIcon(logo_icon())
 
         self.cfg = Config.load(CONFIG_PATH)
+        net.apply(self.cfg.proxy, self.cfg.ssl_verify)  # proxy/SSL: downloads + cloud
 
         # Desktop integration (clipboard, paste, window focus)
         self.desktop = DesktopHelper()
@@ -107,17 +131,20 @@ class MacawService:
         self.capture = AudioCapture(device=self.cfg.device_index)
         self.transcriber = Transcriber(
             model_size=self.cfg.model,
-            language=self.cfg.language,
+            language=_lang_for(self.cfg),
             punctuation_hints=self.cfg.punctuation_hints,
         )
         self.transcriber.model_params = self.cfg.model_params.get(self.cfg.model, {})
 
         # GUI
-        self.window = RecordingWindow()
+        self.window = RecordingWindow(self.cfg.overlay_width, self.cfg.overlay_height)
         self.window.stop_signal.connect(self._stop_recording)
 
         self.main_window = MainWindow(CONFIG_PATH)
         self.main_window.config_saved.connect(self._on_config_changed)
+        self.main_window.cancel_load.connect(self._cancel_model_load)
+        self._load_cancelled = False
+        self._model_loaded = False  # True only after a model loads successfully
 
         self._setup_tray()
 
@@ -152,6 +179,16 @@ class MacawService:
         self._ipc_worker.quit_received.connect(self.app.quit)
         self._ipc_thread.started.connect(self._ipc_worker.run)
         self._ipc_thread.start()
+        self._hotkey = None
+        self._start_hotkey()
+        self.app.aboutToQuit.connect(self._stop_hotkey)
+        if os.path.exists(self._reopen_marker()):
+            try:
+                os.remove(self._reopen_marker())
+            except OSError:
+                pass
+            # a look change restarted us while Settings was open — bring it back
+            QTimer.singleShot(500, self._show_settings)
 
     def _setup_tray(self) -> None:
         if not QSystemTrayIcon.isSystemTrayAvailable():
@@ -200,24 +237,46 @@ class MacawService:
         """Load the active model if it's downloaded. Never auto-download —
         the user downloads models explicitly from the Model Manager."""
         if self.transcriber.is_ready():
-            logger.info("Loading model (%s)...", self.cfg.model)
-            self.transcriber.load_model()
-            logger.info("Model loaded.")
+            self._load_model_async()
         else:
             logger.warning(
                 "No usable model (%s not downloaded). Open Models to download one.",
                 self.cfg.model,
             )
+            # First run / nothing usable — open the Manager so the welcome shows.
+            QTimer.singleShot(400, self._show_models)
 
     def _show_settings(self) -> None:
         self.main_window.open_settings()
 
+    def _reopen_marker(self) -> str:
+        runtime = os.environ.get("XDG_RUNTIME_DIR", "/tmp")
+        return os.path.join(runtime, "macaw-reopen-settings")
+
     def _show_models(self) -> None:
         self.main_window.open_models()
+
+    def _excepthook(self, exc_type, exc, tb) -> None:
+        logger.error("Unhandled exception", exc_info=(exc_type, exc, tb))
+
+    def _notify_error(self, message: str) -> None:
+        logger.error("%s", message)
+        tray = getattr(self, "_tray", None)
+        if tray is not None:
+            tray.showMessage(
+                "Macaw", message, QSystemTrayIcon.MessageIcon.Warning, 5000
+            )
 
     def _notify_no_model(self) -> None:
         """No model is downloaded — tell the user and open the Model Manager."""
         logger.warning("Recording blocked: no model downloaded (%s).", self.cfg.model)
+        self.window.show_message("No Model Selected")
+        self.window.position(
+            self.cfg.window_position,
+            custom=(self.cfg.overlay_x, self.cfg.overlay_y),
+        )
+        self.window.show()
+        QTimer.singleShot(2500, self.window.hide)
         tray = getattr(self, "_tray", None)
         if tray is not None:
             tray.showMessage(
@@ -229,33 +288,52 @@ class MacawService:
             )
         self._show_models()
 
-    # look = theme + the user's style overrides; a change needs a fresh start.
-    _LOOK = (
+    # Indicator look: the overlay's own palette / size / bars — applied live.
+    _INDICATOR = (
         "theme",
         "overlay_opacity",
+        "overlay_width",
+        "overlay_height",
         "eq_colors",
         "accent_color",
         "border_width",
         "border_color",
         "corner_radius",
+        "corners",
+        "corner_link",
         "bar_spacing",
         "bar_width",
         "bar_radius",
         "bar_fade",
     )
+    # Chrome: settings / model windows' palette — baked at import, needs a restart.
+    _CHROME = ("app_theme",)
+    _LOOK = _CHROME + _INDICATOR  # any look field (union; used by tests)
 
     def _on_config_changed(self, cfg: Config) -> None:
         old = self.cfg
         self.cfg = cfg
-        self.transcriber.language = cfg.language
+        self.transcriber.language = _lang_for(cfg)
         self.transcriber.punctuation_hints = cfg.punctuation_hints
         self.transcriber.model_params = cfg.model_params.get(cfg.model, {})
         self.capture = AudioCapture(device=cfg.device_index)
+        if (cfg.proxy, cfg.ssl_verify) != (old.proxy, old.ssl_verify):
+            net.apply(cfg.proxy, cfg.ssl_verify)
 
-        if cfg.model != old.model:
+        t = getattr(self, "_load_thread", None)
+        loading = t is not None and t.isRunning()
+        # Reload on a new model, or retry one whose last load failed (so the user
+        # can just re-activate it — no need to bounce through another model).
+        if cfg.model != old.model or (not self._model_loaded and not loading):
             self._switch_model(cfg.model)
-        if any(getattr(old, f) != getattr(cfg, f) for f in self._LOOK):
+        if any(getattr(old, f) != getattr(cfg, f) for f in self._INDICATOR):
+            self.window.apply_look(
+                active_indicator(), cfg.overlay_width, cfg.overlay_height
+            )
+        if any(getattr(old, f) != getattr(cfg, f) for f in self._CHROME):
             self._restart_for_look()
+        if (cfg.hotkey_enabled, cfg.hotkey) != (old.hotkey_enabled, old.hotkey):
+            self._start_hotkey()
 
     def _restart_for_look(self) -> None:
         """Theme/style changed — tell the user and restart to apply it cleanly."""
@@ -268,6 +346,10 @@ class MacawService:
 
     def _restart(self) -> None:
         logger.info("Restarting to apply appearance change…")
+        try:  # a look change always comes from Settings — reopen it after restart
+            open(self._reopen_marker(), "w").close()
+        except OSError:
+            pass
         if os.environ.get("INVOCATION_ID"):
             # Managed by systemd — let it cycle the unit cleanly.
             subprocess.Popen(["systemctl", "--user", "restart", "macaw.service"])
@@ -282,16 +364,82 @@ class MacawService:
                     pass
             os.execv(sys.executable, [sys.executable, "-m", "macaw"])
 
+    def _start_hotkey(self) -> None:
+        """(Re)start the global-shortcut listener to match the current config."""
+        from macaw.hotkey import HotkeyListener, is_valid
+
+        self._stop_hotkey()
+        if not self.cfg.hotkey_enabled or not is_valid(self.cfg.hotkey):
+            return
+        self._hotkey = HotkeyListener(self.cfg.hotkey)
+        self._hotkey.triggered.connect(self._handle_toggle)
+        self._hotkey.start()
+
+    def _stop_hotkey(self) -> None:
+        if self._hotkey is not None:
+            self._hotkey.stop()
+            self._hotkey.wait(1500)
+            self._hotkey = None
+
     def _switch_model(self, model_name: str) -> None:
-        """Load a newly-selected model. Only downloaded models can be selected
-        (the Model Manager enforces that), so we never download here."""
+        """(Re)load a newly-selected model in the background. Only downloaded
+        models can be selected (the Model Manager enforces that), so we never
+        download here — we just reload, off the UI thread so it can't freeze."""
+        self._model_loaded = False
         self.transcriber.unload_model()
         self.transcriber.model_size = model_name
         if self.transcriber.is_ready():
-            self.transcriber.load_model()
-            logger.info("Switched to model %s", model_name)
+            self._load_model_async()
         else:
             logger.warning("Model %s not downloaded — not loaded", model_name)
+            self._set_manager_status(
+                "error", get_model_info(model_name).label, "not downloaded"
+            )
+
+    def _load_model_async(self) -> None:
+        """Load the active model on a background thread; report state to the UI."""
+        prev = getattr(self, "_load_thread", None)
+        if prev is not None and prev.isRunning():
+            return  # a load is already in flight (the UI disables activate)
+        label = get_model_info(self.transcriber.model_size).label
+        logger.info("Loading model (%s)...", self.transcriber.model_size)
+        self._set_manager_status("loading", label)
+        self._load_thread = _ModelLoadThread(self.transcriber)
+        self._load_thread.done.connect(self._on_model_loaded)
+        self._load_thread.start()
+
+    def _on_model_loaded(self, ok: bool, error: str) -> None:
+        label = get_model_info(self.transcriber.model_size).label
+        self._model_loaded = ok
+        if self._load_cancelled:
+            self._load_cancelled = False
+            self._model_loaded = False
+            self.transcriber.unload_model()  # reap any worker that raced the cancel
+            logger.info("Model load cancelled (%s)", self.transcriber.model_size)
+            self._set_manager_status("cancelled", label)
+            return
+        if ok:
+            logger.info("Model ready (%s).", self.transcriber.model_size)
+            self._set_manager_status("ready", label)
+        else:
+            logger.error(
+                "Model load failed (%s): %s", self.transcriber.model_size, error
+            )
+            self._set_manager_status("error", label, error)
+
+    def _set_manager_status(self, state: str, label: str, detail: str = "") -> None:
+        mw = getattr(self, "main_window", None)
+        if mw is not None:
+            mw.models.show_load_status(state, label, detail)
+
+    def _cancel_model_load(self) -> None:
+        """User cancelled: kill the worker the load thread is blocked on. The
+        load fails fast ('worker exited') and unload reaps it — no zombie."""
+        thread = getattr(self, "_load_thread", None)
+        if thread is not None and thread.isRunning():
+            logger.info("Cancelling model load (%s)", self.transcriber.model_size)
+            self._load_cancelled = True
+            self.transcriber.unload_model()
 
     # -- silence detection ----------------------------------------------
 
@@ -321,17 +469,34 @@ class MacawService:
             self._start_recording()
 
     def _start_recording(self) -> None:
+        try:
+            self._start_recording_inner()
+        except Exception as exc:  # noqa: BLE001 — a slot exception must not abort
+            logger.error("Failed to start recording: %s", exc, exc_info=True)
+            self.is_recording = False
+            self._silence_timer.stop()
+            try:
+                self.window.hide()
+            except Exception:  # noqa: BLE001
+                pass
+            self._notify_error(f"Couldn't start recording: {exc}")
+
+    def _start_recording_inner(self) -> None:
         if self.is_recording:
             return
         if not self.transcriber.is_ready():
             self._notify_no_model()
             return
+        self._pause_preview()  # free the settings mic so it can't clash with capture
         if self.cfg.sound_enabled:
             sounds.play_start()
         if self.cfg.output_mode == "type":
             self._saved_window_id = self.desktop.capture_active_window()
         self.is_recording = True
-        self.window.position(self.cfg.window_position)
+        self.window.position(
+            self.cfg.window_position,
+            custom=(self.cfg.overlay_x, self.cfg.overlay_y),
+        )
         self.window.set_state("recording")
         self.window.show()
         if self.cfg.output_mode != "type":
@@ -364,6 +529,23 @@ class MacawService:
         self.capture.stop()
         self.capture.read()  # drain
         self.window.hide()
+        QTimer.singleShot(500, self._resume_preview)
+
+    def _pause_preview(self) -> None:
+        """Release the settings mic preview so it can't clash with recording."""
+        mw = getattr(self, "main_window", None)
+        if mw is not None:
+            mw.settings.stop_preview()
+
+    def _resume_preview(self) -> None:
+        """Restart the settings mic preview once recording is idle again."""
+        if self.is_recording:
+            return
+        mw = getattr(self, "main_window", None)
+        if mw is None or not mw.isVisible():
+            return
+        if mw.stack.currentWidget() is mw.settings:
+            mw.settings.start_preview()
 
     def _stop_recording(self) -> None:
         if not self.is_recording:
@@ -380,8 +562,19 @@ class MacawService:
             sounds.play_analysing()
         self.window.set_state("analysing")
         threading.Thread(target=self._process_audio, daemon=True).start()
+        QTimer.singleShot(500, self._resume_preview)
 
     def _process_audio(self) -> None:
+        try:
+            self._process_audio_inner()
+        except Exception as exc:  # noqa: BLE001 — daemon-thread guard + clean overlay
+            logger.error("Transcription failed: %s", exc, exc_info=True)
+            self._notify_error(f"Transcription failed: {exc}")
+            QMetaObject.invokeMethod(
+                self.window, "hide", Qt.ConnectionType.QueuedConnection
+            )
+
+    def _process_audio_inner(self) -> None:
         chunks = self.capture.read()
 
         # In streaming mode, merge remaining capture chunks into stream buffer

@@ -7,7 +7,7 @@
 
   <h3>Talk, and Macaw types it. All on your own machine.</h3>
 
-  <p><b>100% local&nbsp;&nbsp;•&nbsp;&nbsp;No cloud&nbsp;&nbsp;•&nbsp;&nbsp;No subscription&nbsp;&nbsp;•&nbsp;&nbsp;Wayland &amp; X11</b></p>
+  <p><b>Local-first&nbsp;&nbsp;•&nbsp;&nbsp;Offline by default&nbsp;&nbsp;•&nbsp;&nbsp;No subscription&nbsp;&nbsp;•&nbsp;&nbsp;Wayland &amp; X11</b></p>
 
 [![stars-badge-img]][stars-badge]
 [![release-badge-img]][release-badge]
@@ -52,10 +52,10 @@ Press a hotkey, say your sentence, and it drops straight into whatever you're ty
 
 ## Why Macaw
 
-- 🔒 **It stays local.** Your voice and your text never leave the machine. No account, no cloud round-trip.
+- 🔒 **Local by default.** Every local engine runs fully on your machine — no account, no round-trip. The two GPT-4o cloud models are strictly opt-in, with your own key.
 - 🆓 **Free and open.** MIT-licensed, and the models are open too. No subscription, no per-minute meter.
 - 🐧 **Made for Linux.** Wayland or X11, a tray icon, a systemd user service, and one hotkey to fire it.
-- 🔁 **Swap the brain.** Start on Whisper, move to Parakeet, Voxtral, or Moonshine whenever you feel like it.
+- 🔁 **Swap the brain.** Start on Whisper, move to Parakeet, Voxtral, Moonshine, or the featherweight sherpa-onnx CPU models whenever you feel like it.
 - ⚡ **Uses your GPU.** CUDA when it's there, CPU when it isn't, and nothing to wire up either way.
 
 ## Features
@@ -80,7 +80,7 @@ Settings, a live microphone meter, and a full model manager in one tray window �
 
 ### Swap the brain, live
 
-Sixteen models across five engines — Whisper, Moonshine, Parakeet, Canary-Qwen, and Voxtral. Install any of them on demand into its own sandbox, tune temperature, beam size, and the VAD filter, and set the active model without touching a config file.
+Two dozen models across seven engines — Whisper, Moonshine, Parakeet, Canary-Qwen, Voxtral, sherpa-onnx, and OpenAI cloud. Install any local one on demand into its own sandbox (or drop in an OpenAI key for the cloud models), tune temperature, beam size, and the VAD filter, and set the active model without touching a config file.
 
 </td>
 <td width="50%">
@@ -92,7 +92,7 @@ Sixteen models across five engines — Whisper, Moonshine, Parakeet, Canary-Qwen
 
 ### Make the overlay yours
 
-The recording indicator is fully themeable — opacity, bar colours, icon colour, border, corner radius, and the equaliser's spacing, width, roundness, and fade — with a live preview as you tweak.
+The recording indicator is fully themeable — opacity, bar colours, icon colour, border, per-corner radius (linked or independent), and the equaliser's spacing, width, roundness, and fade — with a live preview as you tweak.
 
 </td>
 <td width="50%">
@@ -106,6 +106,7 @@ The recording indicator is fully themeable — opacity, bar colours, icon colour
 - **One hotkey** to start and stop — and it auto-stops when you go quiet.
 - **Type or clipboard** — paste straight into the focused window, or just copy.
 - **Punctuation hints** per language, so commas and periods land where you'd expect them.
+- **Curated model cards** — star ratings, pros/cons, and minimum vs recommended hardware for every model, so you pick right the first time.
 - **Live typing (alpha)** — words appear as you speak, once two passes agree on them.
 - **Smart paste** — picks ydotool, wtype, or xdotool for you, and falls back per window when one misbehaves.
 - **Sound cues** for recording, processing, and done.
@@ -121,12 +122,16 @@ Whisper is built in. The rest install on demand from the Model Manager (`macaw -
 | Parakeet TDT `v2` / `v3` | [NVIDIA NeMo][nemo] | English / 25 | ~2.5 GB | NVIDIA GPU | `macaw[nemo]` |
 | Canary-Qwen 2.5B | [NVIDIA NeMo][nemo] | English | ~5 GB | NVIDIA GPU | `macaw[nemo]` |
 | Voxtral Mini 3B | [Mistral Voxtral][voxtral] · [Transformers][transformers] | 13 | ~6 GB | NVIDIA GPU | `macaw[voxtral]` |
+| Zipformer · Paraformer · Parakeet (ONNX) | [sherpa-onnx][sherpa-onnx] | English · Chinese · 25 | ~26 MB – 660 MB | CPU | `macaw[sherpa]` |
+| GPT-4o Transcribe · mini | [OpenAI][openai-stt] | 99+ | cloud (API key) | Cloud | `macaw[openai]` |
 
 The default is `large-v3-turbo`: 99+ languages, about 1.6 GB, and the best speed-to-accuracy trade-off on a GPU. On a laptop with no GPU, `base` or `distil-small.en` keep things snappy.
 
+**Offline vs cloud.** sherpa-onnx and every other local engine run entirely on your machine; the GPT-4o models are cloud APIs — set an OpenAI key in the Model Manager (or `OPENAI_API_KEY`) to use them.
+
 ## Install
 
-Every method gives you the `macaw` command and an app-menu launcher (the 🦜 icon). Bind `macaw --trigger` to your hotkey.
+Every method gives you the `macaw` command and an app-menu launcher (the 🦜 icon). Set a global shortcut in Settings, or bind `macaw --trigger` to a key yourself.
 
 | Method | Best for | Command |
 |--------|----------|---------|
@@ -174,7 +179,7 @@ uv tool install "macaw[cuda] @ git+https://github.com/Osyna/Macaw"   # NVIDIA
 macaw --download large-v3-turbo                                      # fetch a model
 ```
 
-The other backends (Parakeet, Voxtral, Moonshine) install from the Model Manager when you want them, or as extras: `macaw[nemo]`, `macaw[voxtral]`, `macaw[moonshine]`.
+The other backends install from the Model Manager when you want them, or as extras: `macaw[sherpa]` (lightweight CPU ONNX models), `macaw[moonshine]`, `macaw[nemo]`, `macaw[voxtral]`, and `macaw[openai]` for the GPT-4o cloud models.
 
 ## Usage
 
@@ -186,7 +191,9 @@ The other backends (Parakeet, Voxtral, Moonshine) install from the Model Manager
 
 ### Hotkey setup
 
-Bind `macaw --trigger` to a key in your compositor or desktop settings.
+**Built-in (recommended).** Open **Settings → Global shortcut**, turn it on, click the field and press your combo — including `Super`/Meta combos, which Macaw captures straight from evdev so a Wayland compositor (Hyprland, etc.) can't swallow them. It's off by default, and the same shortcut works on X11 and every Wayland compositor with no per-desktop config. It needs read access to input devices; the installer already adds you to the `input` group for ydotool (log out and back in once after the first install). It only monitors input, so your combo still reaches other apps.
+
+**Or bind it yourself.** Prefer your compositor's own keybinds? Point one at `macaw --trigger`:
 
 ```conf
 # Hyprland (hyprland.conf)
@@ -320,6 +327,7 @@ Macaw stands on a lot of good open-source work:
 - [NVIDIA NeMo][nemo] for Parakeet and Canary-Qwen
 - [Mistral Voxtral][voxtral] and Hugging Face [Transformers][transformers]
 - [Useful Sensors Moonshine][moonshine] for the featherweight option
+- [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) (k2-fsa) for streaming ASR on plain CPUs
 - [PyQt6](https://www.riverbankcomputing.com/software/pyqt/), [sounddevice](https://python-sounddevice.readthedocs.io/), and [uv](https://docs.astral.sh/uv/)
 
 ## Star history
@@ -351,3 +359,5 @@ If Macaw saves you some typing, a ⭐ helps other people find it.
 [nemo]: https://github.com/NVIDIA/NeMo
 [voxtral]: https://huggingface.co/mistralai/Voxtral-Mini-3B-2507
 [transformers]: https://github.com/huggingface/transformers
+[sherpa-onnx]: https://github.com/k2-fsa/sherpa-onnx
+[openai-stt]: https://platform.openai.com/docs/guides/speech-to-text

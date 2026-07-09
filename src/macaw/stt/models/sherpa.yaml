@@ -1,0 +1,91 @@
+# sherpa-onnx (k2-fsa) ONNX models — lightweight CPU ASR in an isolated venv
+# (extra: sherpa). `id` matches the construction key in worker.py (_SHERPA_MODELS);
+# `repo` is the Hugging Face source (download link + on-first-use weights).
+# Sizes are the actual int8 on-disk totals — the two Parakeet encoders are not
+# int8-quantized, so those packages are ~0.6 GB despite the "int8" repo name.
+# Labels say "(ONNX)" to distinguish the CPU Parakeet here from the GPU/NeMo one.
+backend: sherpa
+source_url: https://github.com/k2-fsa/sherpa-onnx
+extra: sherpa
+hardware: CPU / Any
+vram: "—"
+min_specs: "2-core CPU · 2 GB RAM"
+rec_specs: "4-core CPU · 4 GB RAM"
+
+models:
+  - id: sherpa-parakeet-tdt-v3
+    label: Parakeet TDT v3 (ONNX)
+    repo: csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8
+    size: "~640 MB"
+    speed: accurate
+    languages: "25"
+    recommended: true
+    rating: 4
+    notes: |-
+      + Highest-accuracy CPU option: the 25-language Parakeet v3 with punctuation, capitalization and word-level timestamps — no GPU needed.
+      + Runs anywhere as an int8 ONNX model in a small isolated venv.
+      − Slightly less accurate and slower than the full-precision GPU build; larger download than the v2 ONNX model.
+      Why it ranks below "Parakeet TDT v3 (NeMo)": int8 on CPU trades a bit of accuracy and speed for running without an NVIDIA GPU. Pick this on CPU-only machines; pick the NeMo build if you have a GPU.
+  - id: sherpa-parakeet-tdt-v2
+    label: Parakeet TDT v2 (ONNX)
+    repo: csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8
+    size: "~660 MB"
+    speed: accurate
+    languages: EN
+    rating: 4
+    notes: |-
+      + Fast, accurate English on CPU with punctuation and capitalization — no GPU required.
+      + The best local pick when you don't have an NVIDIA card.
+      − English only; the NeMo build is faster and slightly more accurate if you do have a GPU.
+  - id: sherpa-zipformer-bilingual-zh-en
+    label: Zipformer Bilingual (ZH/EN)
+    repo: csukuangfj/sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20
+    size: "~200 MB"
+    speed: very fast
+    languages: ZH + EN
+    streaming: true
+    rating: 3
+    notes: |-
+      + Real-time Chinese and English in one model, with code-switching and low latency on CPU.
+      + Genuine streaming — text appears as you speak.
+      − Lower accuracy than the large offline models.
+  - id: sherpa-paraformer-bilingual-zh-en
+    label: Paraformer Bilingual (ZH/EN)
+    repo: csukuangfj/sherpa-onnx-streaming-paraformer-bilingual-zh-en
+    size: "~240 MB"
+    speed: very fast
+    languages: ZH + EN
+    streaming: true
+    rating: 3
+    notes: |-
+      + Strong on accented and regional Chinese plus English, with fast CPU streaming.
+      + Low-latency real-time output.
+      − Modest accuracy on difficult audio.
+  - id: sherpa-zipformer-en-20m
+    label: Zipformer Streaming EN
+    repo: csukuangfj/sherpa-onnx-streaming-zipformer-en-20M-2023-02-17
+    size: "~45 MB"
+    speed: very fast
+    languages: EN
+    streaming: true
+    rating: 2
+    notes: |-
+      + Ultra-light 20M-parameter English — tiny download, instant on any CPU.
+      + True low-latency streaming.
+      − English only; lowest accuracy of the set.
+    min_specs: "1-core CPU · 1 GB RAM"
+    rec_specs: "2-core CPU · 2 GB RAM"
+  - id: sherpa-zipformer-zh-14m
+    label: Zipformer Streaming ZH
+    repo: csukuangfj/sherpa-onnx-streaming-zipformer-zh-14M-2023-02-23
+    size: "~26 MB"
+    speed: very fast
+    languages: ZH
+    streaming: true
+    rating: 2
+    notes: |-
+      + Ultra-light 14M-parameter Chinese, ideal for low-resource devices.
+      + Instant startup with real-time streaming.
+      − Chinese only; lowest accuracy.
+    min_specs: "1-core CPU · 1 GB RAM"
+    rec_specs: "2-core CPU · 2 GB RAM"

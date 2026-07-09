@@ -57,6 +57,8 @@ class Transcriber:
 
     def is_ready(self) -> bool:
         """True if the active model can transcribe now (dep present + downloaded)."""
+        if not self.model_size:
+            return False  # nothing selected yet
         try:
             return self._ensure_backend().is_ready()
         except Exception:

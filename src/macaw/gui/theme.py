@@ -191,9 +191,10 @@ _register(
 DEFAULT_THEME = "oled"
 
 
-def active_theme() -> Theme:
-    """The theme selected in config, with the user's look overrides (opacity,
-    equaliser palette, accent colour) layered on top. Unknown name → OLED."""
+def active_indicator() -> Theme:
+    """The recording indicator's look: the `theme` selected in config with the
+    user's overlay overrides (opacity, equaliser palette, accent, size) on top.
+    Unknown name → OLED. Drives ONLY the overlay, never the app chrome."""
     from macaw.config import Config
 
     cfg = Config.load()
@@ -212,7 +213,17 @@ def active_theme() -> Theme:
         over["accent"] = cfg.accent_color
     if cfg.border_color:
         over["border_color"] = cfg.border_color
-    if cfg.corner_radius >= 0:
+    if not cfg.corner_link and len(cfg.corners) == 4:
+        over["corners"] = tuple(max(0, int(c)) for c in cfg.corners)
+    elif cfg.corner_radius >= 0:
         r = cfg.corner_radius
         over["corners"] = (r, r, r, r)
     return replace(base, **over)
+
+
+def active_theme() -> Theme:
+    """The app chrome (Settings / Model Manager windows): a plain dark or light
+    palette chosen by `app_theme`, independent of the indicator `theme`."""
+    from macaw.config import Config
+
+    return THEMES["light"] if Config.load().app_theme == "light" else THEMES["oled"]

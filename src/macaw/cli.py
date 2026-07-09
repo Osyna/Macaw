@@ -47,6 +47,8 @@ _UNSET = object()
 
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(list(sys.argv[1:] if argv is None else argv))
+    if args.proxy is not None or args.no_ssl_verify:
+        _apply_net_args(args)
     if args.trigger:
         return cmd_trigger(args)
     if args.stop:
@@ -70,6 +72,21 @@ def main(argv: list[str] | None = None) -> int:
     if args.repl:
         return cmd_repl(args)
     return cmd_run(args)  # no action flag (or --run) → start the service
+
+
+def _apply_net_args(args: object) -> None:
+    """Persist --proxy / --no-ssl-verify, then let the normal action run. These
+    advanced knobs route model downloads + cloud calls through a proxy and/or
+    skip SSL verification."""
+    from macaw.config import Config, config_path
+
+    cfg = Config.load()
+    if args.proxy is not None:
+        cfg.proxy = args.proxy
+    if args.no_ssl_verify:
+        cfg.ssl_verify = False
+    cfg.save()
+    print(f"Network settings updated in {config_path()}")
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -145,6 +162,17 @@ def _parser() -> argparse.ArgumentParser:
         "--repl",
         action="store_true",
         help="push-to-talk transcription in the terminal",
+    )
+    p.add_argument(
+        "--proxy",
+        metavar="URL",
+        default=None,
+        help="set HTTP(S) proxy for downloads + cloud calls (persists to config)",
+    )
+    p.add_argument(
+        "--no-ssl-verify",
+        action="store_true",
+        help="disable SSL certificate verification (advanced; persists to config)",
     )
     return p
 
@@ -248,6 +276,12 @@ def _status(backend, info, active: str) -> tuple[str, str]:
     """(label, rich-color) for a model's current state."""
     if info.id == active:
         return "active", "green"
+    if info.cloud:
+        if not backend.available():
+            return "needs macaw[openai]", "yellow"
+        if not backend.is_ready():
+            return "needs API key", "yellow"
+        return "ready (cloud)", "cyan"
     if info.extra and not backend.available():
         return f"needs macaw[{info.extra}]", "yellow"
     if backend.is_ready():

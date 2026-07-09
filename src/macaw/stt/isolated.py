@@ -10,7 +10,7 @@ from pathlib import Path
 
 import numpy as np
 
-from macaw.stt.base import Backend, MissingDependency
+from macaw.stt.base import Backend, MissingDependency, hf_cache_sizes, hf_repo_delete
 from macaw.stt.deps import _find_uv
 
 logger = logging.getLogger("macaw")
@@ -74,6 +74,17 @@ def install_commands(extra: str, packages: list[str]) -> list[list[str]]:
     ]
 
 
+def _worker_env() -> dict:
+    """Environment for a backend worker: the parent's env minus the import-path
+    knobs, so an isolated venv can NEVER pick up the main env's packages (e.g.
+    macaw itself) through a stray PYTHONPATH/PYTHONHOME. Belt-and-braces with the
+    sys.path cleanup worker.py does on startup."""
+    env = os.environ.copy()
+    env.pop("PYTHONPATH", None)
+    env.pop("PYTHONHOME", None)
+    return env
+
+
 # -- backend base that proxies to a persistent worker in the isolated venv -----
 
 
@@ -95,18 +106,39 @@ class SubprocessBackend(Backend):
         return is_installed(self.model.extra)
 
     def hf_repos(self) -> list[str]:
-        return []  # weights live under the isolated venv, not the shared HF cache
-        # (model_url still shows a download link via the catalog `repo`)
+        # Weights download to the SHARED HF cache on first load (keyed by the
+        # catalog `repo`) — only the pip deps live in the isolated venv. So size
+        # and delete must track the HF cache, not just the venv directory.
+        return [self.model.repo] if self.model.repo else []
 
     def disk_size(self, cache: dict[str, int] | None = None) -> int:
-        return dir_size(self.model.extra)
+        # this model's weights (shared HF cache) + its runtime venv (per extra)
+        return super().disk_size(cache) + dir_size(self.model.extra)
 
     def is_ready(self, cache: dict[str, int] | None = None) -> bool:
+        # ready once the backend venv exists; weights fetch lazily on first load
         return self.available()
 
     def delete(self) -> int:
         self.unload()
-        return remove(self.model.extra)
+        freed = hf_repo_delete(self.hf_repos())  # this model's weights
+        if not self._extra_in_use():  # keep the shared venv while a sibling needs it
+            freed += remove(self.model.extra)
+        return freed
+
+    def _extra_in_use(self) -> bool:
+        """True if another model sharing this venv still has weights on disk."""
+        from macaw.stt.registry import list_models
+
+        sizes = hf_cache_sizes()
+        mine = set(self.hf_repos())
+        return any(
+            m.extra == self.model.extra
+            and m.repo
+            and m.repo not in mine
+            and sizes.get(m.repo, 0) > 0
+            for m in list_models()
+        )
 
     # -- worker lifecycle ----------------------------------------------
 
@@ -133,6 +165,7 @@ class SubprocessBackend(Backend):
             stderr=subprocess.DEVNULL,
             text=True,
             bufsize=1,
+            env=_worker_env(),
         )
         status = self._read_message()
         if status.get("status") != "ready":
@@ -159,20 +192,36 @@ class SubprocessBackend(Backend):
             os.unlink(path)
 
     def unload(self) -> None:
-        if self._proc is not None:
+        """Terminate the worker AND reap it (wait), so switching/cancelling a
+        model never leaves a zombie subprocess or leaked pipes behind."""
+        proc, self._proc = self._proc, None
+        if proc is None:
+            return
+        try:
+            proc.terminate()
             try:
-                self._proc.terminate()
-            except Exception:
+                proc.wait(timeout=2)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait(timeout=2)
+        except Exception:  # noqa: BLE001
+            pass
+        for pipe in (proc.stdin, proc.stdout):
+            try:
+                if pipe is not None:
+                    pipe.close()
+            except Exception:  # noqa: BLE001
                 pass
-            self._proc = None
 
     # -- protocol ------------------------------------------------------
 
     def _read_message(self) -> dict:
         """Read lines until a JSON object appears (tolerates stray output)."""
-        assert self._proc is not None and self._proc.stdout is not None
+        proc = self._proc
+        if proc is None or proc.stdout is None:
+            return {"error": "worker exited"}
         while True:
-            line = self._proc.stdout.readline()
+            line = proc.stdout.readline()
             if not line:
                 return {"error": "worker exited"}
             line = line.strip()

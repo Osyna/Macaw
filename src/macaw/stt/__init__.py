@@ -32,7 +32,14 @@ from __future__ import annotations
 
 # Import backends for their @register side effect. Heavy deps stay lazy —
 # these modules only bind a key at import time; weights/inference load later.
-from macaw.stt import moonshine, nemo, voxtral, whisper  # noqa: E402,F401
+from macaw.stt import (  # noqa: E402,F401
+    cloud,
+    moonshine,
+    nemo,
+    sherpa,
+    voxtral,
+    whisper,
+)
 from macaw.stt.base import Backend, MissingDependency, ModelInfo
 from macaw.stt.catalog import CatalogError, load_catalog
 from macaw.stt.registry import (

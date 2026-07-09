@@ -1,0 +1,231 @@
+"""OpenAI cloud + sherpa-onnx backend checks. Run: python tests/test_new_backends.py
+
+Runs with neither `openai` nor `sherpa-onnx` installed and no network: the
+OpenAI SDK is faked in sys.modules and every backend is exercised through the
+public stt surface. Every test is zero-arg so pytest and the __main__ runner
+below behave identically.
+"""
+
+from __future__ import annotations
+
+import io
+import sys
+import tempfile
+import types
+import wave
+from pathlib import Path
+from unittest import mock
+
+import numpy as np
+
+import macaw.stt as stt
+from macaw.stt.cloud import _to_wav_bytes
+
+# -- _to_wav_bytes: the WAV encoder the cloud request depends on --------------
+
+
+def test_to_wav_bytes_header_and_roundtrip():
+    # A non-16k rate + a known [1, 0, -1] ramp: defends header, frame count and
+    # the 32767 int16 scaling all at once.
+    audio = np.array([1.0, 0.0, -1.0], dtype=np.float32)
+    data = _to_wav_bytes(audio, 22_050)
+
+    assert data[:4] == b"RIFF"
+    assert data[8:12] == b"WAVE"
+
+    with wave.open(io.BytesIO(data)) as r:
+        assert r.getnchannels() == 1
+        assert r.getsampwidth() == 2
+        assert r.getframerate() == 22_050  # not hardcoded to 16k
+        assert r.getnframes() == len(audio)
+        pcm = np.frombuffer(r.readframes(r.getnframes()), dtype="<i2")
+
+    assert list(pcm) == [32767, 0, -32767]
+
+
+def test_to_wav_bytes_clips_out_of_range():
+    # Without clip(), 2.0*32767 overflows int16 and wraps negative; assert the
+    # samples pin to full scale instead of wrapping.
+    audio = np.array([2.0, -2.0, 0.5], dtype=np.float32)
+    with wave.open(io.BytesIO(_to_wav_bytes(audio, 16_000))) as r:
+        pcm = np.frombuffer(r.readframes(r.getnframes()), dtype="<i2")
+
+    assert pcm[0] == 32767
+    assert pcm[1] == -32767
+    assert pcm.min() >= -32767 and pcm.max() <= 32767
+
+
+# -- OpenAICloudBackend.transcribe: the HTTPS request contract ----------------
+
+
+def _fake_openai(captured: dict, text: str = " hi "):
+    """A stand-in `openai` module whose OpenAI client records what it's asked."""
+    mod = types.ModuleType("openai")
+
+    class OpenAI:
+        def __init__(self, api_key=None, **_kw):
+            captured["api_key"] = api_key
+
+            def create(**kwargs):
+                captured["create_kwargs"] = kwargs
+                return types.SimpleNamespace(text=text)
+
+            self.audio = types.SimpleNamespace(
+                transcriptions=types.SimpleNamespace(create=create)
+            )
+
+    mod.OpenAI = OpenAI
+    return mod
+
+
+def test_openai_transcribe_builds_request():
+    from macaw.stt.cloud import OpenAICloudBackend
+
+    for model_id in ("gpt-4o-transcribe", "gpt-4o-mini-transcribe"):
+        captured: dict = {}
+        b = stt.create_backend(model_id, language="en")
+        with (
+            mock.patch.dict(sys.modules, {"openai": _fake_openai(captured)}),
+            mock.patch.object(OpenAICloudBackend, "api_key", lambda self: "sk-test"),
+        ):
+            out = b.transcribe(np.zeros(1600, dtype=np.float32), sample_rate=16_000)
+
+        assert out == "hi", model_id  # resp.text (" hi ") is stripped
+        assert captured["api_key"] == "sk-test", model_id
+        kw = captured["create_kwargs"]
+        assert kw["model"] == model_id, model_id
+        assert kw["response_format"] == "json", model_id
+        assert kw["language"] == "en", model_id
+        f = kw["file"]
+        assert isinstance(f, tuple) and f[0].endswith(".wav"), model_id
+        assert isinstance(f[1], (bytes, bytearray)) and f[1][:4] == b"RIFF", model_id
+
+
+def test_openai_transcribe_omits_empty_language():
+    from macaw.stt.cloud import OpenAICloudBackend
+
+    captured: dict = {}
+    b = stt.create_backend("gpt-4o-transcribe", language="")
+    with (
+        mock.patch.dict(sys.modules, {"openai": _fake_openai(captured)}),
+        mock.patch.object(OpenAICloudBackend, "api_key", lambda self: "sk-test"),
+    ):
+        b.transcribe(np.zeros(10, dtype=np.float32))
+
+    assert "language" not in captured["create_kwargs"]
+
+
+# -- OpenAICloudBackend: capability / readiness gating ------------------------
+
+
+def test_openai_hf_repos_empty():
+    # Cloud model → nothing to download; a non-empty list would make the Model
+    # Manager try to size/cache weights that don't exist.
+    assert stt.create_backend("gpt-4o-transcribe").hf_repos() == []
+
+
+def test_openai_is_ready_gates_on_key():
+    from macaw.stt.cloud import OpenAICloudBackend
+
+    b = stt.create_backend("gpt-4o-transcribe")
+    with mock.patch.object(OpenAICloudBackend, "available", lambda self: True):
+        with mock.patch.object(OpenAICloudBackend, "api_key", lambda self: ""):
+            assert b.is_ready() is False
+        with mock.patch.object(OpenAICloudBackend, "api_key", lambda self: "sk"):
+            assert b.is_ready() is True
+
+
+def test_openai_load_requires_key():
+    from macaw.stt.base import MissingDependency
+    from macaw.stt.cloud import OpenAICloudBackend
+
+    b = stt.create_backend("gpt-4o-transcribe")
+    # available() forced True so we exercise the no-key branch, not missing-dep.
+    with (
+        mock.patch.object(OpenAICloudBackend, "available", lambda self: True),
+        mock.patch.object(OpenAICloudBackend, "api_key", lambda self: ""),
+    ):
+        try:
+            b.load()
+        except MissingDependency:
+            pass
+        else:
+            raise AssertionError("load() must raise MissingDependency without a key")
+
+
+# -- Config: the new openai_api_key field survives save/load ------------------
+
+
+def test_config_openai_api_key_roundtrips():
+    from macaw.config import Config
+
+    with tempfile.TemporaryDirectory() as d:
+        p = Path(d) / "config.yaml"
+        Config(openai_api_key="sk-roundtrip-abc123").save(p)
+        assert Config.load(p).openai_api_key == "sk-roundtrip-abc123"
+
+
+# -- Catalog flags exposed through list_models() / create_backend() -----------
+
+
+def test_cloud_models_flagged_in_catalog():
+    by_id = {m.id: m for m in stt.list_models()}
+    for cid in ("gpt-4o-transcribe", "gpt-4o-mini-transcribe"):
+        assert cid in by_id, cid
+        assert by_id[cid].cloud is True, cid
+        assert by_id[cid].backend == "openai", cid
+
+
+def test_sherpa_streaming_and_recommended_flags():
+    by_id = {m.id: m for m in stt.list_models()}
+    assert by_id["sherpa-parakeet-tdt-v3"].recommended is True
+    for mid in (
+        "sherpa-zipformer-bilingual-zh-en",
+        "sherpa-paraformer-bilingual-zh-en",
+        "sherpa-zipformer-en-20m",
+        "sherpa-zipformer-zh-14m",
+    ):
+        assert by_id[mid].streaming is True, mid
+    for mid in ("sherpa-parakeet-tdt-v3", "sherpa-parakeet-tdt-v2"):
+        assert by_id[mid].streaming is False, mid
+
+
+def test_create_backend_routes_cloud_and_sherpa():
+    assert stt.create_backend("gpt-4o-transcribe").key == "openai"
+    assert stt.create_backend("gpt-4o-mini-transcribe").key == "openai"
+    assert stt.create_backend("sherpa-parakeet-tdt-v3").key == "sherpa"
+
+
+# -- worker._SHERPA_MODELS stays consistent with the sherpa catalog -----------
+
+
+def test_worker_sherpa_models_match_catalog():
+    # Importing worker.py rebinds sys.stdout -> sys.stderr as a side effect;
+    # save/restore around the import so pytest's capture survives.
+    saved = sys.stdout
+    try:
+        import macaw.stt.worker as worker
+    finally:
+        sys.stdout = saved
+
+    catalog_ids = {m.id for m in stt.list_models() if m.backend == "sherpa"}
+    assert set(worker._SHERPA_MODELS) == catalog_ids
+
+    valid_kinds = {"offline_transducer", "online_transducer", "online_paraformer"}
+    file_keys = {"encoder", "decoder", "joiner", "tokens"}
+    for mid, cfg in worker._SHERPA_MODELS.items():
+        assert cfg["kind"] in valid_kinds, mid
+        present = {k for k in cfg if k in file_keys}
+        if cfg["kind"] == "online_paraformer":
+            assert present == {"encoder", "decoder", "tokens"}, mid
+            assert "joiner" not in cfg, mid
+        else:  # offline/online transducer needs a joiner too
+            assert present == {"encoder", "decoder", "joiner", "tokens"}, mid
+
+
+if __name__ == "__main__":
+    for name, fn in sorted(globals().items()):
+        if name.startswith("test_") and callable(fn):
+            fn()
+            print(f"ok  {name}")
+    print("\nall passed")
