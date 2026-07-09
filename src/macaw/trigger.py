@@ -7,9 +7,11 @@ import zmq
 
 
 def _ipc_address() -> str:
+    port = os.environ.get("MACAW_IPC_PORT")
+    if port:
+        return f"tcp://127.0.0.1:{port}"  # tests / multi-instance override
     if sys.platform == "win32":
         # zmq's ipc:// transport needs AF_UNIX; use a loopback TCP port instead.
-        # ponytail: fixed port — make it configurable only if a collision ever shows up.
         return "tcp://127.0.0.1:47539"
     runtime = os.environ.get("XDG_RUNTIME_DIR")
     if runtime:

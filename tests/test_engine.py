@@ -66,6 +66,9 @@ def _xdg_env(tmp: Path) -> dict:
         d.mkdir(exist_ok=True)
         env[var] = str(d)
     env["HF_HOME"] = str(tmp / "hf")  # empty model cache, no scan of the real one
+    # Per-engine zmq port: on Windows the default is one fixed TCP port, which
+    # the module engine and the lifecycle-test engines would fight over.
+    env["MACAW_IPC_PORT"] = str(_free_port())
     env.pop("OPENAI_API_KEY", None)  # deterministic api_key_set
     env["PYTHONUNBUFFERED"] = "1"
     return env
@@ -371,6 +374,7 @@ def test_zmq_cli_commands_reach_the_engine(engine, client, monkeypatch):
 
     # point the CLI-side resolver at the engine's hermetic IPC socket
     monkeypatch.setenv("XDG_RUNTIME_DIR", engine.env["XDG_RUNTIME_DIR"])
+    monkeypatch.setenv("MACAW_IPC_PORT", engine.env["MACAW_IPC_PORT"])
 
     assert send_command("PING", timeout_ms=5000) == "OK"  # `macaw --status` probe
 
