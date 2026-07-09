@@ -333,9 +333,7 @@ class Engine:
 
         self._capture_cancel()
         cap = HotkeyCapture()
-        cap.captured.connect(
-            lambda spec: self.emit("hotkey_captured", {"spec": spec})
-        )
+        cap.captured.connect(lambda spec: self.emit("hotkey_captured", {"spec": spec}))
         cap.failed.connect(lambda reason: self.toast("error", reason))
         cap.start()
         self._hotkey_capture = cap

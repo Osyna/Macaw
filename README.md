@@ -54,7 +54,7 @@ Press a hotkey, say your sentence, and it drops straight into whatever you're ty
 
 - 🔒 **Local by default.** Every local engine runs fully on your machine — no account, no round-trip. The two GPT-4o cloud models are strictly opt-in, with your own key.
 - 🆓 **Free and open.** MIT-licensed, and the models are open too. No subscription, no per-minute meter.
-- 🐧 **Made for Linux.** Wayland or X11, a tray icon, a systemd user service, and one hotkey to fire it. A native win64 build (beta) covers Windows too.
+- 🐧 **Made for Linux.** Wayland or X11, a tray app with one hotkey to fire it. A native win64 build (beta) covers Windows too.
 - 🔁 **Swap the brain.** Start on Whisper, move to Parakeet, Voxtral, Moonshine, or the featherweight sherpa-onnx CPU models whenever you feel like it.
 - ⚡ **Uses your GPU.** CUDA when it's there, CPU when it isn't, and nothing to wire up either way.
 
@@ -131,14 +131,14 @@ The default is `large-v3-turbo`: 99+ languages, about 1.6 GB, and the best speed
 
 ## Install
 
-Every method gives you the `macaw` command and an app-menu launcher (the 🦜 icon). Set a global shortcut in Settings, or bind `macaw --trigger` to a key yourself.
+Every method gives you the Macaw app (tray + Settings/Models windows + overlay). Set a global shortcut in Settings, or bind `macaw --trigger` to a key yourself.
 
 | Method | Best for | Command |
 |--------|----------|---------|
-| Install script | most distros, GPU support | `curl -fsSL https://raw.githubusercontent.com/Osyna/Macaw/main/install.sh \| bash` |
-| AUR | Arch / Manjaro | `yay -S macaw` |
-| AppImage | no install, CPU only | grab it from [Releases](https://github.com/Osyna/Macaw/releases/latest), `chmod +x`, run |
-| uv / pipx | you manage the service yourself | `uv tool install "macaw @ git+https://github.com/Osyna/Macaw"` |
+| deb / rpm | Debian, Ubuntu, Fedora, openSUSE | grab it from [Releases](https://github.com/Osyna/Macaw/releases/latest) |
+| Install script | everything else | `curl -fsSL https://raw.githubusercontent.com/Osyna/Macaw/main/install.sh \| bash` |
+| AppImage | no install | grab it from [Releases](https://github.com/Osyna/Macaw/releases/latest), `chmod +x`, run |
+| NSIS installer | Windows 10/11 (beta) | `Macaw_<version>_x64-setup.exe` from [Releases](https://github.com/Osyna/Macaw/releases/latest) |
 
 First, the system bits Macaw talks to:
 
@@ -156,50 +156,45 @@ On Wayland, `ydotool` is the safest pick for type mode: it handles native Waylan
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/Osyna/Macaw/main/install.sh | bash
-# or from a clone:  ./install.sh
 ```
 
-It installs `macaw` with `uv tool`, detects CUDA or ROCm for GPU acceleration, adds the desktop launcher, and enables a systemd user service that starts on login. Run it again any time to uninstall: it spots an existing install and offers to remove it.
+It downloads the latest AppImage to `~/.local/bin`, adds the desktop launcher and icon, and offers to set up input-group access for the evdev hotkey and ydotool. Run `install.sh uninstall` to remove it again.
 
-### AppImage
+### AppImage / deb / rpm
 
-Grab `macaw-<version>-x86_64.AppImage` from the [latest release](https://github.com/Osyna/Macaw/releases/latest):
+Each bundle ships the UI **and** the speech engine (Python is embedded — no system Python needed). Whisper is built in; every other backend installs on demand from the Model Manager into its own sandbox under `~/.local/share/macaw/backends/`, including the GPU ones (CUDA wheels and all). On Wayland the overlay anchors via wlr-layer-shell (`gtk-layer-shell`; the deb/rpm pull it in, and Hyprland/Sway/KDE support it out of the box).
 
-```sh
-chmod +x macaw-*-x86_64.AppImage
-./macaw-*-x86_64.AppImage
-```
+### Windows (beta)
 
-It bundles Python, Qt, and the Whisper backend, so you don't need a system Python. The GPU backends aren't included; use the script or AUR for those.
-
-### Windows (experimental)
-
-Grab `macaw-<version>-win64.zip` from the [latest release](https://github.com/Osyna/Macaw/releases/latest), unzip anywhere, and run `Macaw.exe` (tray app) — `macaw-cli.exe` is the same app with a console, handy for `--status`, `--repl`, and reading logs.
+Run `Macaw_<version>_x64-setup.exe` from the [latest release](https://github.com/Osyna/Macaw/releases/latest).
 
 What's different on Windows:
 
 - **Hotkey** uses the native `RegisterHotKey` API — set it in Settings as usual (no `input` group, no evdev).
 - **Typing** uses `SendInput` — no ydotool/wtype/xdotool needed.
-- **Models:** Whisper, sherpa-onnx, Moonshine, Voxtral, and the GPT-4o cloud models work; **NeMo (Parakeet GPU / Canary-Qwen) is Linux-only.** `uv.exe` ships in the zip, so sandboxed installs from the Model Manager just work.
-- **Autostart:** press `Win+R`, run `shell:startup`, and drop a shortcut to `Macaw.exe` there.
+- **Models:** Whisper, sherpa-onnx, Moonshine, Voxtral, and the GPT-4o cloud models work; **NeMo (Parakeet GPU / Canary-Qwen) is Linux-only.** `uv.exe` ships with the engine, so sandboxed installs from the Model Manager just work.
+- **Autostart:** flip **Settings → Start at login**.
 - Config lives at `%USERPROFILE%\.config\macaw\config.yaml`.
 
-### GPU and extra models
+### CLI-only install (no UI)
 
 ```sh
-uv tool install "macaw[cuda] @ git+https://github.com/Osyna/Macaw"   # NVIDIA
-macaw --download large-v3-turbo                                      # fetch a model
+uv tool install "macaw @ git+https://github.com/Osyna/Macaw"
+macaw --download large-v3-turbo    # fetch a model
+macaw --run                        # headless engine (hotkey + overlay-less dictation)
 ```
 
-The other backends install from the Model Manager when you want them, or as extras: `macaw[sherpa]` (lightweight CPU ONNX models), `macaw[moonshine]`, `macaw[nemo]`, `macaw[voxtral]`, and `macaw[openai]` for the GPT-4o cloud models.
+That gives you the engine and the `macaw` CLI without the desktop app — dictation still lands in your clipboard or focused window. Backends install from `macaw --setup`, or as extras: `macaw[sherpa]`, `macaw[moonshine]`, `macaw[nemo]`, `macaw[voxtral]`, `macaw[openai]`, `macaw[cuda]`.
 
 ## Usage
 
 | Command | What it does |
 |---------|--------------|
-| `macaw` | The tray service. Listens for toggle commands over IPC. |
-| `macaw --trigger` | Toggles the running service. Bind this to a key. |
-| `macaw-cli` | Standalone push-to-talk. No service needed. |
+| `Macaw` (app) | Tray + Settings/Models + recording overlay. Spawns and owns the engine. |
+| `macaw --run` | The engine, headless — for CLI-only installs. |
+| `macaw --trigger` | Toggles recording in the running engine. Bind this to a key. |
+| `macaw --status` / `--stop` | Probe / stop the running engine. |
+| `macaw-cli` | Standalone push-to-talk in the terminal. No engine needed. |
 
 ### Hotkey setup
 
@@ -243,17 +238,21 @@ streaming: false            # live typing as you speak (alpha)
 ## How it works
 
 ```
-macaw --trigger --[ZMQ IPC]--> macaw (service)
-                                   |
-                                   +-- AudioCapture (sounddevice)
-                                   +-- Transcriber (facade) --> macaw.stt backends
-                                   +-- DesktopHelper (clipboard, paste, focus)
-                                   +-- RecordingWindow (PyQt6 overlay)
-                                   +-- SettingsWindow (PyQt6 GUI)
-                                   +-- SystemTrayIcon
+Macaw (Tauri app: tray, Settings/Models, overlay)
+   |            \
+   | spawns      \ WebSocket (JSON-RPC + events, 127.0.0.1, token-authed)
+   v              \
+macaw-engine  <----+          macaw --trigger --[ZMQ IPC]--> macaw-engine
+   |
+   +-- AudioCapture (sounddevice)
+   +-- Transcriber (facade) --> macaw.stt backends
+   +-- DesktopHelper (clipboard, paste, focus)
+   +-- HotkeyListener (evdev / RegisterHotKey)
 ```
 
-- IPC is ZMQ REQ/REP over a Unix socket at `$XDG_RUNTIME_DIR/macaw.ipc`.
+- The UI is a [Tauri](https://tauri.app) app; the engine is headless Python. The app spawns the engine and holds its stdin — if either dies, the other follows.
+- CLI IPC is ZMQ REQ/REP over a Unix socket at `$XDG_RUNTIME_DIR/macaw.ipc` (TCP on Windows).
+- The UI drives the engine over a local WebSocket: config, model management, recording state, live mic levels for the overlay bars.
 - Audio is captured at 16 kHz mono with energy-based speech detection.
 - Transcription runs through pluggable backends; the default is `large-v3-turbo` on faster-whisper with a Silero VAD filter.
 - Pasting uses ydotool (evdev), wtype (Wayland virtual keyboard), or xdotool (X11), with XWayland detection on Hyprland.
@@ -294,11 +293,7 @@ Import the module in `src/macaw/stt/__init__.py` so the class registers; the YAM
 
 ## Troubleshooting
 
-Service logs:
-
-```sh
-journalctl --user -u macaw -f
-```
+Engine logs are the app's stderr, prefixed `[engine]` — run `Macaw` (or the AppImage) from a terminal to watch them live.
 
 **Type mode does nothing.** You need at least one paste tool (`ydotool`, `wtype`, or `xdotool`); watch the logs for "No paste tool available". For `ydotool`, the `ydotoold` daemon has to be running and your user needs access to `/dev/uinput`, usually via the `input` group.
 
@@ -306,15 +301,15 @@ journalctl --user -u macaw -f
 
 **No GPU acceleration.** Check CUDA with `python -c "import ctranslate2; print(ctranslate2.get_cuda_device_count())"`. A `0` means CUDA libraries aren't on your `LD_LIBRARY_PATH`, or you need the `[cuda]` extra.
 
-**Second instance won't start.** Only one service can hold the IPC socket. If it exits immediately, `journalctl` shows "IPC socket already in use".
+**Second instance won't start.** Only one engine can hold the IPC socket; launching the app again just focuses the running instance.
 
 **Electron apps miss the paste.** On Wayland, `wtype` sends virtual keyboard events some Electron apps read wrong. Macaw uses Shift+Insert instead of Ctrl+V for `wtype`, and prefers `ydotool`, which works everywhere.
 
 ## Releasing
 
-Releases are built by CI (`.github/workflows/release.yml`) whenever a `vX.Y.Z` tag is pushed. Each one ships the wheel, the source sdist, a self-contained CPU AppImage, `SHA256SUMS`, and the staged AUR `PKGBUILD` plus `macaw.install`.
+Releases are built by CI whenever a `vX.Y.Z` tag is pushed: `release.yml` ships the wheel/sdist, the Linux Tauri bundles (AppImage/deb/rpm, engine embedded), and `SHA256SUMS`; `windows.yml` adds the NSIS installer.
 
-Cut one in a single step. `make tag` bumps the version in `pyproject.toml` and `packaging/aur/PKGBUILD`, commits, and tags:
+Cut one in a single step. `make tag` bumps the version in `pyproject.toml` and `src-tauri/tauri.conf.json`, commits, and tags:
 
 ```sh
 make tag VERSION=0.2.0
@@ -340,7 +335,7 @@ Macaw stands on a lot of good open-source work:
 - [Mistral Voxtral][voxtral] and Hugging Face [Transformers][transformers]
 - [Useful Sensors Moonshine][moonshine] for the featherweight option
 - [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) (k2-fsa) for streaming ASR on plain CPUs
-- [PyQt6](https://www.riverbankcomputing.com/software/pyqt/), [sounddevice](https://python-sounddevice.readthedocs.io/), and [uv](https://docs.astral.sh/uv/)
+- [Tauri](https://tauri.app), [sounddevice](https://python-sounddevice.readthedocs.io/), and [uv](https://docs.astral.sh/uv/)
 
 ## Star history
 

@@ -4,7 +4,31 @@ Notable changes to Macaw. Older releases live on the [releases page](https://git
 
 ## Unreleased
 
-- **Windows (win64, beta)** — Macaw now runs natively on Windows. Global hotkey via `RegisterHotKey`, typing via `SendInput`, IPC over loopback TCP, and a PyInstaller zip on every release (`Macaw.exe` tray app + `macaw-cli.exe` console twin, `uv.exe` bundled so sandboxed model installs work out of the box). Whisper, sherpa-onnx, Moonshine, Voxtral, and GPT-4o cloud all work; NeMo stays Linux-only.
+- **New UI, whole app rebuilt on Tauri — PyQt6 is gone.** Macaw is now a native
+  Tauri app (tray, Settings/Models window, recording overlay as a web frontend)
+  driving a headless Python engine (`macaw-engine`) over a token-authed local
+  WebSocket. The engine keeps everything that matters — audio capture, the whole
+  model catalog, the evdev/RegisterHotKey global hotkey, typing/clipboard
+  delivery, zmq CLI IPC — and dies with the app (stdin watchdog), so no orphan
+  processes. Config file and schema are unchanged.
+- **Overlay, now compositor-native on Wayland** — anchored bottom-center (or any
+  corner, or custom X/Y) via wlr-layer-shell with true click-through; same
+  per-corner radii, borders, opacity, and 24-bar equalizer as before, rendered
+  on canvas with the same attack/release feel. Falls back to normal window
+  positioning on X11 and Windows.
+- **Fixes that came out of the rewrite** — NVIDIA + Wayland no longer crashes
+  webkit (DMA-BUF renderer disabled); editing unrelated settings before a model
+  is picked no longer flashes a sticky error; the engine shuts down cleanly
+  (zmq context teardown).
+- **Packaging** — Linux ships AppImage/deb/rpm with the engine embedded (no
+  system Python needed); Windows gets an NSIS installer. `install.sh` now just
+  fetches the AppImage and wires the launcher. The old AUR/PKGBUILD flow is
+  retired until a `macaw-bin` package lands. Base install no longer pulls PyQt6.
+- **Windows (win64, beta)** — Macaw runs natively on Windows. Global hotkey via
+  `RegisterHotKey`, typing via `SendInput`, IPC over loopback TCP. Whisper,
+  sherpa-onnx, Moonshine, Voxtral, and GPT-4o cloud all work; NeMo stays
+  Linux-only. `uv.exe` ships with the engine so sandboxed model installs work
+  out of the box.
 
 ## v0.3.0 — Eight new brains, one honest Manager
 

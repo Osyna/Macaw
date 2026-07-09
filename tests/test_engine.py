@@ -110,9 +110,7 @@ class EngineProc:
                 buf += chunk
                 if f"READY ws={self.port}".encode() in buf:
                     # Drain further output so the pipe can never block the engine.
-                    threading.Thread(
-                        target=self.proc.stdout.read, daemon=True
-                    ).start()
+                    threading.Thread(target=self.proc.stdout.read, daemon=True).start()
                     return
             if self.proc.poll() is not None:
                 break
