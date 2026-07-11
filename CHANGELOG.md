@@ -2,7 +2,15 @@
 
 Notable changes to Macaw. Older releases live on the [releases page](https://github.com/Osyna/Macaw/releases).
 
-## Unreleased
+## v0.4.1
+
+- **AppImage: overlay anchoring fixed on Wayland.** The AppImage runtime hook
+  forced X11 (XWayland), which disabled wlr-layer-shell and let tiling
+  compositors tile the recording indicator into the layout. Macaw now reclaims
+  native Wayland when available, and the AppImage ships its own
+  `gtk-layer-shell` copy — anchored overlay out of the box, no system package.
+
+## v0.4.0 — New UI, whole app rebuilt on Tauri
 
 - **New UI, whole app rebuilt on Tauri — PyQt6 is gone.** Macaw is now a native
   Tauri app (tray, Settings/Models window, recording overlay as a web frontend)

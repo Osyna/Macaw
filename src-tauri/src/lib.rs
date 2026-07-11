@@ -19,7 +19,13 @@ const WS_PORT: u16 = 47540;
 #[cfg(target_os = "linux")]
 mod layer_shell {
     use std::ffi::{c_char, c_int, CString};
-    use std::sync::LazyLock;
+    use std::path::PathBuf;
+    use std::sync::{LazyLock, OnceLock};
+
+    /// Set once in setup() (runtime input — needs the AppHandle). Lets the
+    /// bundled AppImage copy of libgtk-layer-shell be found without any
+    /// system install.
+    pub static RESOURCE_DIR: OnceLock<PathBuf> = OnceLock::new();
 
     // gtk-layer-shell.h enums (ABI-stable C API)
     pub const LAYER_OVERLAY: c_int = 3;
@@ -45,7 +51,13 @@ mod layer_shell {
     unsafe impl Sync for Api {}
 
     pub static API: LazyLock<Option<Api>> = LazyLock::new(|| unsafe {
-        let lib = libloading::Library::new("libgtk-layer-shell.so.0").ok()?;
+        let lib = ["libgtk-layer-shell.so.0".into()]
+            .into_iter()
+            .chain(RESOURCE_DIR.get().into_iter().flat_map(|d| {
+                ["libgtk-layer-shell.so.0", "resources/libgtk-layer-shell.so.0"]
+                    .map(|rel| d.join(rel).into_os_string())
+            }))
+            .find_map(|cand| libloading::Library::new(cand).ok())?;
         macro_rules! sym {
             ($name:literal) => {
                 *lib.get(concat!($name, "\0").as_bytes()).ok()?
@@ -332,7 +344,16 @@ pub fn run() {
     // as a window maps). Falling back to the shared-memory path is the
     // ecosystem-standard fix and costs little on other GPUs.
     #[cfg(target_os = "linux")]
-    std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+    {
+        std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+        // linuxdeploy's GTK AppRun hook exports GDK_BACKEND=x11 (blanket
+        // workaround for webkit Wayland crashes — ours is the DMA-BUF one,
+        // fixed above). XWayland kills wlr-layer-shell anchoring and gets the
+        // overlay TILED on Hyprland, so reclaim native Wayland when present.
+        if std::env::var_os("WAYLAND_DISPLAY").is_some() {
+            std::env::set_var("GDK_BACKEND", "wayland,x11");
+        }
+    }
 
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
@@ -351,6 +372,14 @@ pub fn run() {
             overlay_layout
         ])
         .setup(|app| {
+            #[cfg(target_os = "linux")]
+            match app.path().resource_dir() {
+                Ok(dir) => {
+                    eprintln!("[shell] resource_dir = {}", dir.display());
+                    let _ = layer_shell::RESOURCE_DIR.set(dir);
+                }
+                Err(e) => eprintln!("[shell] resource_dir error: {e}"),
+            }
             let token = uuid::Uuid::new_v4().to_string();
             let child = spawn_engine(app.handle(), &token);
             app.manage(EngineState {

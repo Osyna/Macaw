@@ -47,3 +47,5 @@ src-tauri/binaries/*
 !src-tauri/binaries/.gitkeep
 packaging/engine/entry.py
 dist-engine/
+src-tauri/resources/*
+!src-tauri/resources/.gitkeep
