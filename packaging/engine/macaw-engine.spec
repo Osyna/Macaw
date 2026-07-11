@@ -13,6 +13,9 @@ Bundled as real files (read from disk at runtime, not imported):
 """
 
 import os
+import re
+import subprocess
+import sys
 
 from PyInstaller.utils.hooks import copy_metadata
 
@@ -31,8 +34,23 @@ datas = [
 ]
 datas += copy_metadata("macaw")
 
+# The Linux sounddevice wheel does NOT bundle libportaudio (the Windows/macOS
+# wheels do) — it dlopens the system lib. Bundle it so the frozen engine runs
+# on hosts without portaudio installed (AppImage, raw binary).
+binaries = []
+if sys.platform.startswith("linux"):
+    out = subprocess.run(["ldconfig", "-p"], capture_output=True, text=True).stdout
+    m = re.search(r"libportaudio\.so\.2\S* .*=> (\S+)", out)
+    if not m:
+        raise SystemExit(
+            "libportaudio.so.2 not found — install portaudio (Arch) / "
+            "libportaudio2 (Debian) so it can be bundled into the engine."
+        )
+    binaries.append((m.group(1), "."))
+
 a = Analysis(
     [entry],
+    binaries=binaries,
     datas=datas,
     hiddenimports=[
         "websockets",

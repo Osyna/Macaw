@@ -45,6 +45,9 @@ jobs:
       - name: Install Python deps
         run: uv sync
 
+      - name: Install portaudio (bundled into the engine by the spec)
+        run: sudo apt-get update && sudo apt-get install -y libportaudio2
+
       - name: Build engine with PyInstaller
         run: uv run --with pyinstaller pyinstaller packaging/engine/macaw-engine.spec --noconfirm
 
