@@ -53,6 +53,10 @@ setup_input_access() {
     echo
     info "The global hotkey and auto-type need input-layer access (uses sudo):"
     printf '  - %s\n' "${needs[@]}"
+    if [[ ! -t 0 && ! -r /dev/tty ]]; then
+        warn "No terminal for sudo — re-run install.sh interactively to finish input setup."
+        return 0
+    fi
     if ! prompt_yn "Apply these changes?" "y"; then
         warn "Skipped. Hotkey/auto-type may not work; re-run this script to fix."
         return 0
