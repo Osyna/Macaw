@@ -21,6 +21,11 @@ function switchTab(tab: Tab): void {
 async function showMain(): Promise<void> {
   if (!inTauri) return;
   const win = getCurrentWindow();
+  // Wayland can't move mapped windows between workspaces — remap so the
+  // compositor places us on the current one instead of jumping the user away.
+  if ((await win.isVisible()) && !(await win.isFocused())) {
+    await win.hide();
+  }
   await win.show();
   await win.setFocus();
 }

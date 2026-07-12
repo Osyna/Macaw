@@ -2,6 +2,17 @@
 
 Notable changes to Macaw. Older releases live on the [releases page](https://github.com/Osyna/Macaw/releases).
 
+## v0.4.2
+
+- **Windows open on your current workspace.** Showing Settings/Models from the
+  tray remaps the window instead of yanking you to the workspace it was first
+  opened on (Wayland can't move mapped windows — so we unmap + remap).
+- **`macaw` CLI is back for AppImage installs** — `install.sh` ships a thin
+  wrapper; `macaw --settings | --models | --trigger | --stop` are handled by
+  the running app (single-instance argv).
+- **`install.sh` offers Reinstall / Uninstall / Quit** when Macaw is already
+  installed, and `--uninstall` also removes the CLI wrapper and stops the app.
+
 ## v0.4.1
 
 - **AppImage: overlay anchoring fixed on Wayland.** The AppImage runtime hook

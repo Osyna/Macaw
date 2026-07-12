@@ -7,6 +7,7 @@ set -euo pipefail
 REPO="Osyna/Macaw"
 BIN_DIR="$HOME/.local/bin"
 APPIMAGE="$BIN_DIR/Macaw.AppImage"
+CLI_WRAPPER="$BIN_DIR/macaw"
 DESKTOP_FILE="$HOME/.local/share/applications/macaw.desktop"
 ICON_FILE="$HOME/.local/share/icons/hicolor/256x256/apps/macaw.png"
 UINPUT_RULE="/etc/udev/rules.d/99-uinput-input-group.rules"
@@ -37,9 +38,28 @@ fetch() { # fetch URL DEST
 
 uninstall() {
     info "Removing Macaw..."
-    rm -f "$APPIMAGE" "$DESKTOP_FILE" "$ICON_FILE"
+    pkill -f "Macaw.AppImage" 2>/dev/null && sleep 1 || true
+    rm -f "$APPIMAGE" "$CLI_WRAPPER" "$DESKTOP_FILE" "$ICON_FILE"
     info "Done. Kept: config (~/.config/macaw), backends (~/.local/share/macaw),"
     info "models (~/.cache/huggingface) — delete those dirs if unwanted."
+}
+
+# Re-running the installer on an existing install: offer the choice the old
+# installer had instead of silently re-downloading.
+existing_install_menu() {
+    [[ -f "$APPIMAGE" ]] || return 0
+    warn "Macaw is already installed at $APPIMAGE"
+    if [[ ! -t 0 && ! -r /dev/tty ]]; then
+        info "(non-interactive) reinstalling."
+        return 0
+    fi
+    local choice
+    read -rp "Reinstall (r) / Uninstall (u) / Quit (q)? [r/u/q] " choice </dev/tty
+    case "${choice:-r}" in
+        [uU]*) uninstall; exit 0 ;;
+        [qQ]*) exit 0 ;;
+        *) ;; # reinstall
+    esac
 }
 
 # Global hotkey (evdev) and auto-type (ydotool) read/write the kernel input
@@ -77,6 +97,7 @@ setup_input_access() {
 
 install_app() {
     info "Installing Macaw — speech-to-text for Linux"
+    existing_install_menu
 
     info "Resolving latest release..."
     local api="https://api.github.com/repos/$REPO/releases/latest"
@@ -119,6 +140,14 @@ EOF
     command -v update-desktop-database &>/dev/null \
         && update-desktop-database "$(dirname "$DESKTOP_FILE")" 2>/dev/null || true
 
+    # Thin `macaw` CLI: flags are handled by the running app instance
+    # (--settings, --models, --trigger toggles recording, --stop quits).
+    cat > "$CLI_WRAPPER" <<EOF
+#!/bin/sh
+exec "$APPIMAGE" "\$@"
+EOF
+    chmod +x "$CLI_WRAPPER"
+
     setup_input_access
 
     echo
@@ -130,7 +159,7 @@ EOF
 }
 
 case "${1:-}" in
-    --uninstall) uninstall ;;
-    "")          install_app ;;
-    *)           error "Usage: install.sh [--uninstall]"; exit 1 ;;
+    --uninstall|uninstall) uninstall ;;
+    "")                    install_app ;;
+    *)                     error "Usage: install.sh [--uninstall]"; exit 1 ;;
 esac

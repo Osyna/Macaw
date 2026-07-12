@@ -192,8 +192,8 @@ That gives you the engine and the `macaw` CLI without the desktop app — dictat
 |---------|--------------|
 | `Macaw` (app) | Tray + Settings/Models + recording overlay. Spawns and owns the engine. |
 | `macaw --run` | The engine, headless — for CLI-only installs. |
-| `macaw --trigger` | Toggles recording in the running engine. Bind this to a key. |
-| `macaw --status` / `--stop` | Probe / stop the running engine. |
+| `macaw --trigger` | Toggles recording. Bind this to a key. (AppImage installs get a thin `macaw` wrapper; args are handled by the running app.) |
+| `macaw --settings` / `--models` / `--stop` | Open a tab / quit the running app. |
 | `macaw-cli` | Standalone push-to-talk in the terminal. No engine needed. |
 
 ### Hotkey setup

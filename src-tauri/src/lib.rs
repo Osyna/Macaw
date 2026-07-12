@@ -275,15 +275,20 @@ fn spawn_engine(app: &AppHandle, token: &str) -> EngineChild {
 
 fn show_main(app: &AppHandle) {
     if let Some(w) = app.get_webview_window("main") {
+        // Wayland can't move windows between workspaces: an already-mapped
+        // window would stay (and yank focus to) wherever it was first shown.
+        // Unmap + remap makes the compositor place it on the CURRENT workspace.
+        if w.is_visible().unwrap_or(false) && !w.is_focused().unwrap_or(false) {
+            let _ = w.hide();
+        }
         let _ = w.show();
         let _ = w.set_focus();
     }
 }
 
 fn show_tab(app: &AppHandle, tab: &str) {
+    show_main(app);
     if let Some(w) = app.get_webview_window("main") {
-        let _ = w.show();
-        let _ = w.set_focus();
         let _ = w.emit("show-tab", tab);
     }
 }
@@ -356,8 +361,22 @@ pub fn run() {
     }
 
     tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
-            show_main(app);
+        .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
+            // `macaw <flag>` (thin CLI wrapper) lands here when the app runs.
+            let has = |f: &str| argv.iter().any(|a| a == f);
+            if has("--stop") {
+                app.exit(0);
+            } else if has("--trigger") {
+                if let Some(w) = app.get_webview_window("main") {
+                    let _ = w.emit("tray-toggle", ());
+                }
+            } else if has("--models") {
+                show_tab(app, "models");
+            } else if has("--settings") {
+                show_tab(app, "settings");
+            } else {
+                show_main(app);
+            }
         }))
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_autostart::init(
