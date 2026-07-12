@@ -88,6 +88,8 @@ export component MainWindow inherits Window {
     callback trans-remove(int);
     callback done-picked(color);
     callback done-clear();
+    callback donering-picked(color);
+    callback donering-clear();
     callback error-picked(color);
     callback error-clear();
     // models plumbing (forwarded)
@@ -226,6 +228,8 @@ export component MainWindow inherits Window {
             trans-remove(i) => { root.trans-remove(i); }
             done-picked(c) => { root.done-picked(c); }
             done-clear => { root.done-clear(); }
+            donering-picked(c) => { root.donering-picked(c); }
+            donering-clear => { root.donering-clear(); }
             error-picked(c) => { root.error-picked(c); }
             error-clear => { root.error-clear(); }
             theme-names: root.theme-names;

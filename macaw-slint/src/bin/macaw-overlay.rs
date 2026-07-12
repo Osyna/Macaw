@@ -211,6 +211,7 @@ impl Overlay {
         ui.set_record_anim(v["record_anim"].as_str().unwrap_or("bars").into());
         ui.set_anim(v["anim"].as_str().unwrap_or("waves").into());
         ui.set_done_anim(v["done_anim"].as_str().unwrap_or("pop").into());
+        ui.set_ring_color(c("done_ring"));
         ui.set_anim_speed(f("anim_speed", 1.0));
         if let Some(stops) = v["loader"].as_array() {
             let lc: Vec<slint::Color> = stops
@@ -256,6 +257,9 @@ impl Overlay {
                 if let Some(m) = v["mode"].as_str() {
                     self.ui.set_mode(m.into());
                 }
+                // preview shows loop the done entrance; real dictation
+                // plays it once
+                self.ui.set_demo_loop(v["demo"].as_bool().unwrap_or(false));
                 self.draw();
             }
             "mode" => {

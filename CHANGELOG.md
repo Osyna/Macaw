@@ -4,6 +4,11 @@ Notable changes to Macaw. Older releases live on the [releases page](https://git
 
 ## Unreleased
 
+- Done state: the entrance animation now **loops in the live preview** and
+  on the pinned on-screen indicator (real dictation still plays it once),
+  the ✓ sits on a **configurable circle** (defaults to the pill color), and
+  the `rise` animation is gone — saved configs fall back to `pop`.
+
 - Models: the **active model is unmistakable** — green outline + "active"
   badge on its list row and a green ACTIVE badge on its dossier.
   Scrollbars now live in their own gutter (no more drawing over list cards)

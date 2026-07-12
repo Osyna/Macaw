@@ -13,9 +13,9 @@ import { Grad } from "theme.slint";
 
 export component OverlayPill inherits Rectangle {
     in property <string> mode: "eq"; // eq | loader | done | error
-    in property <string> record-anim: "bars"; // eq: bars | mirror | dots | orb
+    in property <string> record-anim: "bars"; // eq: bars | mirror | dots | wave | blocks | ripple
     in property <string> anim: "waves"; // loader: waves | sweep | pulse | dots | scan | cascade | shimmer
-    in property <string> done-anim: "pop"; // done entrance: pop | flash | rise | none
+    in property <string> done-anim: "pop"; // done entrance: pop | flash | none
     in property <bool> demo-loop: false; // gallery tiles: replay entrances on a timer
     in property <float> anim-speed: 1.0;
     in property <[float]> levels;
@@ -24,9 +24,10 @@ export component OverlayPill inherits Rectangle {
     in property <string> error-text: "";
     in property <color> pill-bg: #171310;
     in property <float> pill-opacity: 0.94;
+    in property <color> ok-color: #2E9E6B;
+    in property <color> ring-color: #171310; // disk behind the ✓ (Rust: done_ring or pill bg)
     in property <color> idle-color: #E7D8C4;
     in property <[color]> eq-colors: [#E5322B, #F7B500, #2F6FD0];
-    in property <color> ok-color: #2E9E6B;
     in property <color> danger-color: #C81F1A;
     in property <length> r-tl: 18px;
     in property <length> r-tr: 18px;
@@ -284,16 +285,17 @@ export component OverlayPill inherits Rectangle {
         background: root.lpal(self.px);
     }
 
-    // ── done: check mark with a selectable entrance ──────────────────
+    // ── done: ✓ on a colored disk, with a selectable entrance ────────
     if root.mode == "done": done-root := Rectangle {
-        // demo-loop (gallery tiles): the entrance replays on a timer instead
-        // of firing once at instantiation
+        // demo-loop (previews): the entrance replays on a timer instead of
+        // firing once at instantiation
         property <bool> in-anim: root.demo-loop && Math.mod(animation-tick() / 1s, 2.2) > 0.5;
         init => {
             if (!root.demo-loop) {
                 self.in-anim = true;
             }
         }
+        property <bool> pop: root.done-anim != "flash" && root.done-anim != "none";
         // flash: ok-tinted wash fades away
         if root.done-anim == "flash": Rectangle {
             width: 100%;
@@ -302,27 +304,27 @@ export component OverlayPill inherits Rectangle {
             opacity: done-root.in-anim ? 0 : 0.55;
             animate opacity { duration: 550ms; easing: ease-out; }
         }
-        // rise: the bar row surges up once in the ok color
-        if root.done-anim == "rise": Rectangle {
-            property <length> vpad: max(8px, root.height * 0.18);
-            for lvl[i] in root.levels: Rectangle {
-                property <float> fx: root.n > 1 ? i / (root.n - 1) : 0;
-                x: root.start + i * root.pitch;
-                width: root.bw;
-                y: root.height - parent.vpad - self.height;
-                height: done-root.in-anim ? max(3px, (0.25 + 0.75 * (1 - abs(2 * self.fx - 1))) * (root.height - 2 * parent.vpad)) : 3px;
-                border-radius: root.br;
-                background: root.ok-color;
-                opacity: done-root.in-anim ? 0 : 0.9;
-                animate height { duration: 300ms; easing: ease-out; }
-                animate opacity { duration: 700ms; easing: ease-in; }
-            }
+        // the disk behind the check — defaults to the pill color (invisible)
+        Rectangle {
+            property <length> full: min(root.height * 0.74, 44px);
+            property <length> d: !done-root.pop || done-root.in-anim ? self.full : self.full * 0.3;
+            x: (root.width - self.d) / 2;
+            y: (root.height - self.d) / 2;
+            width: self.d;
+            height: self.d;
+            border-radius: self.d / 2;
+            background: root.ring-color;
+            opacity: root.done-anim == "none" ? 1.0 : (done-root.in-anim ? 1.0 : 0);
+            animate width { duration: 320ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
+            animate height { duration: 320ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
+            animate opacity { duration: 260ms; easing: ease-out; }
         }
         Text {
             text: "✓";
             color: root.done-anim == "flash" && !parent.in-anim ? root.pill-bg : root.ok-color;
-            font-size: root.done-anim == "pop" ? (parent.in-anim ? 20px : 4px)
-                : 20px;
+            // pop is the entrance for anything that isn't flash/none —
+            // including values from removed variants (rise)
+            font-size: done-root.pop ? (parent.in-anim ? 20px : 4px) : 20px;
             opacity: root.done-anim == "none" ? 1.0 : (parent.in-anim ? 1.0 : 0);
             font-weight: 800;
             horizontal-alignment: center;

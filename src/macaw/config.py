@@ -78,8 +78,9 @@ class Config:
     anim_speed: float = 1.0  # transcribing animation speed multiplier (0.25-3)
     trans_link: bool = True  # transcribing uses the recording (eq) colors
     trans_colors: list = field(default_factory=list)  # own stops when unlinked
-    done_anim: str = "pop"  # done entrance: pop|flash|rise|none
+    done_anim: str = "pop"  # done entrance: pop|flash|none
     done_color: str = ""  # done check-mark colour, hex (blank = theme)
+    done_ring: str = ""  # circle behind the check, hex (blank = pill colour)
     error_color: str = ""  # error flash colour, hex (blank = theme)
     model: str = ""  # empty = nothing selected yet (pick one in the Model Manager)
     # Per-model tunables: {model_id: {param_key: value}}
@@ -140,6 +141,7 @@ class Config:
                 trans_colors=list(data.get("trans_colors") or []),
                 done_anim=data.get("done_anim") or "pop",
                 done_color=data.get("done_color") or "",
+                done_ring=data.get("done_ring") or "",
                 error_color=data.get("error_color") or "",
                 model=data.get("model") or "",
                 model_params=data.get("model_params") or {},
@@ -263,7 +265,9 @@ class Config:
             f"transcribe_anim: {_yv(self.transcribe_anim)}"
             "  # transcribing: waves | sweep | pulse | dots | scan | cascade | shimmer | orbit | typewriter | bounce | heartbeat\n"
             f"done_anim: {_yv(self.done_anim)}"
-            "  # done entrance animation: pop | flash | rise | none\n"
+            "  # done entrance animation: pop | flash | none\n"
+            f"done_ring: {_yv(self.done_ring)}"
+            "  # circle behind the check mark, hex (blank = pill colour)\n"
             f"anim_speed: {_yv(self.anim_speed)}"
             "  # transcribing animation speed multiplier (0.25-3)\n"
             f"trans_link: {_yv(self.trans_link)}"

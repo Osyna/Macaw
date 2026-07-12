@@ -41,6 +41,7 @@ component AnimTile inherits Rectangle {
                 anim: root.tile-mode == "loader" ? root.tile-anim : "waves";
                 done-anim: root.tile-mode == "done" ? root.tile-anim : "pop";
                 demo-loop: root.tile-mode == "done";
+                ring-color: Look.ring-color;
                 anim-speed: Look.anim-speed;
                 heard: root.tile-mode == "eq" ? max(Look.heard, 0.35) : Look.heard;
                 levels: Look.demo-levels;
@@ -117,6 +118,8 @@ export component AppearanceView inherits Rectangle {
     callback pillbg-clear();
     callback done-picked(color);
     callback done-clear();
+    callback donering-picked(color);
+    callback donering-clear();
     callback error-picked(color);
     callback error-clear();
     callback pin-overlay(bool);
@@ -158,6 +161,8 @@ export component AppearanceView inherits Rectangle {
                         record-anim: Look.record-anim;
                         anim: Look.anim;
                         done-anim: Look.done-anim;
+                        ring-color: Look.ring-color;
+                        demo-loop: true; // it is a preview: entrances loop
                         anim-speed: Look.anim-speed;
                         heard: Look.heard;
                         levels: Look.levels;
@@ -470,7 +475,6 @@ export component AppearanceView inherits Rectangle {
                         items: [
                             { label: "Pop", id: "pop" },
                             { label: "Flash", id: "flash" },
-                            { label: "Rise", id: "rise" },
                             { label: "None", id: "none" },
                         ];
                         current: cfg.done-anim;
@@ -487,11 +491,15 @@ export component AppearanceView inherits Rectangle {
                             clear => { root.done-clear(); }
                         }
                     }
-                    Text {
-                        text: "Tip: switch to another state chip and back to replay the entrance.";
-                        color: Theme.pal.muted;
-                        font-size: 11px;
-                        wrap: word-wrap;
+                    Row {
+                        label: "Circle color";
+                        hint: "The disk behind the check mark. Theme dot restores the pill color.";
+                        ColorField {
+                            value: cfg.done-ring-value;
+                            cleared: cfg.done-ring == "";
+                            picked(c) => { root.donering-picked(c); }
+                            clear => { root.donering-clear(); }
+                        }
                     }
                 }
 

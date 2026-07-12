@@ -225,6 +225,10 @@ impl App {
             .as_str()
             .and_then(theme::parse_hex)
             .unwrap_or(theme::rgb(t.ok));
+        let ring_color = cfg["done_ring"]
+            .as_str()
+            .and_then(theme::parse_hex)
+            .unwrap_or(pill_bg); // default: disk matches the pill
         let error_color = cfg["error_color"]
             .as_str()
             .and_then(theme::parse_hex)
@@ -250,6 +254,7 @@ impl App {
             set_record_anim(SharedString::from(record_anim.as_str()));
             set_anim(SharedString::from(anim.as_str()));
             set_done_anim(SharedString::from(done_anim.as_str()));
+            set_ring_color(ring_color);
             set_anim_speed(anim_speed);
             set_loader_colors(ModelRc::from(Rc::clone(&self.trans)));
             set_r_tl(c[0]);
@@ -285,6 +290,7 @@ impl App {
             "record_anim": record_anim,
             "anim": anim,
             "done_anim": done_anim,
+            "done_ring": hex(ring_color),
             "anim_speed": anim_speed,
             "bar_count": count,
             "eq": eq_hex,
@@ -370,6 +376,16 @@ impl App {
                 .as_str()
                 .and_then(theme::parse_hex)
                 .unwrap_or(theme::rgb(t.ok)),
+            done_ring: s("done_ring"),
+            done_ring_value: cfg["done_ring"]
+                .as_str()
+                .and_then(theme::parse_hex)
+                .unwrap_or(
+                    cfg["overlay_bg"]
+                        .as_str()
+                        .and_then(theme::parse_hex)
+                        .unwrap_or(theme::rgb(t.overlay_bg)),
+                ),
             error_color: s("error_color"),
             error_value: cfg["error_color"]
                 .as_str()
@@ -631,11 +647,14 @@ impl App {
         false
     }
 
-    fn show_overlay(self: &Rc<Self>, mode: &str) {
-        if self.ls_send(json!({"cmd": "show", "mode": mode})) {
+    /// `demo`: preview shows (pin / state chips) loop the done entrance;
+    /// real engine states play it once.
+    fn show_overlay(self: &Rc<Self>, mode: &str, demo: bool) {
+        if self.ls_send(json!({"cmd": "show", "mode": mode, "demo": demo})) {
             return;
         }
         let visible = self.overlay.window().is_visible();
+        self.overlay.set_demo_loop(demo);
         self.overlay.set_mode(mode.into());
         if !visible {
             let (x, y, w, h) = self.overlay_geometry();
@@ -806,18 +825,18 @@ impl App {
                     t.update(move |tr| tr.recording = rec);
                 }
                 match state.as_str() {
-                    "recording" => self.show_overlay("eq"),
-                    "transcribing" => self.show_overlay("loader"),
-                    "done" => self.show_overlay("done"),
+                    "recording" => self.show_overlay("eq", false),
+                    "transcribing" => self.show_overlay("loader", false),
+                    "done" => self.show_overlay("done", false),
                     "error" if !detail.is_empty() => {
                         self.overlay
                             .set_error_text(SharedString::from(detail.as_str()));
                         self.ls_send(json!({"cmd": "error", "text": detail}));
-                        self.show_overlay("error");
+                        self.show_overlay("error", false);
                     }
                     _ if self.pinned.get() => {
                         let mode = self.preview_mode.borrow().clone();
-                        self.show_overlay(&mode); // live-edit pin follows the chip
+                        self.show_overlay(&mode, true); // live-edit pin follows the chip
                     }
                     _ => self.hide_overlay(), // idle / loading / detail-less error
                 }
@@ -1128,6 +1147,7 @@ fn main() {
     wire_color!(on_border_picked, on_border_clear, "border_color");
     wire_color!(on_pillbg_picked, on_pillbg_clear, "overlay_bg");
     wire_color!(on_done_picked, on_done_clear, "done_color");
+    wire_color!(on_donering_picked, on_donering_clear, "done_ring");
     wire_color!(on_error_picked, on_error_clear, "error_color");
     {
         // per-corner radii: patch the full 4-list (tl,tr,br,bl)
@@ -1156,7 +1176,7 @@ fn main() {
                 let mode = a.preview_mode.borrow().clone();
                 a.ls_send(json!({"cmd": "error", "text": "Preview"}));
                 a.overlay.set_error_text("Preview".into());
-                a.show_overlay(&mode);
+                a.show_overlay(&mode, true);
             } else if !a.recording.get() {
                 a.hide_overlay();
             }
@@ -1168,7 +1188,7 @@ fn main() {
         app.ui.on_state_picked(move |m| {
             *a.preview_mode.borrow_mut() = m.to_string();
             if a.pinned.get() && !a.recording.get() {
-                a.show_overlay(m.as_str());
+                a.show_overlay(m.as_str(), true);
             }
         });
     }

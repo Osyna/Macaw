@@ -376,6 +376,7 @@ pub fn override_defaults() -> Vec<(&'static str, Value)> {
         ("trans_colors", json!([])),
         ("done_anim", json!("pop")),
         ("done_color", json!("")),
+        ("done_ring", json!("")),
         ("error_color", json!("")),
     ]
 }
