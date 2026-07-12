@@ -1353,6 +1353,12 @@ fn main() {
             slint::CloseRequestResponse::HideWindow
         });
     }
+    {
+        let a = Rc::clone(&app);
+        app.ui.on_close_window(move || {
+            let _ = a.ui.hide();
+        });
+    }
 
     // ── pumps: ws events + commands → the one UI-thread handler ────
     {

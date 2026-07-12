@@ -4,6 +4,10 @@ Notable changes to Macaw. Older releases live on the [releases page](https://git
 
 ## Unreleased
 
+- Settings window: fixed size (1180×760, not resizable), a ✕ close button in
+  the header, and **hover hints** — rest the cursor on any setting label
+  (Microphone, Position, …) for a subtle explanation of what it does.
+
 - **Custom themes.** Editing any indicator property flips the selector to
   "● custom (unsaved)" with a save row: name it and it lands in
   `custom_themes` (config), appears in the selector, and can be Updated or

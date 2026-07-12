@@ -70,3 +70,12 @@ export global Look {
     in-out property <length> pv-h: 52px;
     in-out property <[float]> levels;
 }
+
+// Hover hint for setting labels: rows publish their hint text + anchor here;
+// MainWindow draws one tooltip overlay from it (no per-row popups, no
+// clipping inside cards/flickables).
+export global Tip {
+    in-out property <string> text: "";
+    in-out property <length> x: 0px;
+    in-out property <length> y: 0px;
+}

@@ -6,7 +6,7 @@
 // editor is STATE-SCOPED: the preview chips select Recording / Transcribing /
 // Done / Error, and the controls below swap to that state's options.
 
-import { Theme, Look } from "theme.slint";
+import { Theme, Look, Tip } from "theme.slint";
 import { Btn, Toggle, SliderX, Select, Field, SectionTitle } from "widgets.slint";
 import { OverlayPill } from "pill.slint";
 import { ColorField, GradientEditor } from "picker.slint";
@@ -66,15 +66,41 @@ export struct Cfg {
 
 component Row inherits HorizontalLayout {
     in property <string> label;
+    in property <string> hint: "";
     spacing: 12px;
     height: 34px;
     preferred-height: 34px;
-    Text {
-        text: root.label;
-        color: Theme.pal.fg;
-        font-size: 13px;
-        vertical-alignment: center;
+    lbl := Rectangle {
         width: 150px;
+        Text {
+            x: 0;
+            width: parent.width;
+            text: root.label;
+            color: ta.has-hover && root.hint != "" ? Theme.pal.accent : Theme.pal.fg;
+            font-size: 13px;
+            vertical-alignment: center;
+            height: 100%;
+            overflow: elide;
+        }
+        // subtle dotted-ish underline while hovered (hint available)
+        if ta.has-hover && root.hint != "": Rectangle {
+            y: parent.height / 2 + 9px;
+            height: 1px;
+            width: min(parent.width, 140px);
+            background: Theme.pal.muted;
+        }
+        ta := TouchArea {
+            enabled: root.hint != "";
+            changed has-hover => {
+                if (self.has-hover) {
+                    Tip.text = root.hint;
+                    Tip.x = lbl.absolute-position.x;
+                    Tip.y = lbl.absolute-position.y + lbl.height + 2px;
+                } else if (Tip.text == root.hint) {
+                    Tip.text = "";
+                }
+            }
+        }
     }
     @children
 }
@@ -152,6 +178,7 @@ export component SettingsView inherits Flickable {
                 title: "RECORDING";
                 Row {
                     label: "Microphone";
+                    hint: "Input device for recording. System default follows your desktop's choice.";
                     Select {
                         options: root.devices;
                         current <=> root.device-current;
@@ -160,6 +187,7 @@ export component SettingsView inherits Flickable {
                 }
                 Row {
                     label: "Stop after silence";
+                    hint: "Recording stops by itself after this much silence.";
                     SliderX {
                         value: cfg.silence-timeout;
                         minimum: 1;
@@ -171,6 +199,7 @@ export component SettingsView inherits Flickable {
                 }
                 Row {
                     label: "Output";
+                    hint: "Where text goes: the clipboard, or typed into the focused window.";
                     Select {
                         options: ["Clipboard", "Type into window"];
                         current: cfg.output-mode == "type" ? 1 : 0;
@@ -179,6 +208,7 @@ export component SettingsView inherits Flickable {
                 }
                 Row {
                     label: "Language (ISO)";
+                    hint: "Default spoken language (two-letter code). Models can override it individually.";
                     Field {
                         text: cfg.language;
                         placeholder: "en";
@@ -187,14 +217,17 @@ export component SettingsView inherits Flickable {
                 }
                 Row {
                     label: "Sounds";
+                    hint: "Soft audio cues when recording starts, stops and text is delivered.";
                     Toggle { checked: cfg.sound-enabled; toggled(v) => { root.set-bool("sound_enabled", v); } }
                 }
                 Row {
                     label: "Punctuation hints";
+                    hint: "Nudges the model toward proper punctuation.";
                     Toggle { checked: cfg.punctuation-hints; toggled(v) => { root.set-bool("punctuation_hints", v); } }
                 }
                 Row {
                     label: "Live typing";
+                    hint: "Streaming mode: words are typed while you speak (streaming-capable models only).";
                     Toggle { checked: cfg.streaming; toggled(v) => { root.set-bool("streaming", v); } }
                 }
             }
@@ -203,10 +236,12 @@ export component SettingsView inherits Flickable {
                 title: "HOTKEY";
                 Row {
                     label: "Global hotkey";
+                    hint: "Toggle recording from anywhere — captured at the input layer, works on Wayland and X11.";
                     Toggle { checked: cfg.hotkey-enabled; toggled(v) => { root.set-bool("hotkey_enabled", v); } }
                 }
                 Row {
                     label: "Combo";
+                    hint: "The key combination. Click Capture, then press your keys.";
                     Text {
                         text: root.capturing-hotkey ? "press keys…" : (cfg.hotkey == "" ? "not set" : cfg.hotkey);
                         color: root.capturing-hotkey ? Theme.pal.accent : Theme.pal.muted;
@@ -222,6 +257,7 @@ export component SettingsView inherits Flickable {
                 title: "CLOUD & NETWORK";
                 Row {
                     label: "OpenAI API key";
+                    hint: "Only needed for the GPT-4o cloud models. Stored in your local config file.";
                     Field {
                         text: "";
                         secret: true;
@@ -231,10 +267,12 @@ export component SettingsView inherits Flickable {
                 }
                 Row {
                     label: "HTTP(S) proxy";
+                    hint: "Route model downloads and cloud calls through a proxy.";
                     Field { text: cfg.proxy; placeholder: "http://host:port"; submitted(v) => { root.set-str("proxy", v); } }
                 }
                 Row {
                     label: "Verify SSL";
+                    hint: "Disable only behind a corporate TLS-intercepting proxy.";
                     Toggle { checked: cfg.ssl-verify; toggled(v) => { root.set-bool("ssl_verify", v); } }
                 }
             }
@@ -243,6 +281,7 @@ export component SettingsView inherits Flickable {
                 title: "SYSTEM";
                 Row {
                     label: "App theme";
+                    hint: "This window's chrome. The recording indicator has its own themes.";
                     Select {
                         options: ["dark (terminal)", "light"];
                         current: cfg.app-theme == "light" ? 1 : 0;
@@ -251,6 +290,7 @@ export component SettingsView inherits Flickable {
                 }
                 Row {
                     label: "Start on login";
+                    hint: "Adds an autostart entry so Macaw launches with your session.";
                     Toggle { checked: cfg.autostart; toggled(v) => { root.set-autostart(v); } }
                 }
             }
@@ -325,6 +365,7 @@ export component SettingsView inherits Flickable {
                 }
                 Row {
                     label: "Show indicator on screen";
+                    hint: "Pins the real indicator on screen so you can see every edit live.";
                     Toggle {
                         checked: root.pin-indicator;
                         toggled(v) => {
@@ -337,6 +378,7 @@ export component SettingsView inherits Flickable {
                 SectionTitle { text: "PILL"; }
                 Row {
                     label: "Indicator theme";
+                    hint: "Color preset for the pill. Any edit becomes an unsaved custom theme you can save.";
                     Select {
                         options: root.theme-names;
                         current <=> root.theme-current;
@@ -362,6 +404,7 @@ export component SettingsView inherits Flickable {
                 }
                 Row {
                     label: "Position";
+                    hint: "Where the pill sits on screen. \"custom\" unlocks exact X/Y coordinates.";
                     Select {
                         options: root.positions;
                         current: cfg.window-position == "bottom_left" ? 1
@@ -375,17 +418,20 @@ export component SettingsView inherits Flickable {
                 }
                 if cfg.window-position == "custom": Row {
                     label: "Custom X / Y";
+                    hint: "Pixel offsets from the screen's top-left corner.";
                     Field { text: cfg.overlay-x; placeholder: "0"; submitted(v) => { root.set-str("overlay_x", v); } }
                     Field { text: cfg.overlay-y; placeholder: "0"; submitted(v) => { root.set-str("overlay_y", v); } }
                 }
                 Row {
                     label: "Size (W × H)";
+                    hint: "Pill width and height in pixels.";
                     SliderX { value: cfg.overlay-width; minimum: 140; maximum: 480; step: 2; changed(v) => { root.set-num("overlay_width", v); } }
                     SliderX { value: cfg.overlay-height; minimum: 36; maximum: 120; step: 2; changed(v) => { root.set-num("overlay_height", v); } }
                     Text { text: "\{Math.round(cfg.overlay-width)}×\{Math.round(cfg.overlay-height)}"; color: Theme.pal.muted; font-size: 12px; vertical-alignment: center; }
                 }
                 Row {
                     label: "Opacity";
+                    hint: "Pill background transparency (bars stay fully visible).";
                     SliderX {
                         value: cfg.overlay-opacity;
                         minimum: 0.5;
@@ -396,6 +442,7 @@ export component SettingsView inherits Flickable {
                 }
                 Row {
                     label: "Link corners";
+                    hint: "One radius for all four corners — unlink to shape each corner separately.";
                     Toggle { checked: cfg.corner-link; toggled(v) => { root.set-bool("corner_link", v); } }
                     if cfg.corner-link: SliderX {
                         value: cfg.corner-radius;
@@ -413,16 +460,19 @@ export component SettingsView inherits Flickable {
                 }
                 if !cfg.corner-link: Row {
                     label: "Top corners (L/R)";
+                    hint: "Top-left and top-right corner radius, in pixels.";
                     SliderX { value: cfg.c-tl; minimum: 0; maximum: 40; step: 1; changed(v) => { root.set-corner(0, v); } }
                     SliderX { value: cfg.c-tr; minimum: 0; maximum: 40; step: 1; changed(v) => { root.set-corner(1, v); } }
                 }
                 if !cfg.corner-link: Row {
                     label: "Bottom corners (L/R)";
+                    hint: "Bottom-left and bottom-right corner radius, in pixels.";
                     SliderX { value: cfg.c-bl; minimum: 0; maximum: 40; step: 1; changed(v) => { root.set-corner(3, v); } }
                     SliderX { value: cfg.c-br; minimum: 0; maximum: 40; step: 1; changed(v) => { root.set-corner(2, v); } }
                 }
                 Row {
                     label: "Background";
+                    hint: "Pill background and accent color overrides. \"theme\" follows the preset.";
                     ColorField {
                         value: cfg.overlay-bg-value;
                         cleared: cfg.overlay-bg == "";
@@ -439,6 +489,7 @@ export component SettingsView inherits Flickable {
                 }
                 Row {
                     label: "Border / width";
+                    hint: "Outline drawn around the pill; width 0 hides it.";
                     ColorField {
                         value: cfg.border-value;
                         cleared: cfg.border-color == "";
@@ -454,20 +505,24 @@ export component SettingsView inherits Flickable {
                     SectionTitle { text: "RECORDING — BARS"; }
                     Row {
                         label: "Bar count";
+                    hint: "How many equalizer bars the pill renders.";
                         SliderX { value: cfg.bar-count; minimum: 8; maximum: 48; step: 1; changed(v) => { root.set-num("bar_count", v); } }
                         Text { text: "\{Math.round(cfg.bar-count)}"; color: Theme.pal.muted; font-size: 12px; vertical-alignment: center; }
                     }
                     Row {
                         label: "Width / gap";
+                    hint: "Bar thickness and spacing in pixels; -1 sizes them automatically.";
                         SliderX { value: cfg.bar-width; minimum: -1; maximum: 16; step: 1; changed(v) => { root.set-num("bar_width", v); } }
                         SliderX { value: cfg.bar-spacing; minimum: -1; maximum: 16; step: 1; changed(v) => { root.set-num("bar_spacing", v); } }
                     }
                     Row {
                         label: "Bar rounding";
+                    hint: "Rounds the bar caps.";
                         SliderX { value: cfg.bar-radius; minimum: 0; maximum: 16; step: 1; changed(v) => { root.set-num("bar_radius", v); } }
                     }
                     Row {
                         label: "Quiet bars fade";
+                    hint: "Quiet bars turn translucent instead of staying solid.";
                         Toggle { checked: cfg.bar-fade; toggled(v) => { root.set-bool("bar_fade", v); } }
                     }
                     SectionTitle { text: "RECORDING — GRADIENT"; }
@@ -484,6 +539,7 @@ export component SettingsView inherits Flickable {
                     SectionTitle { text: "TRANSCRIBING"; }
                     Row {
                         label: "Animation";
+                    hint: "The pattern shown while your speech is transcribed.";
                         Select {
                             options: ["waves (classic)", "sweep", "pulse", "dots"];
                             current: cfg.transcribe-anim == "sweep" ? 1
@@ -497,6 +553,7 @@ export component SettingsView inherits Flickable {
                     }
                     Row {
                         label: "Speed";
+                    hint: "Transcribing animation speed multiplier.";
                         SliderX {
                             value: cfg.anim-speed;
                             minimum: 0.25;
@@ -508,6 +565,7 @@ export component SettingsView inherits Flickable {
                     }
                     Row {
                         label: "Use recording colors";
+                    hint: "Transcribing reuses the recording gradient. Unlink to give it its own colors.";
                         Toggle { checked: cfg.trans-link; toggled(v) => { root.set-bool("trans_link", v); } }
                     }
                     if !cfg.trans-link: VerticalLayout {
@@ -527,6 +585,7 @@ export component SettingsView inherits Flickable {
                     SectionTitle { text: "DONE"; }
                     Row {
                         label: "Check color";
+                    hint: "Color of the ✓ shown when text is delivered.";
                         ColorField {
                             value: cfg.done-value;
                             cleared: cfg.done-color == "";
@@ -541,6 +600,7 @@ export component SettingsView inherits Flickable {
                     SectionTitle { text: "ERROR"; }
                     Row {
                         label: "Flash color";
+                    hint: "Background flash color when something goes wrong.";
                         ColorField {
                             value: cfg.error-value;
                             cleared: cfg.error-color == "";

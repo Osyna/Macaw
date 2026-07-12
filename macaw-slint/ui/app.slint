@@ -1,13 +1,13 @@
 // Main window: header (brand, tabs, engine dot) over Settings/Models views,
 // with a transient toast stack in the corner.
 
-import { Theme, Palette, Look } from "theme.slint";
+import { Theme, Palette, Look, Tip } from "theme.slint";
 import { Btn, Badge } from "widgets.slint";
 import { SettingsView, Cfg } from "settings.slint";
 import { ModelsView, ModelRow, ParamRow } from "models.slint";
 import { OverlayWindow } from "overlay.slint";
 
-export { OverlayWindow, Cfg, ModelRow, ParamRow, Palette, Theme, Look }
+export { OverlayWindow, Cfg, ModelRow, ParamRow, Palette, Theme, Look, Tip }
 
 export struct Toast {
     level: string, // info | error | success
@@ -39,10 +39,9 @@ component TabBtn inherits Rectangle {
 export component MainWindow inherits Window {
     title: "Macaw";
     default-font-family: "monospace"; // terminal chrome; the pill keeps the UI font
-    min-width: 980px;
-    min-height: 620px;
-    preferred-width: 1180px;
-    preferred-height: 760px;
+    // fixed size: the settings window is not resizable
+    width: 1180px;
+    height: 760px;
     background: Theme.pal.bg;
 
     in-out property <string> tab: "settings"; // settings | models
@@ -108,6 +107,7 @@ export component MainWindow inherits Window {
     callback models-filter(int);
 
     callback toggle-recording();
+    callback close-window();
 
     // full-window damage trigger (see Theme.repaint-flip)
     Rectangle {
@@ -167,6 +167,11 @@ export component MainWindow inherits Window {
                     primary: true;
                     enabled: root.engine-connected;
                     clicked => { root.toggle-recording(); }
+                }
+                Btn {
+                    y: 13px;
+                    text: "✕";
+                    clicked => { root.close-window(); }
                 }
             }
             Rectangle { y: parent.height - 1px; height: 1px; background: Theme.pal.border; }
@@ -252,6 +257,36 @@ export component MainWindow inherits Window {
                 font-size: 12px;
                 wrap: word-wrap;
             }
+        }
+    }
+
+    // ── hover hint (fed by settings rows via the Tip global) ────────
+    if Tip.text != "": Rectangle {
+        x: min(Tip.x, root.width - self.width - 12px);
+        y: min(Tip.y, root.height - self.height - 12px);
+        width: min(tip-t.preferred-width + 20px, 360px);
+        height: tip-t.preferred-height + 14px;
+        background: Theme.pal.control;
+        border-width: 1px;
+        border-color: Theme.pal.muted;
+        opacity: 0;
+        // subtle: fades in only after the cursor rests a moment
+        states [
+            shown when Tip.text != "": {
+                opacity: 0.97;
+                in {
+                    animate opacity { duration: 120ms; delay: 350ms; }
+                }
+            }
+        ]
+        tip-t := Text {
+            x: 10px;
+            y: 7px;
+            width: min(self.preferred-width, 340px);
+            text: Tip.text;
+            color: Theme.pal.fg;
+            font-size: 12px;
+            wrap: word-wrap;
         }
     }
 }
