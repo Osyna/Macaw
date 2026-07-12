@@ -37,3 +37,28 @@ export global Theme {
     };
     in-out property <length> radius: 10px;
 }
+
+// Resolved overlay look (theme + config overrides merged by Rust) shared by
+// the settings live preview and the theming editors. The real overlay window
+// is a separate component tree and receives the same values as properties.
+export global Look {
+    in-out property <color> pill-bg: #171310;
+    in-out property <float> pill-opacity: 0.94;
+    in-out property <color> idle-color: #E7D8C4;
+    in-out property <[color]> eq-colors: [#E5322B, #F7B500, #2F6FD0];
+    in-out property <color> ok-color: #2E9E6B;
+    in-out property <color> danger-color: #C81F1A;
+    in-out property <length> r-tl: 18px;
+    in-out property <length> r-tr: 18px;
+    in-out property <length> r-br: 18px;
+    in-out property <length> r-bl: 3px;
+    in-out property <length> pill-border-width: 0px;
+    in-out property <color> pill-border-color: transparent;
+    in-out property <length> bar-width: 4px;
+    in-out property <length> bar-spacing: 3px;
+    in-out property <length> bar-radius: 0px;
+    in-out property <bool> bar-fade: true;
+    in-out property <length> pv-w: 210px;
+    in-out property <length> pv-h: 52px;
+    in-out property <[float]> levels;
+}

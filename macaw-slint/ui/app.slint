@@ -1,13 +1,13 @@
 // Main window: header (brand, tabs, engine dot) over Settings/Models views,
 // with a transient toast stack in the corner.
 
-import { Theme, Palette } from "theme.slint";
+import { Theme, Palette, Look } from "theme.slint";
 import { Btn, Badge } from "widgets.slint";
 import { SettingsView, Cfg } from "settings.slint";
 import { ModelsView, ModelRow } from "models.slint";
 import { OverlayWindow } from "overlay.slint";
 
-export { OverlayWindow, Cfg, ModelRow, Palette, Theme }
+export { OverlayWindow, Cfg, ModelRow, Palette, Theme, Look }
 
 export struct Toast {
     level: string, // info | error | success
@@ -60,9 +60,17 @@ export component MainWindow inherits Window {
     callback set-bool(string, bool);
     callback pick-device(int);
     callback capture-hotkey();
-    callback preview-overlay();
     callback set-autostart(bool);
     callback set-api-key(string);
+    callback eq-set(int, color);
+    callback eq-add();
+    callback eq-remove(int);
+    callback accent-picked(color);
+    callback accent-clear();
+    callback border-picked(color);
+    callback border-clear();
+    in property <[string]> theme-names;
+    in-out property <int> theme-current;
 
     // models plumbing (forwarded)
     in property <[ModelRow]> models;
@@ -142,9 +150,17 @@ export component MainWindow inherits Window {
             set-bool(k, v) => { root.set-bool(k, v); }
             pick-device(i) => { root.pick-device(i); }
             capture-hotkey => { root.capture-hotkey(); }
-            preview-overlay => { root.preview-overlay(); }
             set-autostart(v) => { root.set-autostart(v); }
             set-api-key(v) => { root.set-api-key(v); }
+            eq-set(i, c) => { root.eq-set(i, c); }
+            eq-add => { root.eq-add(); }
+            eq-remove(i) => { root.eq-remove(i); }
+            accent-picked(c) => { root.accent-picked(c); }
+            accent-clear => { root.accent-clear(); }
+            border-picked(c) => { root.border-picked(c); }
+            border-clear => { root.border-clear(); }
+            theme-names: root.theme-names;
+            theme-current <=> root.theme-current;
         }
         if root.tab == "models": ModelsView {
             models: root.models;

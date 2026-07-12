@@ -2,8 +2,10 @@
 // Rust turns it into a `config.set {patch}` RPC. The engine's `config` event
 // echoes back and re-fills `cfg`, so the UI never holds its own truth.
 
-import { Theme } from "theme.slint";
+import { Theme, Look } from "theme.slint";
 import { Btn, Toggle, SliderX, Select, Field, SectionTitle } from "widgets.slint";
+import { OverlayPill } from "pill.slint";
+import { ColorField, GradientEditor } from "picker.slint";
 
 export struct Cfg {
     language: string,
@@ -29,7 +31,9 @@ export struct Cfg {
     bar-fade: bool,
     eq-colors: string,         // comma-joined hex
     accent-color: string,
+    accent-value: color,
     border-color: string,
+    border-value: color,
     border-width: float,
     api-key-set: bool,
     proxy: string,
@@ -77,12 +81,21 @@ export component SettingsView inherits Flickable {
     callback set-bool(string, bool);
     callback pick-device(int);
     callback capture-hotkey();
-    callback preview-overlay();
     callback set-autostart(bool);
     callback set-api-key(string);
+    callback eq-set(int, color);
+    callback eq-add();
+    callback eq-remove(int);
+    callback accent-picked(color);
+    callback accent-clear();
+    callback border-picked(color);
+    callback border-clear();
+
+    in property <[string]> theme-names;
+    in-out property <int> theme-current: 0;
+    in-out property <string> preview-mode: "eq";
 
     property <[string]> positions: ["bottom_center", "bottom_left", "bottom_right", "top_center", "top_left", "top_right", "custom"];
-    property <[string]> themes: ["macaw", "oled", "light", "catppuccin"];
     property <[string]> modes: ["clipboard", "type"];
 
     viewport-height: col.preferred-height;
@@ -162,15 +175,69 @@ export component SettingsView inherits Flickable {
 
         Card {
             title: "APPEARANCE";
+
+            // ── live preview ────────────────────────────────────────
+            Rectangle {
+                height: max(Look.pv-h + 32px, 90px);
+                border-radius: 10px;
+                background: @linear-gradient(135deg, #3B4252 0%, #2E3440 50%, #242933 100%);
+                clip: true;
+                OverlayPill {
+                    x: (parent.width - self.width) / 2;
+                    y: (parent.height - self.height) / 2;
+                    width: min(Look.pv-w, parent.width - 24px);
+                    height: Look.pv-h;
+                    mode: root.preview-mode;
+                    levels: Look.levels;
+                    error-text: "No model selected";
+                    pill-bg: Look.pill-bg;
+                    pill-opacity: Look.pill-opacity;
+                    idle-color: Look.idle-color;
+                    eq-colors: Look.eq-colors;
+                    ok-color: Look.ok-color;
+                    danger-color: Look.danger-color;
+                    r-tl: Look.r-tl;
+                    r-tr: Look.r-tr;
+                    r-br: Look.r-br;
+                    r-bl: Look.r-bl;
+                    pill-border-width: Look.pill-border-width;
+                    pill-border-color: Look.pill-border-color;
+                    bar-width: Look.bar-width;
+                    bar-spacing: Look.bar-spacing;
+                    bar-radius: Look.bar-radius;
+                    bar-fade: Look.bar-fade;
+                }
+            }
+            HorizontalLayout {
+                spacing: 8px;
+                alignment: start;
+                height: 30px;
+                for m in ["eq", "loader", "done", "error"]: Rectangle {
+                    width: t.preferred-width + 20px;
+                    border-radius: 7px;
+                    background: root.preview-mode == m ? Theme.pal.accent : Theme.pal.control;
+                    border-width: 1px;
+                    border-color: root.preview-mode == m ? transparent : Theme.pal.border;
+                    t := Text {
+                        text: m == "eq" ? "Recording" : m == "loader" ? "Transcribing" : m == "done" ? "Done" : "Error";
+                        color: root.preview-mode == m ? Theme.pal.accent-fg : Theme.pal.fg;
+                        font-size: 12px;
+                        font-weight: 600;
+                    }
+                    TouchArea {
+                        clicked => { root.preview-mode = m; }
+                        mouse-cursor: MouseCursor.pointer;
+                    }
+                }
+            }
+
             Row {
                 label: "Theme";
                 Select {
-                    options: root.themes;
-                    current: cfg.theme == "oled" ? 1 : cfg.theme == "light" ? 2 : cfg.theme == "catppuccin" ? 3 : 0;
-                    changed(i) => { root.set-str("theme", root.themes[i]); }
+                    options: root.theme-names;
+                    current <=> root.theme-current;
+                    changed(i) => { root.set-str("theme", root.theme-names[i]); }
                 }
-                Rectangle { horizontal-stretch: 1; }
-                Btn { text: "Preview overlay"; clicked => { root.preview-overlay(); } }
             }
             Row {
                 label: "Overlay position";
@@ -220,18 +287,33 @@ export component SettingsView inherits Flickable {
                 label: "Quiet bars fade";
                 Toggle { checked: cfg.bar-fade; toggled(v) => { root.set-bool("bar_fade", v); } }
             }
-            Row {
-                label: "EQ colors (hex, comma)";
-                Field {
-                    text: cfg.eq-colors;
-                    placeholder: "#E5322B, #F7B500, #2F6FD0";
-                    submitted(v) => { root.set-str("eq_colors", v); }
+            VerticalLayout {
+                spacing: 6px;
+                SectionTitle { text: "EQUALIZER GRADIENT"; }
+                GradientEditor {
+                    stops: Look.eq-colors;
+                    stop-picked(i, c) => { root.eq-set(i, c); }
+                    stop-removed(i) => { root.eq-remove(i); }
+                    stop-added => { root.eq-add(); }
                 }
             }
             Row {
-                label: "Accent / border color";
-                Field { text: cfg.accent-color; placeholder: "theme"; submitted(v) => { root.set-str("accent_color", v); } }
-                Field { text: cfg.border-color; placeholder: "theme"; submitted(v) => { root.set-str("border_color", v); } }
+                label: "Accent color";
+                ColorField {
+                    value: cfg.accent-value;
+                    cleared: cfg.accent-color == "";
+                    picked(c) => { root.accent-picked(c); }
+                    clear => { root.accent-clear(); }
+                }
+            }
+            Row {
+                label: "Border color";
+                ColorField {
+                    value: cfg.border-value;
+                    cleared: cfg.border-color == "";
+                    picked(c) => { root.border-picked(c); }
+                    clear => { root.border-clear(); }
+                }
             }
             Row {
                 label: "Border width";

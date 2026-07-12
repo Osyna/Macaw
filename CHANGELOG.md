@@ -4,6 +4,18 @@ Notable changes to Macaw. Older releases live on the [releases page](https://git
 
 ## Unreleased
 
+- **The recording indicator is now a wlr-layer-shell surface** (dedicated
+  `macaw-overlay` process, Slint software renderer into shm buffers): always
+  top-most, positioned by compositor anchors at your configured spot, exact
+  size, click-through — on ANY Wayland compositor with layer-shell (Hyprland,
+  Sway, KDE, …). No window-manager involvement at all; compositors without
+  layer-shell (GNOME) fall back to the previous floating window + Hyprland
+  rules path automatically.
+- **Theming overhaul**: live overlay preview inside Settings (with
+  Recording / Transcribing / Done / Error state chips), HSV color pickers,
+  an equalizer gradient editor (add/remove/edit stops), and six new themes —
+  Dracula, Nord, Gruvbox, Tokyo Night, Rosé Pine, Solarized.
+
 - **New native frontend built with Slint** (`macaw-slint/`, Linux-first, local
   builds only for now). Replaces the Tauri/WebKit shell with one 11 MB Rust
   binary — ~23 MB RSS (was ~230 MB+ with the webview), pure-CPU software

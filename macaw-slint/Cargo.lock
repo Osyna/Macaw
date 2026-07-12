@@ -2589,7 +2589,9 @@ dependencies = [
  "serde_json",
  "slint",
  "slint-build",
+ "smithay-client-toolkit 0.20.0",
  "tungstenite",
+ "wayland-client",
 ]
 
 [[package]]

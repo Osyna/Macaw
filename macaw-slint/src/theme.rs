@@ -99,11 +99,149 @@ pub const CATPPUCCIN: ThemeDef = ThemeDef {
     border_color: 0xCBA6F7,
 };
 
+pub const DRACULA: ThemeDef = ThemeDef {
+    bg: 0x282A36,
+    surface: 0x21222C,
+    control: 0x343746,
+    fg: 0xF8F8F2,
+    muted: 0x6272A4,
+    border: 0x44475A,
+    accent: 0xBD93F9,
+    accent_fg: 0x282A36,
+    ok: 0x50FA7B,
+    warn: 0xF1FA8C,
+    danger: 0xFF5555,
+    overlay_bg: 0x191A21,
+    eq_idle: 0x44475A,
+    eq_colors: [0xFF79C6, 0xBD93F9, 0x8BE9FD, 0],
+    corners: [12, 12, 12, 12],
+    border_color: 0xBD93F9,
+};
+
+pub const NORD: ThemeDef = ThemeDef {
+    bg: 0x2E3440,
+    surface: 0x3B4252,
+    control: 0x434C5E,
+    fg: 0xECEFF4,
+    muted: 0x93A3BC,
+    border: 0x4C566A,
+    accent: 0x88C0D0,
+    accent_fg: 0x2E3440,
+    ok: 0xA3BE8C,
+    warn: 0xEBCB8B,
+    danger: 0xBF616A,
+    overlay_bg: 0x242933,
+    eq_idle: 0x4C566A,
+    eq_colors: [0x88C0D0, 0x81A1C1, 0xB48EAD, 0],
+    corners: [10, 10, 10, 10],
+    border_color: 0x88C0D0,
+};
+
+pub const GRUVBOX: ThemeDef = ThemeDef {
+    bg: 0x282828,
+    surface: 0x32302F,
+    control: 0x3C3836,
+    fg: 0xEBDBB2,
+    muted: 0x928374,
+    border: 0x504945,
+    accent: 0xFE8019,
+    accent_fg: 0x282828,
+    ok: 0xB8BB26,
+    warn: 0xFABD2F,
+    danger: 0xFB4934,
+    overlay_bg: 0x1D2021,
+    eq_idle: 0x504945,
+    eq_colors: [0xFB4934, 0xFABD2F, 0xB8BB26, 0],
+    corners: [6, 6, 6, 6],
+    border_color: 0xFE8019,
+};
+
+pub const TOKYO_NIGHT: ThemeDef = ThemeDef {
+    bg: 0x1A1B26,
+    surface: 0x16161E,
+    control: 0x292E42,
+    fg: 0xC0CAF5,
+    muted: 0x565F89,
+    border: 0x3B4261,
+    accent: 0x7AA2F7,
+    accent_fg: 0x1A1B26,
+    ok: 0x9ECE6A,
+    warn: 0xE0AF68,
+    danger: 0xF7768E,
+    overlay_bg: 0x16161E,
+    eq_idle: 0x3B4261,
+    eq_colors: [0xF7768E, 0xBB9AF7, 0x7AA2F7, 0x7DCFFF],
+    corners: [14, 14, 14, 14],
+    border_color: 0x7AA2F7,
+};
+
+pub const ROSE_PINE: ThemeDef = ThemeDef {
+    bg: 0x191724,
+    surface: 0x1F1D2E,
+    control: 0x26233A,
+    fg: 0xE0DEF4,
+    muted: 0x908CAA,
+    border: 0x403D52,
+    accent: 0xEBBCBA,
+    accent_fg: 0x191724,
+    ok: 0x9CCFD8,
+    warn: 0xF6C177,
+    danger: 0xEB6F92,
+    overlay_bg: 0x12101A,
+    eq_idle: 0x403D52,
+    eq_colors: [0xEB6F92, 0xEBBCBA, 0xC4A7E7, 0x9CCFD8],
+    corners: [16, 16, 16, 16],
+    border_color: 0xEBBCBA,
+};
+
+pub const SOLARIZED: ThemeDef = ThemeDef {
+    bg: 0x002B36,
+    surface: 0x073642,
+    control: 0x0A4552,
+    fg: 0xEEE8D5,
+    muted: 0x839496,
+    border: 0x175A69,
+    accent: 0x268BD2,
+    accent_fg: 0xFDF6E3,
+    ok: 0x859900,
+    warn: 0xB58900,
+    danger: 0xDC322F,
+    overlay_bg: 0x00212B,
+    eq_idle: 0x175A69,
+    eq_colors: [0x268BD2, 0x2AA198, 0x859900, 0],
+    corners: [8, 8, 8, 8],
+    border_color: 0x268BD2,
+};
+
+/// Selectable themes, in menu order. `by_name`/`index_of` key off this.
+pub const NAMES: [&str; 10] = [
+    "macaw",
+    "oled",
+    "light",
+    "catppuccin",
+    "dracula",
+    "nord",
+    "gruvbox",
+    "tokyo-night",
+    "rose-pine",
+    "solarized",
+];
+
+pub fn index_of(name: &str) -> usize {
+    NAMES.iter().position(|n| *n == name).unwrap_or(0)
+}
+
 pub fn by_name(name: &str) -> &'static ThemeDef {
     match name {
         "oled" => &OLED,
         "light" => &LIGHT,
         "catppuccin" => &CATPPUCCIN,
+        "dracula" => &DRACULA,
+        "nord" => &NORD,
+        "gruvbox" => &GRUVBOX,
+        "tokyo-night" => &TOKYO_NIGHT,
+        "rose-pine" => &ROSE_PINE,
+        "solarized" => &SOLARIZED,
         _ => &MACAW,
     }
 }

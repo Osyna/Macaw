@@ -1,0 +1,273 @@
+// Color picking UX: an HSV picker popup behind a swatch button, and a
+// gradient (color-stop list) editor. Pure .slint — hsv()/to-hsv() builtins
+// do the math; Rust only receives final colors.
+
+import { Theme } from "theme.slint";
+import { Btn } from "widgets.slint";
+
+// ── HSV picker panel ─────────────────────────────────────────────────
+export component HsvPanel inherits Rectangle {
+    in property <color> seed: #808080;
+    in-out property <float> hue: 0; // 0..360
+    in-out property <float> sat: 1; // 0..1
+    in-out property <float> val: 1; // 0..1
+    callback picked(color);
+
+    init => {
+        root.hue = root.seed.to-hsv().hue;
+        root.sat = root.seed.to-hsv().saturation;
+        root.val = root.seed.to-hsv().value;
+    }
+    function emit() {
+        root.picked(hsv(root.hue, root.sat, root.val));
+    }
+
+    width: 216px;
+    height: sv.height + strip.height + 8px + 24px;
+    background: transparent;
+
+    sv := Rectangle { // saturation/value square
+        x: 0;
+        y: 0;
+        width: 216px;
+        height: 140px;
+        border-radius: 6px;
+        clip: true;
+        background: @linear-gradient(90deg, white 0%, hsv(root.hue, 1, 1) 100%);
+        Rectangle {
+            background: @linear-gradient(180deg, transparent 0%, black 100%);
+        }
+        Rectangle { // cursor
+            x: parent.width * root.sat - 6px;
+            y: parent.height * (1 - root.val) - 6px;
+            width: 12px;
+            height: 12px;
+            border-radius: 6px;
+            background: transparent;
+            border-width: 2px;
+            border-color: root.val > 0.6 ? black : white;
+        }
+        TouchArea {
+            moved => { parent.pick(self.mouse-x, self.mouse-y); }
+            clicked => { parent.pick(self.mouse-x, self.mouse-y); }
+        }
+        function pick(mx: length, my: length) {
+            root.sat = min(1.0, max(0.0, mx / self.width));
+            root.val = min(1.0, max(0.0, 1 - my / self.height));
+            root.emit();
+        }
+    }
+
+    strip := Rectangle { // hue strip
+        x: 0;
+        y: sv.height + 8px;
+        width: 216px;
+        height: 14px;
+        border-radius: 7px;
+        background: @linear-gradient(90deg,
+            hsv(0, 1, 1) 0%, hsv(60, 1, 1) 16.7%, hsv(120, 1, 1) 33.3%,
+            hsv(180, 1, 1) 50%, hsv(240, 1, 1) 66.7%, hsv(300, 1, 1) 83.3%,
+            hsv(360, 1, 1) 100%);
+        Rectangle { // thumb
+            x: parent.width * root.hue / 360 - 7px;
+            y: 0;
+            width: 14px;
+            height: 14px;
+            border-radius: 7px;
+            background: hsv(root.hue, 1, 1);
+            border-width: 2px;
+            border-color: white;
+            drop-shadow-blur: 2px;
+            drop-shadow-color: #00000060;
+        }
+        TouchArea {
+            moved => { parent.pick(self.mouse-x); }
+            clicked => { parent.pick(self.mouse-x); }
+        }
+        function pick(mx: length) {
+            root.hue = min(360.0, max(0.0, 360 * mx / self.width));
+            root.emit();
+        }
+    }
+
+    HorizontalLayout { // current color readout
+        x: 0;
+        y: strip.y + strip.height + 6px;
+        height: 18px;
+        spacing: 8px;
+        Rectangle {
+            width: 18px;
+            border-radius: 4px;
+            background: hsv(root.hue, root.sat, root.val);
+            border-width: 1px;
+            border-color: Theme.pal.border;
+        }
+        Text {
+            text: "H \{Math.round(root.hue)}°  S \{Math.round(root.sat * 100)}%  V \{Math.round(root.val * 100)}%";
+            color: Theme.pal.muted;
+            font-size: 11px;
+            vertical-alignment: center;
+        }
+    }
+}
+
+// ── swatch button + popup picker ─────────────────────────────────────
+export component ColorField inherits Rectangle {
+    in property <color> value: #808080;
+    in property <bool> cleared: false; // "theme default" state
+    callback picked(color);
+    callback clear(); // back to theme default
+
+    width: 64px;
+    height: 28px;
+    border-radius: 7px;
+    background: root.cleared ? Theme.pal.control : root.value;
+    border-width: 1px;
+    border-color: Theme.pal.border;
+
+    if root.cleared: Text {
+        text: "theme";
+        color: Theme.pal.muted;
+        font-size: 11px;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        width: 100%;
+        height: 100%;
+    }
+    TouchArea {
+        clicked => {
+            pop.show();
+        }
+        mouse-cursor: MouseCursor.pointer;
+    }
+    pop := PopupWindow {
+        x: 0;
+        y: root.height + 4px;
+        width: 240px;
+        close-policy: close-on-click-outside;
+        Rectangle {
+            background: Theme.pal.surface;
+            border-radius: 10px;
+            border-width: 1px;
+            border-color: Theme.pal.border;
+            drop-shadow-blur: 16px;
+            drop-shadow-color: #00000050;
+            VerticalLayout {
+                padding: 12px;
+                spacing: 8px;
+                panel := HsvPanel {
+                    seed: root.cleared ? Theme.pal.accent : root.value;
+                    picked(c) => { root.picked(c); }
+                }
+                HorizontalLayout {
+                    alignment: end;
+                    Btn {
+                        text: "Use theme default";
+                        clicked => { root.clear(); }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ── gradient stop editor ─────────────────────────────────────────────
+export component GradientEditor inherits VerticalLayout {
+    in property <[color]> stops;
+    callback stop-picked(int, color);
+    callback stop-removed(int);
+    callback stop-added();
+
+    spacing: 8px;
+
+    Rectangle { // live gradient strip preview
+        height: 16px;
+        border-radius: 8px;
+        border-width: 1px;
+        border-color: Theme.pal.border;
+        HorizontalLayout {
+            for c[i] in root.stops: Rectangle { background: c; }
+        }
+    }
+    HorizontalLayout {
+        spacing: 8px;
+        alignment: start;
+        for c[i] in root.stops: Rectangle {
+            width: 44px;
+            height: 28px;
+            border-radius: 7px;
+            background: c;
+            border-width: 1px;
+            border-color: Theme.pal.border;
+            TouchArea {
+                clicked => {
+                    spop.show();
+                }
+                mouse-cursor: MouseCursor.pointer;
+            }
+            if root.stops.length > 1: Rectangle { // remove badge
+                x: parent.width - 14px;
+                y: -4px;
+                width: 16px;
+                height: 16px;
+                border-radius: 8px;
+                background: Theme.pal.danger;
+                Text {
+                    text: "×";
+                    color: white;
+                    font-size: 11px;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                    width: 100%;
+                    height: 100%;
+                }
+                TouchArea {
+                    clicked => { root.stop-removed(i); }
+                    mouse-cursor: MouseCursor.pointer;
+                }
+            }
+            spop := PopupWindow {
+                x: 0;
+                y: parent.height + 4px;
+                width: 240px;
+                close-policy: close-on-click-outside;
+                Rectangle {
+                    background: Theme.pal.surface;
+                    border-radius: 10px;
+                    border-width: 1px;
+                    border-color: Theme.pal.border;
+                    drop-shadow-blur: 16px;
+                    drop-shadow-color: #00000050;
+                    VerticalLayout {
+                        padding: 12px;
+                        inner := HsvPanel {
+                            seed: c;
+                            picked(nc) => { root.stop-picked(i, nc); }
+                        }
+                    }
+                }
+            }
+        }
+        if root.stops.length < 6: Rectangle { // add stop
+            width: 44px;
+            height: 28px;
+            border-radius: 7px;
+            background: Theme.pal.control;
+            border-width: 1px;
+            border-color: Theme.pal.border;
+            Text {
+                text: "+";
+                color: Theme.pal.fg;
+                font-size: 15px;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+                width: 100%;
+                height: 100%;
+            }
+            TouchArea {
+                clicked => { root.stop-added(); }
+                mouse-cursor: MouseCursor.pointer;
+            }
+        }
+    }
+}

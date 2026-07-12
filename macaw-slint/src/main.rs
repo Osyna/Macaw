@@ -8,8 +8,10 @@
 //! replies marshal in via `upgrade_in_event_loop` and reach the app state
 //! through a UI-thread-local handle (Rc — deliberately !Send).
 
+mod bars;
 mod engine;
 mod hypr;
+mod ls;
 mod single;
 mod theme;
 mod tray;
@@ -25,7 +27,7 @@ use serde_json::{json, Map, Value};
 use slint::{ComponentHandle, Model, ModelRc, SharedString, VecModel};
 
 const WS_PORT: u16 = 47540;
-const BAR_COUNT: usize = 24;
+use bars::{BarAnim, BAR_COUNT};
 
 thread_local! {
     static APP: RefCell<Option<Rc<App>>> = const { RefCell::new(None) };
@@ -63,6 +65,10 @@ fn kv(key: &str, value: Value) -> Value {
     Value::Object(m)
 }
 
+fn hex(c: slint::Color) -> String {
+    format!("#{:02X}{:02X}{:02X}", c.red(), c.green(), c.blue())
+}
+
 /// App-internal additions to the engine event stream: RPC results are routed
 /// through the same pump so every UI mutation happens in one place.
 enum Msg {
@@ -88,12 +94,12 @@ struct App {
     op: RefCell<Option<(String, String, String, f32)>>, // op, key, msg, pct(-1 = indet)
     toasts: Rc<VecModel<Toast>>,
     levels: Rc<VecModel<f32>>,
-    bars: RefCell<[f32; BAR_COUNT]>,
+    eq: Rc<VecModel<slint::Color>>,
+    anim: RefCell<BarAnim>,
     rms: Cell<f32>,
-    tick: Cell<u64>,
+    ls: RefCell<Option<ls::LsOverlay>>,
     level_timer: slint::Timer,
-    preview_timer: slint::Timer,
-    previewing: Cell<bool>,
+    recording: Cell<bool>,
 }
 
 impl App {
@@ -121,36 +127,87 @@ impl App {
             eq_idle: theme::rgb(t.eq_idle),
         });
 
-        // overlay look: theme + config overrides, pre-resolved
-        let o = &self.overlay;
-        o.set_pill_bg(theme::rgb(t.overlay_bg));
-        o.set_pill_opacity(cfg["overlay_opacity"].as_f64().unwrap_or(0.94) as f32);
-        o.set_idle_color(theme::rgb(t.eq_idle));
-        o.set_ok_color(theme::rgb(t.ok));
-        o.set_danger_color(theme::rgb(t.danger));
-        let eq = theme::eq_colors(t, &cfg);
-        o.set_eq_colors(ModelRc::from(eq.as_slice()));
+        // overlay look: theme + config overrides, resolved once, pushed to
+        // both the real overlay window and the settings preview (Look global)
+        self.eq.set_vec(theme::eq_colors(t, &cfg));
         let c = theme::corners(t, &cfg);
-        o.set_r_tl(c[0]);
-        o.set_r_tr(c[1]);
-        o.set_r_br(c[2]);
-        o.set_r_bl(c[3]);
         let bw = cfg["border_width"].as_i64().unwrap_or(0) as f32;
-        o.set_pill_border_width(bw);
-        o.set_pill_border_color(if bw > 0.0 {
+        let border_color = if bw > 0.0 {
             cfg["border_color"]
                 .as_str()
                 .and_then(theme::parse_hex)
                 .unwrap_or(theme::rgb(t.border_color))
         } else {
             slint::Color::from_argb_u8(0, 0, 0, 0)
-        });
+        };
         let bar_w = cfg["bar_width"].as_i64().unwrap_or(-1);
         let bar_s = cfg["bar_spacing"].as_i64().unwrap_or(-1);
-        o.set_bar_width(if bar_w >= 1 { bar_w as f32 } else { 4.0 });
-        o.set_bar_spacing(if bar_s >= 0 { bar_s as f32 } else { 3.0 });
-        o.set_bar_radius(cfg["bar_radius"].as_i64().unwrap_or(0) as f32);
-        o.set_bar_fade(cfg["bar_fade"].as_bool().unwrap_or(true));
+        let opacity = cfg["overlay_opacity"].as_f64().unwrap_or(0.94) as f32;
+        let bar_radius = cfg["bar_radius"].as_i64().unwrap_or(0) as f32;
+        let bar_fade = cfg["bar_fade"].as_bool().unwrap_or(true);
+        let bar_w = if bar_w >= 1 { bar_w as f32 } else { 4.0 };
+        let bar_s = if bar_s >= 0 { bar_s as f32 } else { 3.0 };
+
+        let o = &self.overlay;
+        o.set_pill_bg(theme::rgb(t.overlay_bg));
+        o.set_pill_opacity(opacity);
+        o.set_idle_color(theme::rgb(t.eq_idle));
+        o.set_ok_color(theme::rgb(t.ok));
+        o.set_danger_color(theme::rgb(t.danger));
+        o.set_eq_colors(ModelRc::from(Rc::clone(&self.eq)));
+        o.set_r_tl(c[0]);
+        o.set_r_tr(c[1]);
+        o.set_r_br(c[2]);
+        o.set_r_bl(c[3]);
+        o.set_pill_border_width(bw);
+        o.set_pill_border_color(border_color);
+        o.set_bar_width(bar_w);
+        o.set_bar_spacing(bar_s);
+        o.set_bar_radius(bar_radius);
+        o.set_bar_fade(bar_fade);
+
+        let look = self.ui.global::<Look>();
+        look.set_pill_bg(theme::rgb(t.overlay_bg));
+        look.set_pill_opacity(opacity);
+        look.set_idle_color(theme::rgb(t.eq_idle));
+        look.set_ok_color(theme::rgb(t.ok));
+        look.set_danger_color(theme::rgb(t.danger));
+        look.set_eq_colors(ModelRc::from(Rc::clone(&self.eq)));
+        look.set_r_tl(c[0]);
+        look.set_r_tr(c[1]);
+        look.set_r_br(c[2]);
+        look.set_r_bl(c[3]);
+        look.set_pill_border_width(bw);
+        look.set_pill_border_color(border_color);
+        look.set_bar_width(bar_w);
+        look.set_bar_spacing(bar_s);
+        look.set_bar_radius(bar_radius);
+        look.set_bar_fade(bar_fade);
+        look.set_pv_w(cfg["overlay_width"].as_f64().unwrap_or(210.0) as f32);
+        look.set_pv_h(cfg["overlay_height"].as_f64().unwrap_or(52.0) as f32);
+        look.set_levels(ModelRc::from(Rc::clone(&self.levels)));
+
+        // layer-shell overlay process gets the same resolved look + geometry
+        let eq_hex: Vec<String> = self.eq.iter().map(hex).collect();
+        self.ls_send(json!({
+            "cmd": "look",
+            "pill_bg": format!("#{:06X}", t.overlay_bg),
+            "opacity": opacity,
+            "idle": format!("#{:06X}", t.eq_idle),
+            "ok": format!("#{:06X}", t.ok),
+            "danger": format!("#{:06X}", t.danger),
+            "border_color": hex(border_color),
+            "border_width": bw,
+            "r_tl": c[0], "r_tr": c[1], "r_br": c[2], "r_bl": c[3],
+            "bar_width": bar_w, "bar_spacing": bar_s, "bar_radius": bar_radius,
+            "bar_fade": bar_fade,
+            "eq": eq_hex,
+            "width": cfg["overlay_width"].as_u64().unwrap_or(210),
+            "height": cfg["overlay_height"].as_u64().unwrap_or(52),
+            "position": cfg["window_position"].as_str().unwrap_or("bottom_center"),
+            "x": cfg["overlay_x"].as_i64().unwrap_or(0),
+            "y": cfg["overlay_y"].as_i64().unwrap_or(0),
+        }));
     }
 
     // ── config → Cfg struct ─────────────────────────────────────────
@@ -168,6 +225,7 @@ impl App {
                     .join(", ")
             })
             .unwrap_or_default();
+        let t = theme::by_name(cfg["theme"].as_str().unwrap_or("macaw"));
         self.ui.set_cfg(Cfg {
             language: s("language"),
             output_mode: s("output_mode"),
@@ -192,7 +250,15 @@ impl App {
             bar_fade: b("bar_fade", true),
             eq_colors: SharedString::from(eq_join),
             accent_color: s("accent_color"),
+            accent_value: cfg["accent_color"]
+                .as_str()
+                .and_then(theme::parse_hex)
+                .unwrap_or(theme::rgb(t.accent)),
             border_color: s("border_color"),
+            border_value: cfg["border_color"]
+                .as_str()
+                .and_then(theme::parse_hex)
+                .unwrap_or(theme::rgb(t.border_color)),
             border_width: f("border_width", 0.0),
             api_key_set: cfg["openai_api_key"]
                 .as_str()
@@ -210,6 +276,8 @@ impl App {
             .position(|(i, _)| *i == want)
             .unwrap_or(0);
         self.ui.set_device_current(idx as i32);
+        self.ui
+            .set_theme_current(theme::index_of(cfg["theme"].as_str().unwrap_or("macaw")) as i32);
         drop(cfg);
         self.apply_theme();
     }
@@ -311,7 +379,24 @@ impl App {
         (x, y, w, h)
     }
 
+    /// Send to the layer-shell overlay process; false = gone (fallback).
+    fn ls_send(&self, v: Value) -> bool {
+        let mut slot = self.ls.borrow_mut();
+        if let Some(proc) = slot.as_mut() {
+            if proc.send(&v) {
+                return true;
+            }
+            eprintln!("[shell] layer-shell overlay lost — window fallback");
+            proc.kill();
+            *slot = None;
+        }
+        false
+    }
+
     fn show_overlay(self: &Rc<Self>, mode: &str) {
+        if self.ls_send(json!({"cmd": "show", "mode": mode})) {
+            return;
+        }
         let visible = self.overlay.window().is_visible();
         self.overlay.set_mode(mode.into());
         if !visible {
@@ -322,49 +407,45 @@ impl App {
                 .set_size(slint::LogicalSize::new(w as f32, h as f32));
             let _ = self.overlay.show();
         }
-        if !self.level_timer.running() {
-            let weak = Rc::downgrade(self);
-            self.level_timer.start(
-                slint::TimerMode::Repeated,
-                std::time::Duration::from_millis(33),
-                move || {
-                    if let Some(app) = weak.upgrade() {
-                        app.tick_bars();
-                    }
-                },
-            );
-        }
     }
 
     fn hide_overlay(&self) {
-        self.level_timer.stop();
-        self.previewing.set(false);
-        self.preview_timer.stop();
-        let _ = self.overlay.hide();
-        *self.bars.borrow_mut() = [0.0; BAR_COUNT];
+        self.ls_send(json!({"cmd": "hide"}));
+        if self.overlay.window().is_visible() {
+            let _ = self.overlay.hide();
+        }
+        self.anim.borrow_mut().reset();
         self.rms.set(0.0);
     }
 
-    /// 30 Hz bar animation: center-weighted bell + per-bar shimmer, with the
-    /// old overlay's asymmetric attack/decay smoothing.
+    /// Runs for the whole app lifetime (30 Hz): drives the winit-fallback
+    /// overlay bars during recording and the settings preview otherwise.
+    /// (The layer-shell process animates its own bars from raw rms.)
+    fn start_level_timer(self: &Rc<Self>) {
+        let weak = Rc::downgrade(self);
+        self.level_timer.start(
+            slint::TimerMode::Repeated,
+            std::time::Duration::from_millis(33),
+            move || {
+                if let Some(app) = weak.upgrade() {
+                    app.tick_bars();
+                }
+            },
+        );
+    }
+
     fn tick_bars(&self) {
-        let t = self.tick.get().wrapping_add(1);
-        self.tick.set(t);
-        let rms = if self.previewing.get() {
-            (0.55 + 0.4 * ((t as f32) * 0.11).sin()).clamp(0.0, 1.0)
-        } else {
+        let rms = if self.recording.get() {
             self.rms.get()
+        } else {
+            // settings-preview wave: nothing live to visualize
+            let t = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_millis() as u64)
+                .unwrap_or(0) as f32;
+            (0.55 + 0.4 * (t * 0.0033).sin()).clamp(0.0, 1.0)
         };
-        let mut bars = self.bars.borrow_mut();
-        let c = (BAR_COUNT as f32 - 1.0) / 2.0;
-        for (i, bar) in bars.iter_mut().enumerate() {
-            let d = (i as f32 - c) / c; // -1..1
-            let bell = 0.35 + 0.65 * (-2.2 * d * d).exp();
-            let shimmer = 0.72 + 0.28 * ((1.7 * i as f32) + (t as f32) * 0.43).sin();
-            let target = (rms.powf(0.85) * bell * shimmer).clamp(0.0, 1.0);
-            let k = if target > *bar { 0.32 } else { 0.18 };
-            *bar += (target - *bar) * k;
-        }
+        let bars = *self.anim.borrow_mut().step(rms);
         self.levels.set_vec(bars.to_vec());
     }
 
@@ -431,6 +512,7 @@ impl App {
             ws::Event::Disconnected => self.ui.set_engine_connected(false),
             ws::Event::State { state, detail } => {
                 self.ui.set_engine_state(SharedString::from(state.as_str()));
+                self.recording.set(state == "recording");
                 if let Some(t) = &self.tray {
                     let rec = state == "recording";
                     t.update(move |tr| tr.recording = rec);
@@ -442,16 +524,20 @@ impl App {
                     "error" if !detail.is_empty() => {
                         self.overlay
                             .set_error_text(SharedString::from(detail.as_str()));
+                        self.ls_send(json!({"cmd": "error", "text": detail}));
                         self.show_overlay("error");
                     }
                     _ => self.hide_overlay(), // idle / loading / detail-less error
                 }
             }
-            ws::Event::Level { rms } => self.rms.set(rms),
+            ws::Event::Level { rms } => {
+                self.rms.set(rms);
+                self.ls_send(json!({"cmd": "level", "rms": rms}));
+            }
             ws::Event::Config { config } => {
                 self.cfg.replace(config);
                 self.apply_config();
-                if self.overlay.window().is_visible() {
+                if self.ls.borrow().is_none() && self.overlay.window().is_visible() {
                     let (x, y, w, h) = self.overlay_geometry();
                     hypr::install_rules(x, y, w, h);
                     self.overlay
@@ -518,6 +604,9 @@ impl App {
     }
 
     fn quit(&self) {
+        if let Some(proc) = self.ls.borrow_mut().as_mut() {
+            proc.kill();
+        }
         self.client.call("quit", json!({}), None);
         self.client.shutdown();
         self.engine.borrow_mut().kill();
@@ -607,14 +696,20 @@ fn main() {
         op: RefCell::new(None),
         toasts,
         levels,
-        bars: RefCell::new([0.0; BAR_COUNT]),
+        eq: Rc::new(VecModel::from(Vec::<slint::Color>::new())),
+        anim: RefCell::new(BarAnim::new()),
         rms: Cell::new(0.0),
-        tick: Cell::new(0),
+        ls: RefCell::new(ls::LsOverlay::spawn()),
         level_timer: slint::Timer::default(),
-        preview_timer: slint::Timer::default(),
-        previewing: Cell::new(false),
+        recording: Cell::new(false),
     });
     APP.with(|a| *a.borrow_mut() = Some(Rc::clone(&app)));
+    let names: Vec<SharedString> = theme::NAMES
+        .iter()
+        .map(|n| SharedString::from(*n))
+        .collect();
+    app.ui.set_theme_names(ModelRc::from(names.as_slice()));
+    app.start_level_timer();
 
     // ── UI callbacks → engine RPCs ──────────────────────────────────
     {
@@ -669,21 +764,54 @@ fn main() {
         });
     }
     {
+        // gradient/color editors: mutate cfg, patch — the engine's config
+        // echo re-resolves the look everywhere
         let a = Rc::clone(&app);
-        app.ui.on_preview_overlay(move || {
-            a.previewing.set(true);
-            a.show_overlay("eq");
-            let weak = Rc::downgrade(&a);
-            a.preview_timer.start(
-                slint::TimerMode::SingleShot,
-                std::time::Duration::from_secs(3),
-                move || {
-                    if let Some(app) = weak.upgrade() {
-                        app.hide_overlay();
-                    }
-                },
-            );
+        app.ui.on_eq_set(move |i, c| {
+            let mut stops: Vec<String> = a.eq.iter().map(hex).collect();
+            if let Some(s) = stops.get_mut(i as usize) {
+                *s = hex(c);
+            }
+            a.patch(kv("eq_colors", json!(stops)));
         });
+    }
+    {
+        let a = Rc::clone(&app);
+        app.ui.on_eq_add(move || {
+            let mut stops: Vec<String> = a.eq.iter().map(hex).collect();
+            stops.push(stops.last().cloned().unwrap_or_else(|| "#E5322B".into()));
+            a.patch(kv("eq_colors", json!(stops)));
+        });
+    }
+    {
+        let a = Rc::clone(&app);
+        app.ui.on_eq_remove(move |i| {
+            let mut stops: Vec<String> = a.eq.iter().map(hex).collect();
+            if (i as usize) < stops.len() && stops.len() > 1 {
+                stops.remove(i as usize);
+            }
+            a.patch(kv("eq_colors", json!(stops)));
+        });
+    }
+    {
+        let a = Rc::clone(&app);
+        app.ui
+            .on_accent_picked(move |c| a.patch(kv("accent_color", json!(hex(c)))));
+    }
+    {
+        let a = Rc::clone(&app);
+        app.ui
+            .on_accent_clear(move || a.patch(kv("accent_color", json!(""))));
+    }
+    {
+        let a = Rc::clone(&app);
+        app.ui
+            .on_border_picked(move |c| a.patch(kv("border_color", json!(hex(c)))));
+    }
+    {
+        let a = Rc::clone(&app);
+        app.ui
+            .on_border_clear(move || a.patch(kv("border_color", json!(""))));
     }
     app.ui.on_set_autostart(set_autostart);
     {
