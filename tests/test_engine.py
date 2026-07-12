@@ -433,3 +433,45 @@ def test_second_engine_on_same_port_fails_cleanly(engine):
         assert c.call("ping") == "pong"
     finally:
         c.close()
+
+
+# ── unit: visual level gain (pure helper in engine.py) ───────────────
+
+
+def _vis(energy: float, gain) -> float:
+    """Call Engine._vis_level against a stub — no engine construction."""
+    from types import SimpleNamespace
+
+    from macaw.engine import Engine
+
+    stub = SimpleNamespace(
+        capture=SimpleNamespace(current_energy=energy),
+        cfg=SimpleNamespace(level_gain=gain),
+    )
+    return Engine._vis_level(stub)
+
+
+def test_level_gain_boosts_quiet_input():
+    quiet = _vis(1e-3, 1.0)  # log-scaled: (log10(1e-3)+4)/3 = 1/3
+    boosted = _vis(1e-3, 2.0)
+    assert 0.30 < quiet < 0.37
+    assert abs(boosted - 2 * quiet) < 1e-9
+
+
+def test_level_gain_never_exceeds_max():
+    # screaming into the mic at 4x boost still caps at 1.0
+    assert _vis(1.0, 4.0) == 1.0
+    assert _vis(1e-2, 4.0) == 1.0
+
+
+def test_level_gain_silence_stays_silent():
+    # gain cannot invent signal from a silent room
+    assert _vis(0.0, 4.0) == 0.0
+    assert _vis(1e-12, 4.0) == 0.0
+
+
+def test_level_gain_out_of_range_is_clamped():
+    # config values outside 0.5-4 are clamped; None falls back to 1x
+    assert _vis(1e-3, 99.0) == _vis(1e-3, 4.0)
+    assert _vis(1e-3, 0.0) == _vis(1e-3, 0.5)
+    assert _vis(1e-3, None) == _vis(1e-3, 1.0)

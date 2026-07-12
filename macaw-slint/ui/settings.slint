@@ -13,6 +13,7 @@ export struct Cfg {
     output-mode: string,       // clipboard | type
     device-label: string,
     silence-timeout: float,
+    level-gain: float,
     sound-enabled: bool,
     streaming: bool,
     punctuation-hints: bool,
@@ -132,6 +133,18 @@ export component SettingsView inherits ScrollArea {
                             }
                         }
                     }
+                }
+                Row {
+                    label: "Input boost";
+                    hint: "Amplifies the meter and the pill animation for quiet microphones — visual only, and loud peaks still cap at the maximum.";
+                    SliderX {
+                        value: cfg.level-gain;
+                        minimum: 0.5;
+                        maximum: 4.0;
+                        step: 0.25;
+                        changed(v) => { root.set-num("level_gain", v); }
+                    }
+                    Text { text: "\{cfg.level-gain}×"; color: Theme.pal.muted; font-size: 12px; vertical-alignment: center; }
                 }
                 Row {
                     label: "Stop after silence";

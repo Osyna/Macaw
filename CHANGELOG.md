@@ -4,6 +4,14 @@ Notable changes to Macaw. Older releases live on the [releases page](https://git
 
 ## Unreleased
 
+- **About**: click the parrot next to the Macaw title — version, GitHub,
+  releases and osyna.com links in a small overlay.
+
+- **Input boost**: a gain slider next to the live level meter (0.5–4×) —
+  quiet microphones get full-height animations, and the level still caps
+  at the maximum when you suddenly scream. Visual only: silence detection
+  and transcription are untouched.
+
 - Settings: a live **input level meter** under the microphone picker — it
   runs only while the Settings tab is on screen (speak and the bar moves;
   silent means check your device). New **ENGINE card**: backend status,

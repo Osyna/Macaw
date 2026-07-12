@@ -46,6 +46,7 @@ class Config:
     language: str = "en"
     output_mode: str = "clipboard"
     silence_timeout: float = 3.0
+    level_gain: float = 1.0  # visual input boost, 0.5-4 (quiet mics; peaks still cap)
     window_position: str = "bottom_center"
     sound_enabled: bool = True
     streaming: bool = False
@@ -108,6 +109,7 @@ class Config:
                 language=data.get("language", "en"),
                 output_mode=data.get("output_mode", "clipboard"),
                 silence_timeout=float(data.get("silence_timeout", 3.0)),
+                level_gain=float(data.get("level_gain", 1.0)),
                 window_position=data.get("window_position", "bottom_center"),
                 sound_enabled=bool(data.get("sound_enabled", True)),
                 streaming=bool(data.get("streaming", False)),
@@ -210,6 +212,8 @@ class Config:
             "# ── Behaviour ────────────────────────────────────────────\n"
             f"silence_timeout: {_yv(self.silence_timeout)}"
             "  # seconds of silence before auto-stop\n"
+            f"level_gain: {_yv(self.level_gain)}"
+            "  # visual input boost 0.5-4 (animation/meter only; peaks still cap)\n"
             f"sound_enabled: {_yv(self.sound_enabled)}  # play record / done tones\n"
             f"punctuation_hints: {_yv(self.punctuation_hints)}"
             "  # nudge the model toward punctuation\n"

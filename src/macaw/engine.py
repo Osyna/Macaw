@@ -509,9 +509,7 @@ class Engine:
     async def _monitor(self) -> None:
         """~30 Hz while recording: `level` events + the silence timeout."""
         while self.is_recording:
-            raw = self.capture.current_energy
-            vis = (math.log10(raw) + 4) / 3.0 if raw > 1e-10 else 0.0
-            self.emit("level", {"rms": min(1.0, max(0.0, vis))})
+            self.emit("level", {"rms": self._vis_level()})
             timeout = self.cfg.silence_timeout
             if not self.capture.speech_detected:
                 if time.time() - self.capture.last_sound_time >= timeout:
@@ -539,6 +537,15 @@ class Engine:
                 self.capture.stop()
         return {"on": on}
 
+    def _vis_level(self) -> float:
+        """Log-scaled 0..1 level with the user's visual boost applied —
+        quiet mics still fill the animation; the clamp caps screaming."""
+        raw = self.capture.current_energy
+        vis = (math.log10(raw) + 4) / 3.0 if raw > 1e-10 else 0.0
+        gain = self.cfg.level_gain
+        gain = min(4.0, max(0.5, 1.0 if gain is None else float(gain)))
+        return min(1.0, max(0.0, vis * gain))
+
     async def _mic_monitor(self) -> None:
         """~30 Hz level events while idle. Recording's own monitor takes over
         seamlessly (this loop goes quiet while `is_recording`), and the
@@ -548,9 +555,7 @@ class Engine:
                 if not self.is_recording:
                     if not self.capture.running:
                         self.capture.start()
-                    raw = self.capture.current_energy
-                    vis = (math.log10(raw) + 4) / 3.0 if raw > 1e-10 else 0.0
-                    self.emit("level", {"rms": min(1.0, max(0.0, vis))})
+                    self.emit("level", {"rms": self._vis_level()})
                 await asyncio.sleep(1 / 30)
         except asyncio.CancelledError:
             pass
