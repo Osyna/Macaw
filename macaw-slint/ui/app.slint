@@ -39,7 +39,8 @@ component TabBtn inherits Rectangle {
 export component MainWindow inherits Window {
     title: "Macaw";
     default-font-family: "monospace"; // terminal chrome; the pill keeps the UI font
-    // fixed size: the settings window is not resizable
+    // fixed: Slint derives min=max size hints from this, so the window is
+    // not resizable; a Hyprland rule (main.rs) floats it so it never tiles
     width: 1180px;
     height: 760px;
     background: Theme.pal.bg;
@@ -69,6 +70,7 @@ export component MainWindow inherits Window {
     callback pillbg-picked(color);
     callback pillbg-clear();
     callback pin-overlay(bool);
+    callback state-picked(string);
     callback accent-picked(color);
     callback accent-clear();
     callback border-picked(color);
@@ -197,6 +199,7 @@ export component MainWindow inherits Window {
             pillbg-picked(c) => { root.pillbg-picked(c); }
             pillbg-clear => { root.pillbg-clear(); }
             pin-overlay(v) => { root.pin-overlay(v); }
+            state-picked(m) => { root.state-picked(m); }
             accent-picked(c) => { root.accent-picked(c); }
             accent-clear => { root.accent-clear(); }
             border-picked(c) => { root.border-picked(c); }

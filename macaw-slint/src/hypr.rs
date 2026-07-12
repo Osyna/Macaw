@@ -155,3 +155,24 @@ pub fn move_mapped(x: i32, y: i32) {
         &format!("exact {x} {y},class:^({OVERLAY_TITLE})$"),
     ]);
 }
+
+/// Float the settings window at its fixed size — tiled windows ignore size
+/// hints and would stretch the surface (dead space around fixed content).
+/// Runtime keyword rules apply after config rules, so this wins over any
+/// stale user rule for the class.
+pub fn install_main_rules() {
+    let rule = "float on, size 1180 760, center on, match:class ^(macaw)$";
+    let Some(sig) = signature() else { return };
+    let out = Command::new("hyprctl")
+        .env("HYPRLAND_INSTANCE_SIGNATURE", &sig)
+        .args(["keyword", "windowrule", rule])
+        .output();
+    let ok = out.map(|o| o.stdout.starts_with(b"ok")).unwrap_or(false);
+    if !ok {
+        // legacy syntax
+        hyprctl(&[
+            "--batch",
+            "keyword windowrulev2 float,class:^(macaw)$ ; keyword windowrulev2 size 1180 760,class:^(macaw)$ ; keyword windowrulev2 center,class:^(macaw)$",
+        ]);
+    }
+}

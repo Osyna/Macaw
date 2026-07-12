@@ -146,6 +146,7 @@ export component SettingsView inherits Flickable {
     callback error-picked(color);
     callback error-clear();
     callback pin-overlay(bool);
+    callback state-picked(string);
     in-out property <bool> pin-indicator: false;
     callback accent-picked(color);
     callback accent-clear();
@@ -358,7 +359,10 @@ export component SettingsView inherits Flickable {
                             font-weight: 600;
                         }
                         TouchArea {
-                            clicked => { root.preview-mode = m; }
+                            clicked => {
+                                root.preview-mode = m;
+                                root.state-picked(m);
+                            }
                             mouse-cursor: MouseCursor.pointer;
                         }
                     }

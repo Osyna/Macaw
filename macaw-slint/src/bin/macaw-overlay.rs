@@ -157,6 +157,7 @@ impl Overlay {
 
     fn set_geometry(&mut self, position: &str, w: u32, h: u32, custom: (i32, i32)) {
         const M: i32 = 24;
+        let resized = w != self.w || h != self.h;
         self.w = w;
         self.h = h;
         let (anchor, margins) = match position {
@@ -175,6 +176,12 @@ impl Overlay {
         let scale = self.scale.max(1);
         self.window
             .set_size(slint::PhysicalSize::new(w * scale as u32, h * scale as u32));
+        if resized {
+            // A buffer of the NEW size must not be attached until the
+            // compositor acks with a configure — drawing early glitches or
+            // kills the surface (the mid-resize disappearing pill).
+            self.configured = false;
+        }
         self.layer.commit();
     }
 
@@ -233,7 +240,7 @@ impl Overlay {
             v["y"].as_i64().unwrap_or(0) as i32,
         );
         self.set_geometry(&pos, w, h, custom);
-        if self.visible {
+        if self.visible && self.configured {
             self.draw();
         }
     }
@@ -410,6 +417,11 @@ impl LayerShellHandler for Overlay {
         if cfg.new_size.1 != 0 {
             self.h = cfg.new_size.1;
         }
+        // Slint must render at the ACKED size — a mismatch under-sizes the
+        // pixel buffer and panics the software renderer.
+        let s = self.scale.max(1) as u32;
+        self.window
+            .set_size(slint::PhysicalSize::new(self.w * s, self.h * s));
         self.configured = true;
         self.draw();
     }

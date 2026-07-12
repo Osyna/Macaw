@@ -116,8 +116,9 @@ struct App {
     ls: RefCell<Option<ls::LsOverlay>>,
     level_timer: slint::Timer,
     recording: Cell<bool>,
-    pinned: Cell<bool>,        // "show indicator" live-edit toggle in Settings
-    expanded: RefCell<String>, // model id with the open dossier ("" = none)
+    pinned: Cell<bool>,            // "show indicator" live-edit toggle in Settings
+    preview_mode: RefCell<String>, // state chip selected in Appearance
+    expanded: RefCell<String>,     // model id with the open dossier ("" = none)
     search: RefCell<String>,
     filter: Cell<i32>, // 0 All / 1 Ready / 2 Installed / 3 Cloud / 4 Streaming
 }
@@ -760,7 +761,10 @@ impl App {
                         self.ls_send(json!({"cmd": "error", "text": detail}));
                         self.show_overlay("error");
                     }
-                    _ if self.pinned.get() => self.show_overlay("eq"), // live-edit pin
+                    _ if self.pinned.get() => {
+                        let mode = self.preview_mode.borrow().clone();
+                        self.show_overlay(&mode); // live-edit pin follows the chip
+                    }
                     _ => self.hide_overlay(), // idle / loading / detail-less error
                 }
             }
@@ -894,11 +898,20 @@ fn main() {
     slint::BackendSelector::new()
         .backend_name("winit".into())
         .with_winit_window_attributes_hook(move |attrs| {
+            use slint::winit_030::winit::dpi::LogicalSize;
             use slint::winit_030::winit::platform::wayland::WindowAttributesExtWayland;
             let i = counter.get();
             counter.set(i + 1);
-            let app_id = if i == 0 { "macaw" } else { hypr::OVERLAY_TITLE };
-            attrs.with_name(app_id, "")
+            if i == 0 {
+                // settings window: hard-fixed size, not resizable
+                attrs
+                    .with_name("macaw", "")
+                    .with_resizable(false)
+                    .with_min_inner_size(LogicalSize::new(1180.0, 760.0))
+                    .with_max_inner_size(LogicalSize::new(1180.0, 760.0))
+            } else {
+                attrs.with_name(hypr::OVERLAY_TITLE, "")
+            }
         })
         .select()
         .expect("select winit backend");
@@ -938,6 +951,7 @@ fn main() {
         level_timer: slint::Timer::default(),
         recording: Cell::new(false),
         pinned: Cell::new(false),
+        preview_mode: RefCell::new("eq".into()),
         expanded: RefCell::new(String::new()),
         search: RefCell::new(String::new()),
         filter: Cell::new(0),
@@ -1088,9 +1102,22 @@ fn main() {
         app.ui.on_pin_overlay(move |on| {
             a.pinned.set(on);
             if on {
-                a.show_overlay("eq");
+                let mode = a.preview_mode.borrow().clone();
+                a.ls_send(json!({"cmd": "error", "text": "Preview"}));
+                a.overlay.set_error_text("Preview".into());
+                a.show_overlay(&mode);
             } else if !a.recording.get() {
                 a.hide_overlay();
+            }
+        });
+    }
+    {
+        // state chip switched: retarget the pinned on-screen indicator too
+        let a = Rc::clone(&app);
+        app.ui.on_state_picked(move |m| {
+            *a.preview_mode.borrow_mut() = m.to_string();
+            if a.pinned.get() && !a.recording.get() {
+                a.show_overlay(m.as_str());
             }
         });
     }
@@ -1393,6 +1420,7 @@ fn main() {
     if flag.as_deref() != Some("--trigger") {
         let _ = app.ui.show();
     }
+    hypr::install_main_rules(); // float at fixed size — never tiled
 
     slint::run_event_loop_until_quit().expect("event loop");
     APP.with(|a| a.borrow_mut().take());
