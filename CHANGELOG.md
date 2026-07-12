@@ -4,6 +4,9 @@ Notable changes to Macaw. Older releases live on the [releases page](https://git
 
 ## Unreleased
 
+- Header: tabs reordered — **⬢ Models first** (and the landing tab),
+  ◐ Appearance next, ⚙ Settings right-aligned; each tab has an icon.
+
 - Done state: the entrance animation now **loops in the live preview** and
   on the pinned on-screen indicator (real dictation still plays it once),
   the ✓ sits on a **configurable circle** (defaults to the pill color), and

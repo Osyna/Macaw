@@ -17,19 +17,31 @@ export struct Toast {
 
 component TabBtn inherits Rectangle {
     in property <string> text;
+    in property <string> icon;
     in property <bool> active;
     callback clicked;
-    width: t.preferred-width + 28px;
+    width: row.preferred-width + 28px;
     height: 32px;
     border-radius: Theme.radius;
     background: root.active ? Theme.pal.surface : (touch.has-hover ? Theme.pal.surface.with-alpha(0.5) : transparent);
     border-width: root.active ? 1px : 0px;
     border-color: Theme.pal.border;
-    t := Text {
-        text: root.text;
-        color: root.active ? Theme.pal.fg : Theme.pal.muted;
-        font-size: 13px;
-        font-weight: root.active ? 700 : 500;
+    row := HorizontalLayout {
+        spacing: 6px;
+        alignment: center;
+        if root.icon != "": Text {
+            text: root.icon;
+            color: root.active ? Theme.pal.accent : Theme.pal.muted;
+            font-size: 13px;
+            vertical-alignment: center;
+        }
+        Text {
+            text: root.text;
+            color: root.active ? Theme.pal.fg : Theme.pal.muted;
+            font-size: 13px;
+            font-weight: root.active ? 700 : 500;
+            vertical-alignment: center;
+        }
     }
     touch := TouchArea {
         clicked => { root.clicked(); }
@@ -46,7 +58,7 @@ export component MainWindow inherits Window {
     height: 760px;
     background: Theme.pal.bg;
 
-    in-out property <string> tab: "settings"; // settings | appearance | models
+    in-out property <string> tab: "models"; // models | appearance | settings
     in property <bool> engine-connected: false;
     in property <string> engine-state: "idle";
     in property <string> active-model-label: "";
@@ -142,23 +154,26 @@ export component MainWindow inherits Window {
                 Rectangle { width: 12px; }
                 TabBtn {
                     y: 12px;
-                    text: "Settings";
-                    active: root.tab == "settings";
-                    clicked => { root.tab = "settings"; }
-                }
-                TabBtn {
-                    y: 12px;
-                    text: "Appearance";
-                    active: root.tab == "appearance";
-                    clicked => { root.tab = "appearance"; }
-                }
-                TabBtn {
-                    y: 12px;
+                    icon: "⬢";
                     text: "Models";
                     active: root.tab == "models";
                     clicked => { root.tab = "models"; }
                 }
+                TabBtn {
+                    y: 12px;
+                    icon: "◐";
+                    text: "Appearance";
+                    active: root.tab == "appearance";
+                    clicked => { root.tab = "appearance"; }
+                }
                 Rectangle { horizontal-stretch: 1; }
+                TabBtn {
+                    y: 12px;
+                    icon: "⚙";
+                    text: "Settings";
+                    active: root.tab == "settings";
+                    clicked => { root.tab = "settings"; }
+                }
                 if root.active-model-label != "": Badge {
                     y: parent.height / 2 - self.height / 2;
                     text: root.active-model-label;
