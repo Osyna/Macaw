@@ -113,9 +113,11 @@ component ModelItem inherits Rectangle {
     in property <ModelRow> m;
     callback select(string);
     height: inner.preferred-height + 20px;
+    border-radius: Theme.radius;
     background: m.expanded ? Theme.pal.control : (ta.has-hover ? Theme.pal.control.with-alpha(0.5) : transparent);
-    border-width: m.expanded ? 1px : 0px;
-    border-color: m.active ? Theme.pal.accent : Theme.pal.border;
+    // the ACTIVE model is always outlined green, selected or not
+    border-width: m.active ? 2px : (m.expanded ? 1px : 0px);
+    border-color: m.active ? Theme.pal.ok : Theme.pal.border;
 
     inner := VerticalLayout {
         x: 10px;
@@ -124,12 +126,11 @@ component ModelItem inherits Rectangle {
         spacing: 3px;
         HorizontalLayout {
             spacing: 6px;
-            Rectangle { // status dot: ready green / installed amber / none gray
+            Rectangle { // status dot: active/ready green / installed amber / none gray
                 y: parent.height / 2 - 4px;
                 width: 8px;
                 height: 8px;
-                background: m.active ? Theme.pal.accent
-                    : m.ready ? Theme.pal.ok
+                background: m.active || m.ready ? Theme.pal.ok
                     : m.installed ? Theme.pal.warn : Theme.pal.border;
             }
             Text {
@@ -145,6 +146,7 @@ component ModelItem inherits Rectangle {
         HorizontalLayout {
             spacing: 5px;
             alignment: start;
+            if m.active: Badge { text: "active"; tint: Theme.pal.ok; }
             Badge { text: m.backend; }
             if m.cloud: Badge { text: "cloud"; tint: Theme.pal.warn; }
             if m.streaming: Badge { text: "stream"; tint: Theme.pal.accent; }
@@ -234,6 +236,9 @@ export component ModelsView inherits HorizontalLayout {
     ScrollArea {
         horizontal-stretch: 1;
         viewport-height: detail.preferred-height;
+        // the dossier of the ACTIVE model is outlined green, like its list row
+        border-width: root.have-sel && sel.active ? 2px : 0px;
+        border-color: Theme.pal.ok;
         detail := VerticalLayout {
             padding: 18px;
             alignment: start;
@@ -256,7 +261,7 @@ export component ModelsView inherits HorizontalLayout {
                 }
                 Stars { rating: sel.rating; }
                 Rectangle { horizontal-stretch: 1; }
-                if sel.active: Badge { text: "ACTIVE"; tint: Theme.pal.accent; }
+                if sel.active: Badge { text: "ACTIVE"; tint: Theme.pal.ok; }
                 if sel.recommended && !sel.active: Badge { text: "RECOMMENDED"; tint: Theme.pal.ok; }
                 if sel.cloud: Badge { text: "CLOUD"; tint: Theme.pal.warn; }
                 if sel.streaming: Badge { text: "STREAMING"; tint: Theme.pal.accent; }

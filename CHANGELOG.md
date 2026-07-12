@@ -4,6 +4,11 @@ Notable changes to Macaw. Older releases live on the [releases page](https://git
 
 ## Unreleased
 
+- Models: the **active model is unmistakable** — green outline + "active"
+  badge on its list row, and a green border + ACTIVE badge on its dossier.
+  Scrollbars now live in their own gutter (no more drawing over list cards)
+  and follow the app theme in dark and light mode.
+
 - **Lighter and faster.** The 30 Hz preview animation now stops entirely
   when nothing shows it (0% CPU hidden in the tray, was constant background
   work), level bars update in place instead of rebuilding the bar row every

@@ -80,13 +80,13 @@ export component SettingsView inherits ScrollArea {
     viewport-height: cols.preferred-height;
 
     cols := HorizontalLayout {
-        width: root.width;
+        width: root.content-width;
         padding: 16px;
         spacing: 14px;
 
         // ── left column: audio / hotkey ──────────────────────────────
         VerticalLayout {
-            width: (root.width - 46px) * 0.5;
+            width: (root.content-width - 46px) * 0.5;
             alignment: start;
             spacing: 14px;
 
@@ -172,7 +172,7 @@ export component SettingsView inherits ScrollArea {
 
         // ── right column: cloud / system ─────────────────────────────
         VerticalLayout {
-            width: (root.width - 46px) * 0.5;
+            width: (root.content-width - 46px) * 0.5;
             alignment: start;
             spacing: 14px;
 

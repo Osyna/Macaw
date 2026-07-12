@@ -338,6 +338,9 @@ export component Card inherits Rectangle {
 export component ScrollArea inherits Rectangle {
     in-out property <length> viewport-height <=> flick.viewport-height;
     in-out property <length> viewport-y <=> flick.viewport-y;
+    // bind content width to this: the bar gets a reserved gutter, so it
+    // never draws over content
+    out property <length> content-width: flick.width;
 
     property <bool> scrollable: flick.viewport-height > self.height + 1px;
     property <length> track-h: self.height - 8px;
@@ -346,24 +349,27 @@ export component ScrollArea inherits Rectangle {
         ? -flick.viewport-y / (flick.viewport-height - self.height) : 0;
 
     flick := Flickable {
-        width: 100%;
+        x: 0;
+        // gutter is ALWAYS reserved: making it conditional on `scrollable`
+        // creates a layout feedback loop (bar -> narrower -> taller -> bar)
+        width: root.width - 12px;
         height: 100%;
         @children
     }
 
     if root.scrollable: Rectangle {
-        x: parent.width - 8px;
+        x: parent.width - 9px;
         y: 4px;
-        width: 5px;
+        width: 6px;
         height: root.track-h;
-        border-radius: 2.5px;
-        background: Theme.pal.border.with-alpha(0.35);
+        border-radius: 3px;
+        background: Theme.pal.control; // follows the app theme (dark/light)
         thumb := Rectangle {
             x: 0;
             y: root.progress * (root.track-h - root.thumb-h);
-            width: 5px;
+            width: 6px;
             height: root.thumb-h;
-            border-radius: 2.5px;
+            border-radius: 3px;
             background: bar-ta.has-hover || bar-ta.pressed ? Theme.pal.accent : Theme.pal.muted;
         }
         bar-ta := TouchArea {
