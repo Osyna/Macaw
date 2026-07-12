@@ -29,6 +29,21 @@ use slint::{ComponentHandle, Model, ModelRc, SharedString, VecModel};
 const WS_PORT: u16 = 47540;
 use bars::BarAnim;
 
+/// Per-model spoken-language choices (parity with the old manager).
+const LANGS: [(&str, &str); 11] = [
+    ("English", "en"),
+    ("French", "fr"),
+    ("German", "de"),
+    ("Spanish", "es"),
+    ("Italian", "it"),
+    ("Portuguese", "pt"),
+    ("Dutch", "nl"),
+    ("Polish", "pl"),
+    ("Russian", "ru"),
+    ("Japanese", "ja"),
+    ("Chinese", "zh"),
+];
+
 thread_local! {
     static APP: RefCell<Option<Rc<App>>> = const { RefCell::new(None) };
 }
@@ -100,7 +115,10 @@ struct App {
     ls: RefCell<Option<ls::LsOverlay>>,
     level_timer: slint::Timer,
     recording: Cell<bool>,
-    pinned: Cell<bool>, // "show indicator" live-edit toggle in Settings
+    pinned: Cell<bool>,        // "show indicator" live-edit toggle in Settings
+    expanded: RefCell<String>, // model id with the open dossier ("" = none)
+    search: RefCell<String>,
+    filter: Cell<i32>, // 0 All / 1 Ready / 2 Installed / 3 Cloud / 4 Streaming
 }
 
 impl App {
@@ -332,8 +350,30 @@ impl App {
     fn render_models(&self) {
         let raw = self.models_raw.borrow();
         let op = self.op.borrow();
+        let expanded = self.expanded.borrow().clone();
+        let needle = self.search.borrow().to_lowercase();
+        let filter = self.filter.get();
         let rows: Vec<ModelRow> = raw
             .iter()
+            .filter(|m| {
+                let hay = format!(
+                    "{} {} {}",
+                    m["label"].as_str().unwrap_or(""),
+                    m["backend"].as_str().unwrap_or(""),
+                    m["id"].as_str().unwrap_or("")
+                )
+                .to_lowercase();
+                if !needle.is_empty() && !hay.contains(&needle) {
+                    return false;
+                }
+                match filter {
+                    1 => m["ready"].as_bool().unwrap_or(false),
+                    2 => m["installed"].as_bool().unwrap_or(false),
+                    3 => m["cloud"].as_bool().unwrap_or(false),
+                    4 => m["streaming"].as_bool().unwrap_or(false),
+                    _ => true,
+                }
+            })
             .map(|m| {
                 let s = |k: &str| SharedString::from(m[k].as_str().unwrap_or_default());
                 let id = m["id"].as_str().unwrap_or_default();
@@ -348,6 +388,14 @@ impl App {
                     .as_ref()
                     .map(|(_, _, m, p)| (m.clone(), *p))
                     .unwrap_or_default();
+                let repo = m["repo"].as_str().unwrap_or_default();
+                let repo_url = if repo.is_empty() {
+                    String::new()
+                } else if repo.starts_with("http") {
+                    repo.to_string()
+                } else {
+                    format!("https://huggingface.co/{repo}")
+                };
                 ModelRow {
                     id: s("id"),
                     label: s("label"),
@@ -371,6 +419,16 @@ impl App {
                     extra: SharedString::from(extra),
                     disk_size: SharedString::from(human_size(m["disk_size"].as_u64().unwrap_or(0))),
                     api_key_set: m["api_key_set"].as_bool().unwrap_or(false),
+                    min_specs: s("min_specs"),
+                    rec_specs: s("rec_specs"),
+                    source_url: s("source_url"),
+                    repo_url: SharedString::from(repo_url),
+                    lang_select: m["lang_select"].as_bool().unwrap_or(false),
+                    has_params: m["params"]
+                        .as_array()
+                        .map(|a| !a.is_empty())
+                        .unwrap_or(false),
+                    expanded: id == expanded,
                     busy,
                     progress_pct: if busy { pct } else { -1.0 },
                     progress_msg: SharedString::from(if busy { msg } else { String::new() }),
@@ -385,6 +443,41 @@ impl App {
             .and_then(|m| m["label"].as_str())
             .unwrap_or("");
         self.ui.set_active_model_label(SharedString::from(label));
+
+        // detail models for the expanded card
+        if let Some(m) = raw
+            .iter()
+            .find(|m| m["id"].as_str() == Some(expanded.as_str()))
+        {
+            let cur = m["cur_params"].clone();
+            let params: Vec<ParamRow> = m["params"]
+                .as_array()
+                .map(|a| {
+                    a.iter()
+                        .map(|p| {
+                            let key = p["key"].as_str().unwrap_or_default();
+                            let kind = p["kind"].as_str().unwrap_or("float");
+                            let val = cur[key].clone();
+                            ParamRow {
+                                key: key.into(),
+                                label: p["label"].as_str().unwrap_or(key).into(),
+                                kind: kind.into(),
+                                hint: p["hint"].as_str().unwrap_or_default().into(),
+                                value: val.as_f64().or(p["default"].as_f64()).unwrap_or(0.0) as f32,
+                                bvalue: val.as_bool().or(p["default"].as_bool()).unwrap_or(false),
+                                minimum: p["min"].as_f64().unwrap_or(0.0) as f32,
+                                maximum: p["max"].as_f64().unwrap_or(1.0) as f32,
+                                step: p["step"].as_f64().unwrap_or(0.1) as f32,
+                            }
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
+            self.ui.set_detail_params(ModelRc::from(params.as_slice()));
+            let cur_lang = m["cur_lang"].as_str().unwrap_or("en");
+            let idx = LANGS.iter().position(|(_, c)| *c == cur_lang).unwrap_or(0);
+            self.ui.set_lang_current(idx as i32);
+        }
     }
 
     // ── overlay ─────────────────────────────────────────────────────
@@ -743,6 +836,9 @@ fn main() {
         level_timer: slint::Timer::default(),
         recording: Cell::new(false),
         pinned: Cell::new(false),
+        expanded: RefCell::new(String::new()),
+        search: RefCell::new(String::new()),
+        filter: Cell::new(0),
     });
     APP.with(|a| *a.borrow_mut() = Some(Rc::clone(&app)));
     let names: Vec<SharedString> = theme::NAMES
@@ -750,6 +846,8 @@ fn main() {
         .map(|n| SharedString::from(*n))
         .collect();
     app.ui.set_theme_names(ModelRc::from(names.as_slice()));
+    let lang_names: Vec<SharedString> = LANGS.iter().map(|(n, _)| SharedString::from(*n)).collect();
+    app.ui.set_langs(ModelRc::from(lang_names.as_slice()));
     app.start_level_timer();
 
     // ── UI callbacks → engine RPCs ──────────────────────────────────
@@ -940,6 +1038,77 @@ fn main() {
         let a = Rc::clone(&app);
         app.ui
             .on_cancel_op(move || a.client.call("models.cancel", json!({}), None));
+    }
+    {
+        let a = Rc::clone(&app);
+        app.ui.on_toggle_expand(move |id| {
+            let id = id.to_string();
+            let mut cur = a.expanded.borrow_mut();
+            *cur = if *cur == id { String::new() } else { id };
+            drop(cur);
+            a.render_models();
+        });
+    }
+    app.ui.on_open_url(|url| {
+        let _ = std::process::Command::new("xdg-open")
+            .arg(url.as_str())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn();
+    });
+    {
+        // per-model language: merge into config.model_languages
+        let a = Rc::clone(&app);
+        app.ui.on_set_lang(move |id, idx| {
+            let code = LANGS.get(idx as usize).map(|(_, c)| *c).unwrap_or("en");
+            let mut all = a.cfg.borrow()["model_languages"].clone();
+            if !all.is_object() {
+                all = json!({});
+            }
+            all[id.to_string()] = json!(code);
+            a.patch(kv("model_languages", all));
+        });
+    }
+    {
+        // per-model tunables: merge into config.model_params
+        fn merge(a: &Rc<App>, id: &str, key: &str, val: Value) {
+            let mut all = a.cfg.borrow()["model_params"].clone();
+            if !all.is_object() {
+                all = json!({});
+            }
+            if !all[id].is_object() {
+                all[id] = json!({});
+            }
+            all[id][key] = val;
+            a.patch(kv("model_params", all));
+        }
+        let a = Rc::clone(&app);
+        app.ui.on_param_num(move |id, key, v| {
+            // ints must not arrive as floats in YAML
+            let val = if v.fract() == 0.0 {
+                json!(v as i64)
+            } else {
+                json!((v as f64 * 100.0).round() / 100.0)
+            };
+            merge(&a, id.as_str(), key.as_str(), val);
+        });
+        let a = Rc::clone(&app);
+        app.ui
+            .on_param_bool(move |id, key, v| merge(&a, id.as_str(), key.as_str(), json!(v)));
+    }
+    {
+        let a = Rc::clone(&app);
+        app.ui.on_models_search(move |t| {
+            *a.search.borrow_mut() = t.to_string();
+            a.render_models();
+        });
+    }
+    {
+        let a = Rc::clone(&app);
+        app.ui.on_models_filter(move |i| {
+            a.filter.set(i);
+            a.render_models();
+        });
     }
 
     // Tray app: closing the main window hides it.

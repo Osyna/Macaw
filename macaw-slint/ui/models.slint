@@ -1,8 +1,11 @@
-// Model manager: one card per model, states = missing-dep / not-downloaded /
-// ready / active, plus live install/download progress from engine events.
+// Model manager: search + filters over expandable cards. Collapsed = badges,
+// status and primary actions; expanded = full dossier — description, pros &
+// cons, spec table (min/recommended), provenance links, per-model language,
+// and the backend's tunable parameters. One card expands at a time, so the
+// param/language detail models live on the view root (filled by Rust).
 
 import { Theme } from "theme.slint";
-import { Btn, Badge, ProgressBar, SectionTitle } from "widgets.slint";
+import { Btn, Badge, ProgressBar, SectionTitle, Toggle, SliderX, Select, Field } from "widgets.slint";
 
 export struct ModelRow {
     id: string,
@@ -27,9 +30,28 @@ export struct ModelRow {
     extra: string,       // pip extra, "" = in base deps
     disk-size: string,   // human, "" if none
     api-key-set: bool,
-    busy: bool,          // an op targets this row
+    min-specs: string,
+    rec-specs: string,
+    source-url: string,
+    repo-url: string,
+    lang-select: bool,
+    has-params: bool,
+    expanded: bool,
+    busy: bool,
     progress-pct: float, // -1 = indeterminate
     progress-msg: string,
+}
+
+export struct ParamRow {
+    key: string,
+    label: string,
+    kind: string,        // int | float | bool
+    hint: string,
+    value: float,
+    bvalue: bool,
+    minimum: float,
+    maximum: float,
+    step: float,
 }
 
 component Stars inherits HorizontalLayout {
@@ -42,14 +64,68 @@ component Stars inherits HorizontalLayout {
     }
 }
 
+component KV inherits HorizontalLayout {
+    in property <string> k;
+    in property <string> v;
+    spacing: 10px;
+    height: 22px;
+    Text {
+        text: root.k;
+        color: Theme.pal.muted;
+        font-size: 12px;
+        width: 110px;
+        vertical-alignment: center;
+    }
+    Text {
+        text: root.v;
+        color: Theme.pal.fg;
+        font-size: 12px;
+        vertical-alignment: center;
+        overflow: elide;
+        horizontal-stretch: 1;
+    }
+}
+
+component FilterChip inherits Rectangle {
+    in property <string> text;
+    in property <bool> active;
+    callback clicked;
+    width: t.preferred-width + 20px;
+    height: 28px;
+    border-radius: 7px;
+    background: root.active ? Theme.pal.accent : Theme.pal.control;
+    border-width: 1px;
+    border-color: root.active ? transparent : Theme.pal.border;
+    t := Text {
+        text: root.text;
+        color: root.active ? Theme.pal.accent-fg : Theme.pal.fg;
+        font-size: 12px;
+        font-weight: 600;
+    }
+    TouchArea {
+        clicked => { root.clicked(); }
+        mouse-cursor: MouseCursor.pointer;
+    }
+}
+
 component ModelCard inherits Rectangle {
     in property <ModelRow> m;
-    in property <bool> op-running; // any op in flight (disables all actions)
+    in property <bool> op-running;
+    // detail models for the (single) expanded card
+    in property <[ParamRow]> detail-params;
+    in property <[string]> langs;
+    in property <int> lang-current;
+
     callback install(string);
     callback download(string);
     callback activate(string);
     callback delete(string);
     callback cancel();
+    callback toggle-expand(string);
+    callback open-url(string);
+    callback set-lang(string, int);
+    callback param-num(string, string, float);
+    callback param-bool(string, string, bool);
 
     border-radius: 12px;
     background: Theme.pal.surface;
@@ -60,51 +136,150 @@ component ModelCard inherits Rectangle {
         padding: 16px;
         spacing: 8px;
 
-        HorizontalLayout {
-            spacing: 8px;
-            Text {
-                text: m.label;
-                color: Theme.pal.fg;
-                font-size: 15px;
-                font-weight: 700;
+        // ── header (click to expand) ─────────────────────────────────
+        Rectangle {
+            height: 24px;
+            head := HorizontalLayout {
+                spacing: 8px;
+                Text {
+                    text: m.expanded ? "▾" : "▸";
+                    color: Theme.pal.muted;
+                    font-size: 12px;
+                    vertical-alignment: center;
+                }
+                Text {
+                    text: m.label;
+                    color: Theme.pal.fg;
+                    font-size: 15px;
+                    font-weight: 700;
+                    vertical-alignment: center;
+                }
+                Stars { rating: m.rating; }
+                Badge { text: m.backend; }
+                Rectangle { horizontal-stretch: 1; }
+                if m.active: Badge { text: "ACTIVE"; tint: Theme.pal.accent; }
+                if m.recommended && !m.active: Badge { text: "RECOMMENDED"; tint: Theme.pal.ok; }
+                if m.cloud: Badge { text: "CLOUD"; tint: Theme.pal.warn; }
+                if m.streaming: Badge { text: "STREAMING"; tint: Theme.pal.accent; }
+                if !m.cloud && !m.streaming: Badge { text: "OFFLINE"; }
             }
-            Stars { rating: m.rating; }
-            Rectangle { horizontal-stretch: 1; }
-            if m.active: Badge { text: "ACTIVE"; tint: Theme.pal.accent; }
-            if m.recommended && !m.active: Badge { text: "RECOMMENDED"; tint: Theme.pal.ok; }
-            if m.cloud: Badge { text: "CLOUD"; tint: Theme.pal.warn; }
-            if m.streaming: Badge { text: "STREAMING"; tint: Theme.pal.accent; }
+            TouchArea {
+                clicked => { root.toggle-expand(m.id); }
+                mouse-cursor: MouseCursor.pointer;
+            }
         }
 
         HorizontalLayout {
             spacing: 6px;
+            alignment: start;
             Badge { text: m.size; }
             Badge { text: m.speed; }
             Badge { text: "\{m.languages} lang"; }
             Badge { text: m.hardware; }
             if m.vram != "-" && m.vram != "": Badge { text: "VRAM \{m.vram}"; }
-            Rectangle { horizontal-stretch: 1; }
         }
 
-        if m.notes != "": Text {
+        // ── expanded dossier ─────────────────────────────────────────
+        if m.expanded && m.notes != "": Text {
             text: m.notes;
-            color: Theme.pal.muted;
+            color: Theme.pal.fg;
             font-size: 12px;
             wrap: word-wrap;
         }
-        if m.pros != "": Text {
+        if m.expanded && m.pros != "": Text {
             text: "+ \{m.pros}";
             color: Theme.pal.ok;
             font-size: 12px;
             wrap: word-wrap;
         }
-        if m.cons != "": Text {
+        if m.expanded && m.cons != "": Text {
             text: "− \{m.cons}";
             color: Theme.pal.warn;
             font-size: 12px;
             wrap: word-wrap;
         }
+        if m.expanded: VerticalLayout {
+            spacing: 2px;
+            SectionTitle { text: "SPECS"; }
+            KV { k: "Engine"; v: m.backend; }
+            KV { k: "Speed"; v: m.speed; }
+            KV { k: "Languages"; v: m.languages; }
+            if m.min-specs != "": KV { k: "Minimal"; v: m.min-specs; }
+            if m.rec-specs != "": KV { k: "Recommended"; v: m.rec-specs; }
+            if m.vram != "-" && m.vram != "": KV { k: "VRAM"; v: m.vram; }
+            if m.disk-size != "": KV { k: "On disk"; v: m.disk-size; }
+        }
+        if m.expanded && (m.source-url != "" || m.repo-url != ""): HorizontalLayout {
+            spacing: 8px;
+            alignment: start;
+            if m.source-url != "": Btn {
+                text: "Library ↗";
+                clicked => { root.open-url(m.source-url); }
+            }
+            if m.repo-url != "": Btn {
+                text: "Weights ↗";
+                clicked => { root.open-url(m.repo-url); }
+            }
+        }
+        if m.expanded && m.lang-select: HorizontalLayout {
+            spacing: 10px;
+            height: 34px;
+            Text {
+                text: "Spoken language";
+                color: Theme.pal.fg;
+                font-size: 13px;
+                width: 140px;
+                vertical-alignment: center;
+            }
+            Select {
+                options: root.langs;
+                current: root.lang-current;
+                changed(i) => { root.set-lang(m.id, i); }
+            }
+        }
+        if m.expanded && m.has-params: VerticalLayout {
+            spacing: 4px;
+            SectionTitle { text: "PARAMETERS"; }
+            for p in root.detail-params: VerticalLayout {
+                spacing: 2px;
+                HorizontalLayout {
+                    spacing: 10px;
+                    height: 30px;
+                    Text {
+                        text: p.label;
+                        color: Theme.pal.fg;
+                        font-size: 13px;
+                        width: 140px;
+                        vertical-alignment: center;
+                    }
+                    if p.kind == "bool": Toggle {
+                        checked: p.bvalue;
+                        toggled(v) => { root.param-bool(m.id, p.key, v); }
+                    }
+                    if p.kind != "bool": SliderX {
+                        value: p.value;
+                        minimum: p.minimum;
+                        maximum: p.maximum;
+                        step: p.step;
+                        changed(v) => { root.param-num(m.id, p.key, v); }
+                    }
+                    if p.kind != "bool": Text {
+                        text: p.kind == "int" ? "\{Math.round(p.value)}" : "\{Math.round(p.value * 100) / 100}";
+                        color: Theme.pal.muted;
+                        font-size: 12px;
+                        vertical-alignment: center;
+                    }
+                }
+                if p.hint != "": Text {
+                    text: p.hint;
+                    color: Theme.pal.muted;
+                    font-size: 11px;
+                    wrap: word-wrap;
+                }
+            }
+        }
 
+        // ── progress / actions ───────────────────────────────────────
         if m.busy: VerticalLayout {
             spacing: 4px;
             ProgressBar { pct: m.progress-pct; }
@@ -119,12 +294,9 @@ component ModelCard inherits Rectangle {
                 Btn { text: "Cancel"; clicked => { root.cancel(); } }
             }
         }
-
         if !m.busy: HorizontalLayout {
             spacing: 8px;
             alignment: start;
-            // dependency missing -> install extra; weights missing -> download;
-            // cloud + no key -> hint; ready -> activate.
             if !m.available && m.extra != "": Btn {
                 text: "Install \{m.extra} deps";
                 primary: true;
@@ -155,40 +327,101 @@ component ModelCard inherits Rectangle {
                 enabled: !root.op-running;
                 clicked => { root.delete(m.id); }
             }
-            if m.disk-size != "": Text {
+            if m.disk-size != "" && !m.expanded: Text {
                 text: "on disk: \{m.disk-size}";
                 color: Theme.pal.muted;
                 font-size: 12px;
                 vertical-alignment: center;
             }
+            Rectangle { horizontal-stretch: 1; }
+            Btn {
+                text: m.expanded ? "Less" : "Details";
+                clicked => { root.toggle-expand(m.id); }
+            }
         }
     }
 }
 
-export component ModelsView inherits Flickable {
+export component ModelsView inherits VerticalLayout {
     in property <[ModelRow]> models;
     in property <bool> op-running;
+    in property <[ParamRow]> detail-params;
+    in property <[string]> langs;
+    in property <int> lang-current;
+    in-out property <int> filter-current: 0; // All/Ready/Installed/Cloud/Streaming
+
     callback install(string);
     callback download(string);
     callback activate(string);
     callback delete(string);
     callback cancel();
+    callback toggle-expand(string);
+    callback open-url(string);
+    callback set-lang(string, int);
+    callback param-num(string, string, float);
+    callback param-bool(string, string, bool);
+    callback search(string);
+    callback filter(int);
 
-    viewport-height: list.preferred-height;
+    // ── toolbar ──────────────────────────────────────────────────────
+    Rectangle {
+        height: 52px;
+        background: Theme.pal.bg;
+        HorizontalLayout {
+            x: 16px;
+            y: 11px;
+            width: parent.width - 32px;
+            height: 30px;
+            spacing: 8px;
+            Field {
+                placeholder: "Search models…";
+                min-width: 200px;
+                edited(t) => { root.search(t); }
+            }
+            Rectangle { horizontal-stretch: 1; }
+            for f[i] in ["All", "Ready", "Installed", "Cloud", "Streaming"]: FilterChip {
+                text: f;
+                active: root.filter-current == i;
+                clicked => {
+                    root.filter-current = i;
+                    root.filter(i);
+                }
+            }
+        }
+    }
 
-    list := VerticalLayout {
-        padding: 16px;
-        width: root.width;
-        alignment: start;
-        spacing: 12px;
-        for m in root.models: ModelCard {
-            m: m;
-            op-running: root.op-running;
-            install(e) => { root.install(e); }
-            download(id) => { root.download(id); }
-            activate(id) => { root.activate(id); }
-            delete(id) => { root.delete(id); }
-            cancel => { root.cancel(); }
+    Flickable {
+        viewport-height: list.preferred-height;
+
+        list := VerticalLayout {
+            padding: 16px;
+            padding-top: 4px;
+            width: root.width;
+            alignment: start;
+            spacing: 12px;
+            for m in root.models: ModelCard {
+                m: m;
+                op-running: root.op-running;
+                detail-params: root.detail-params;
+                langs: root.langs;
+                lang-current: root.lang-current;
+                install(e) => { root.install(e); }
+                download(id) => { root.download(id); }
+                activate(id) => { root.activate(id); }
+                delete(id) => { root.delete(id); }
+                cancel => { root.cancel(); }
+                toggle-expand(id) => { root.toggle-expand(id); }
+                open-url(u) => { root.open-url(u); }
+                set-lang(id, i) => { root.set-lang(id, i); }
+                param-num(id, k, v) => { root.param-num(id, k, v); }
+                param-bool(id, k, v) => { root.param-bool(id, k, v); }
+            }
+            if root.models.length == 0: Text {
+                text: "No models match.";
+                color: Theme.pal.muted;
+                font-size: 13px;
+                horizontal-alignment: center;
+            }
         }
     }
 }

@@ -4,6 +4,13 @@ Notable changes to Macaw. Older releases live on the [releases page](https://git
 
 ## Unreleased
 
+- **Complete model manager**: search box + status filters (All / Ready /
+  Installed / Cloud / Streaming), and every card expands into a full dossier —
+  description, pros & cons, spec table (speed, languages, minimal &
+  recommended hardware, VRAM, disk use), Library/Weights links, per-model
+  spoken-language choice, and the backend's tunable parameters (temperature,
+  beam size, VAD, …) with hints — everything the old manager knew, back.
+
 - Fixed the gradient tail glitch: sampling at the far end returned the
   second-to-last color (clamped-index endpoint bug) — bars and the editor
   strip now land exactly on the last stop, and the editor strip renders the

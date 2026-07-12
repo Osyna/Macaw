@@ -4,10 +4,10 @@
 import { Theme, Palette, Look } from "theme.slint";
 import { Btn, Badge } from "widgets.slint";
 import { SettingsView, Cfg } from "settings.slint";
-import { ModelsView, ModelRow } from "models.slint";
+import { ModelsView, ModelRow, ParamRow } from "models.slint";
 import { OverlayWindow } from "overlay.slint";
 
-export { OverlayWindow, Cfg, ModelRow, Palette, Theme, Look }
+export { OverlayWindow, Cfg, ModelRow, ParamRow, Palette, Theme, Look }
 
 export struct Toast {
     level: string, // info | error | success
@@ -75,15 +75,24 @@ export component MainWindow inherits Window {
     callback border-clear();
     in property <[string]> theme-names;
     in-out property <int> theme-current;
-
     // models plumbing (forwarded)
     in property <[ModelRow]> models;
     in property <bool> op-running;
+    in property <[ParamRow]> detail-params;
+    in property <[string]> langs;
+    in property <int> lang-current;
     callback install(string);
     callback download(string);
     callback activate(string);
     callback delete(string);
     callback cancel-op();
+    callback toggle-expand(string);
+    callback open-url(string);
+    callback set-lang(string, int);
+    callback param-num(string, string, float);
+    callback param-bool(string, string, bool);
+    callback models-search(string);
+    callback models-filter(int);
 
     callback toggle-recording();
 
@@ -173,11 +182,21 @@ export component MainWindow inherits Window {
         if root.tab == "models": ModelsView {
             models: root.models;
             op-running: root.op-running;
+            detail-params: root.detail-params;
+            langs: root.langs;
+            lang-current: root.lang-current;
             install(e) => { root.install(e); }
             download(id) => { root.download(id); }
             activate(id) => { root.activate(id); }
             delete(id) => { root.delete(id); }
             cancel => { root.cancel-op(); }
+            toggle-expand(id) => { root.toggle-expand(id); }
+            open-url(u) => { root.open-url(u); }
+            set-lang(id, i) => { root.set-lang(id, i); }
+            param-num(id, k, v) => { root.param-num(id, k, v); }
+            param-bool(id, k, v) => { root.param-bool(id, k, v); }
+            search(t) => { root.models-search(t); }
+            filter(i) => { root.models-filter(i); }
         }
     }
 
