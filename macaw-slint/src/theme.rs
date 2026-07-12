@@ -280,15 +280,20 @@ pub fn eq_colors(theme: &ThemeDef, cfg: &Value) -> Vec<Color> {
         .collect()
 }
 
-/// Corner radii: cfg.corners[4] > cfg.corner_radius >= 0 > theme corners.
+/// Corner radii — old resolveLook semantics (overlay.ts:137-145):
+/// corner_link=false + corners[4] → per-corner; corner_radius >= 0 →
+/// uniform; else the theme's shape.
 pub fn corners(theme: &ThemeDef, cfg: &Value) -> [f32; 4] {
-    if let Some(list) = cfg["corners"].as_array() {
-        if list.len() == 4 {
-            let mut out = [0f32; 4];
-            for (i, v) in list.iter().enumerate() {
-                out[i] = v.as_f64().unwrap_or(0.0) as f32;
+    let linked = cfg["corner_link"].as_bool().unwrap_or(true);
+    if !linked {
+        if let Some(list) = cfg["corners"].as_array() {
+            if list.len() == 4 {
+                let mut out = [0f32; 4];
+                for (i, v) in list.iter().enumerate() {
+                    out[i] = v.as_f64().unwrap_or(0.0).max(0.0) as f32;
+                }
+                return out;
             }
-            return out;
         }
     }
     let uniform = cfg["corner_radius"].as_i64().unwrap_or(-1);

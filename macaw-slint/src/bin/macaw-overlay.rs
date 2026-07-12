@@ -21,12 +21,13 @@ use std::io::BufRead;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
-use bars::{BarAnim, BAR_COUNT};
+use bars::BarAnim;
 use serde_json::Value;
 use slint::platform::software_renderer::{
     MinimalSoftwareWindow, PremultipliedRgbaColor, RepaintBufferType,
 };
 use slint::platform::{Platform, PlatformError, WindowAdapter};
+use slint::Model;
 use slint::{ComponentHandle, ModelRc, VecModel};
 use smithay_client_toolkit::{
     compositor::{CompositorHandler, CompositorState, Region},
@@ -147,8 +148,10 @@ impl Overlay {
             return;
         }
         let rms = self.rms;
-        let bars = self.anim.step(rms);
-        self.levels.set_vec(bars.to_vec());
+        let (bars, heard) = self.anim.step(rms);
+        let bars = bars.to_vec();
+        self.levels.set_vec(bars);
+        self.ui.set_heard(heard);
         self.draw();
     }
 
@@ -194,10 +197,16 @@ impl Overlay {
         ui.set_r_tr(f("r_tr", 18.0));
         ui.set_r_br(f("r_br", 18.0));
         ui.set_r_bl(f("r_bl", 3.0));
-        ui.set_bar_width(f("bar_width", 4.0));
-        ui.set_bar_spacing(f("bar_spacing", 3.0));
+        ui.set_bar_width(f("bar_width", -1.0));
+        ui.set_bar_spacing(f("bar_spacing", -1.0));
         ui.set_bar_radius(f("bar_radius", 0.0));
         ui.set_bar_fade(v["bar_fade"].as_bool().unwrap_or(true));
+        ui.set_anim(v["anim"].as_str().unwrap_or("waves").into());
+        let count = v["bar_count"].as_u64().unwrap_or(24).clamp(8, 48) as usize;
+        if self.levels.row_count() != count {
+            self.anim.set_count(count);
+            self.levels.set_vec(vec![0.0f32; count]);
+        }
         if let Some(stops) = v["eq"].as_array() {
             let eq: Vec<slint::Color> = stops
                 .iter()
@@ -292,7 +301,7 @@ fn main() {
     }))
     .expect("set slint platform");
     let ui = OverlayWindow::new().expect("create pill");
-    let levels = Rc::new(VecModel::from(vec![0.0f32; BAR_COUNT]));
+    let levels = Rc::new(VecModel::from(vec![0.0f32; 24]));
     ui.set_levels(ModelRc::from(Rc::clone(&levels)));
     ui.show().expect("show pill");
 
@@ -319,7 +328,7 @@ fn main() {
         window,
         ui,
         levels,
-        anim: BarAnim::new(),
+        anim: BarAnim::new(24),
         w: 210,
         h: 52,
         scale: 1,

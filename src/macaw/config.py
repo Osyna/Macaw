@@ -71,6 +71,9 @@ class Config:
     bar_width: int = -1  # eq bar thickness, px (-1 = auto)
     bar_radius: int = 0  # eq bar corner radius, px (0 = sharp)
     bar_fade: bool = True  # quiet bars fade out (False = solid)
+    bar_count: int = 24  # number of equaliser bars (8-48)
+    overlay_bg: str = ""  # overlay pill background, hex (blank = theme)
+    transcribe_anim: str = "waves"  # transcribing loader: waves|sweep|pulse|dots
     model: str = ""  # empty = nothing selected yet (pick one in the Model Manager)
     # Per-model tunables: {model_id: {param_key: value}}
     model_params: dict = field(default_factory=dict)
@@ -119,6 +122,9 @@ class Config:
                 bar_width=int(data.get("bar_width", -1)),
                 bar_radius=int(data.get("bar_radius", 0)),
                 bar_fade=bool(data.get("bar_fade", True)),
+                bar_count=int(data.get("bar_count", 24)),
+                overlay_bg=data.get("overlay_bg") or "",
+                transcribe_anim=data.get("transcribe_anim") or "waves",
                 model=data.get("model") or "",
                 model_params=data.get("model_params") or {},
                 model_languages=data.get("model_languages") or {},
@@ -223,6 +229,12 @@ class Config:
             "  # equaliser bar corner radius in px (0 = sharp)\n"
             f"bar_fade: {_yv(self.bar_fade)}"
             "  # quiet bars fade to transparent (false = solid bars)\n"
+            f"bar_count: {_yv(self.bar_count)}"
+            "  # number of equaliser bars (8-48)\n"
+            f"overlay_bg: {_yv(self.overlay_bg)}"
+            "  # overlay pill background colour, hex (blank = theme)\n"
+            f"transcribe_anim: {_yv(self.transcribe_anim)}"
+            "  # transcribing animation: waves | sweep | pulse | dots\n"
             "\n"
             "# ── Network (advanced) ───────────────────────────────────\n"
             f"proxy: {_yv(self.proxy)}"

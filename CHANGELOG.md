@@ -4,6 +4,15 @@ Notable changes to Macaw. Older releases live on the [releases page](https://git
 
 ## Unreleased
 
+- **Theme engine v2** — the pill renderer is now a faithful port of the
+  original canvas overlay: real continuous quiet-bar fade (alpha follows the
+  level, no threshold), smooth gradient interpolation along the bars, and
+  bars that blend from idle to your gradient as speech is heard.
+- **Per-corner radius** editing (link/unlink, four sliders), **bar count**
+  (8–48), bar width/gap/rounding, and a **pill background override**.
+- **Selectable transcribing animation**: `waves` (the classic, now the
+  default), `sweep`, `pulse`, `dots` — previewable from Settings.
+
 - **The recording indicator is now a wlr-layer-shell surface** (dedicated
   `macaw-overlay` process, Slint software renderer into shm buffers): always
   top-most, positioned by compositor anchors at your configured spot, exact

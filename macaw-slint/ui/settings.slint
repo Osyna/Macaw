@@ -25,10 +25,19 @@ export struct Cfg {
     overlay-x: string,
     overlay-y: string,
     corner-radius: float,
+    corner-link: bool,
+    c-tl: float,
+    c-tr: float,
+    c-br: float,
+    c-bl: float,
     bar-spacing: float,
     bar-width: float,
     bar-radius: float,
     bar-fade: bool,
+    bar-count: float,
+    transcribe-anim: string,
+    overlay-bg: string,
+    overlay-bg-value: color,
     eq-colors: string,         // comma-joined hex
     accent-color: string,
     accent-value: color,
@@ -86,6 +95,9 @@ export component SettingsView inherits Flickable {
     callback eq-set(int, color);
     callback eq-add();
     callback eq-remove(int);
+    callback set-corner(int, float);   // corner index (tl,tr,br,bl), px
+    callback pillbg-picked(color);
+    callback pillbg-clear();
     callback accent-picked(color);
     callback accent-clear();
     callback border-picked(color);
@@ -188,6 +200,8 @@ export component SettingsView inherits Flickable {
                     width: min(Look.pv-w, parent.width - 24px);
                     height: Look.pv-h;
                     mode: root.preview-mode;
+                    anim: Look.anim;
+                    heard: Look.heard;
                     levels: Look.levels;
                     error-text: "No model selected";
                     pill-bg: Look.pill-bg;
@@ -273,28 +287,90 @@ export component SettingsView inherits Flickable {
                 SliderX { value: cfg.overlay-height; minimum: 36; maximum: 120; step: 2; changed(v) => { root.set-num("overlay_height", v); } }
                 Text { text: "\{Math.round(cfg.overlay-width)}×\{Math.round(cfg.overlay-height)}"; color: Theme.pal.muted; font-size: 12px; vertical-alignment: center; }
             }
+            SectionTitle { text: "SHAPE"; }
             Row {
-                label: "Corner radius (-1 = theme)";
-                SliderX { value: cfg.corner-radius; minimum: -1; maximum: 30; step: 1; changed(v) => { root.set-num("corner_radius", v); } }
+                label: "Link corners";
+                Toggle { checked: cfg.corner-link; toggled(v) => { root.set-bool("corner_link", v); } }
+                if cfg.corner-link: SliderX {
+                    value: cfg.corner-radius;
+                    minimum: -1;
+                    maximum: 40;
+                    step: 1;
+                    changed(v) => { root.set-num("corner_radius", v); }
+                }
+                if cfg.corner-link: Text {
+                    text: cfg.corner-radius < 0 ? "theme" : "\{Math.round(cfg.corner-radius)}px";
+                    color: Theme.pal.muted;
+                    font-size: 12px;
+                    vertical-alignment: center;
+                }
+            }
+            if !cfg.corner-link: Row {
+                label: "Top corners (L / R)";
+                SliderX { value: cfg.c-tl; minimum: 0; maximum: 40; step: 1; changed(v) => { root.set-corner(0, v); } }
+                SliderX { value: cfg.c-tr; minimum: 0; maximum: 40; step: 1; changed(v) => { root.set-corner(1, v); } }
+            }
+            if !cfg.corner-link: Row {
+                label: "Bottom corners (L / R)";
+                SliderX { value: cfg.c-bl; minimum: 0; maximum: 40; step: 1; changed(v) => { root.set-corner(3, v); } }
+                SliderX { value: cfg.c-br; minimum: 0; maximum: 40; step: 1; changed(v) => { root.set-corner(2, v); } }
+            }
+
+            SectionTitle { text: "BARS"; }
+            Row {
+                label: "Bar count";
+                SliderX { value: cfg.bar-count; minimum: 8; maximum: 48; step: 1; changed(v) => { root.set-num("bar_count", v); } }
+                Text { text: "\{Math.round(cfg.bar-count)}"; color: Theme.pal.muted; font-size: 12px; vertical-alignment: center; }
             }
             Row {
-                label: "Bars (width / gap / radius)";
+                label: "Width / gap (-1 = auto)";
                 SliderX { value: cfg.bar-width; minimum: -1; maximum: 16; step: 1; changed(v) => { root.set-num("bar_width", v); } }
                 SliderX { value: cfg.bar-spacing; minimum: -1; maximum: 16; step: 1; changed(v) => { root.set-num("bar_spacing", v); } }
+            }
+            Row {
+                label: "Bar rounding";
                 SliderX { value: cfg.bar-radius; minimum: 0; maximum: 16; step: 1; changed(v) => { root.set-num("bar_radius", v); } }
             }
             Row {
                 label: "Quiet bars fade";
                 Toggle { checked: cfg.bar-fade; toggled(v) => { root.set-bool("bar_fade", v); } }
             }
+
+            SectionTitle { text: "TRANSCRIBING ANIMATION"; }
+            Row {
+                label: "Animation";
+                Select {
+                    options: ["waves (classic)", "sweep", "pulse", "dots"];
+                    current: cfg.transcribe-anim == "sweep" ? 1
+                        : cfg.transcribe-anim == "pulse" ? 2
+                        : cfg.transcribe-anim == "dots" ? 3 : 0;
+                    changed(i) => {
+                        root.preview-mode = "loader";
+                        root.set-str("transcribe_anim",
+                            i == 1 ? "sweep" : i == 2 ? "pulse" : i == 3 ? "dots" : "waves");
+                    }
+                }
+                Text { text: "shown while transcribing"; color: Theme.pal.muted; font-size: 12px; vertical-alignment: center; }
+            }
+
+            SectionTitle { text: "COLORS"; }
             VerticalLayout {
                 spacing: 6px;
-                SectionTitle { text: "EQUALIZER GRADIENT"; }
+                Text { text: "Equalizer gradient"; color: Theme.pal.fg; font-size: 13px; }
                 GradientEditor {
                     stops: Look.eq-colors;
                     stop-picked(i, c) => { root.eq-set(i, c); }
                     stop-removed(i) => { root.eq-remove(i); }
                     stop-added => { root.eq-add(); }
+                }
+            }
+            Row {
+                label: "Pill background";
+                ColorField {
+                    value: cfg.overlay-bg-value;
+                    cleared: cfg.overlay-bg == "";
+                    picked(c) => { root.pillbg-picked(c); }
+                    clear => { root.pillbg-clear(); }
                 }
             }
             Row {
@@ -307,16 +383,13 @@ export component SettingsView inherits Flickable {
                 }
             }
             Row {
-                label: "Border color";
+                label: "Border color / width";
                 ColorField {
                     value: cfg.border-value;
                     cleared: cfg.border-color == "";
                     picked(c) => { root.border-picked(c); }
                     clear => { root.border-clear(); }
                 }
-            }
-            Row {
-                label: "Border width";
                 SliderX { value: cfg.border-width; minimum: 0; maximum: 6; step: 1; changed(v) => { root.set-num("border_width", v); } }
             }
         }

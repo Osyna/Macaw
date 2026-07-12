@@ -27,7 +27,7 @@ use serde_json::{json, Map, Value};
 use slint::{ComponentHandle, Model, ModelRc, SharedString, VecModel};
 
 const WS_PORT: u16 = 47540;
-use bars::{BarAnim, BAR_COUNT};
+use bars::BarAnim;
 
 thread_local! {
     static APP: RefCell<Option<Rc<App>>> = const { RefCell::new(None) };
@@ -140,21 +140,33 @@ impl App {
         } else {
             slint::Color::from_argb_u8(0, 0, 0, 0)
         };
-        let bar_w = cfg["bar_width"].as_i64().unwrap_or(-1);
-        let bar_s = cfg["bar_spacing"].as_i64().unwrap_or(-1);
+        let bar_w = cfg["bar_width"].as_i64().unwrap_or(-1) as f32;
+        let bar_s = cfg["bar_spacing"].as_i64().unwrap_or(-1) as f32;
         let opacity = cfg["overlay_opacity"].as_f64().unwrap_or(0.94) as f32;
         let bar_radius = cfg["bar_radius"].as_i64().unwrap_or(0) as f32;
         let bar_fade = cfg["bar_fade"].as_bool().unwrap_or(true);
-        let bar_w = if bar_w >= 1 { bar_w as f32 } else { 4.0 };
-        let bar_s = if bar_s >= 0 { bar_s as f32 } else { 3.0 };
+        let anim = cfg["transcribe_anim"]
+            .as_str()
+            .unwrap_or("waves")
+            .to_string();
+        let pill_bg = cfg["overlay_bg"]
+            .as_str()
+            .and_then(theme::parse_hex)
+            .unwrap_or(theme::rgb(t.overlay_bg));
+        let count = cfg["bar_count"].as_u64().unwrap_or(24).clamp(8, 48) as usize;
+        if self.levels.row_count() != count {
+            self.anim.borrow_mut().set_count(count);
+            self.levels.set_vec(vec![0.0f32; count]);
+        }
 
         let o = &self.overlay;
-        o.set_pill_bg(theme::rgb(t.overlay_bg));
+        o.set_pill_bg(pill_bg);
         o.set_pill_opacity(opacity);
         o.set_idle_color(theme::rgb(t.eq_idle));
         o.set_ok_color(theme::rgb(t.ok));
         o.set_danger_color(theme::rgb(t.danger));
         o.set_eq_colors(ModelRc::from(Rc::clone(&self.eq)));
+        o.set_anim(SharedString::from(anim.as_str()));
         o.set_r_tl(c[0]);
         o.set_r_tr(c[1]);
         o.set_r_br(c[2]);
@@ -167,12 +179,13 @@ impl App {
         o.set_bar_fade(bar_fade);
 
         let look = self.ui.global::<Look>();
-        look.set_pill_bg(theme::rgb(t.overlay_bg));
+        look.set_pill_bg(pill_bg);
         look.set_pill_opacity(opacity);
         look.set_idle_color(theme::rgb(t.eq_idle));
         look.set_ok_color(theme::rgb(t.ok));
         look.set_danger_color(theme::rgb(t.danger));
         look.set_eq_colors(ModelRc::from(Rc::clone(&self.eq)));
+        look.set_anim(SharedString::from(anim.as_str()));
         look.set_r_tl(c[0]);
         look.set_r_tr(c[1]);
         look.set_r_br(c[2]);
@@ -191,7 +204,7 @@ impl App {
         let eq_hex: Vec<String> = self.eq.iter().map(hex).collect();
         self.ls_send(json!({
             "cmd": "look",
-            "pill_bg": format!("#{:06X}", t.overlay_bg),
+            "pill_bg": hex(pill_bg),
             "opacity": opacity,
             "idle": format!("#{:06X}", t.eq_idle),
             "ok": format!("#{:06X}", t.ok),
@@ -201,6 +214,8 @@ impl App {
             "r_tl": c[0], "r_tr": c[1], "r_br": c[2], "r_bl": c[3],
             "bar_width": bar_w, "bar_spacing": bar_s, "bar_radius": bar_radius,
             "bar_fade": bar_fade,
+            "anim": anim,
+            "bar_count": count,
             "eq": eq_hex,
             "width": cfg["overlay_width"].as_u64().unwrap_or(210),
             "height": cfg["overlay_height"].as_u64().unwrap_or(52),
@@ -244,10 +259,22 @@ impl App {
             overlay_x: SharedString::from(cfg["overlay_x"].as_i64().unwrap_or(0).to_string()),
             overlay_y: SharedString::from(cfg["overlay_y"].as_i64().unwrap_or(0).to_string()),
             corner_radius: f("corner_radius", -1.0),
+            corner_link: b("corner_link", true),
+            c_tl: theme::corners(t, &cfg)[0],
+            c_tr: theme::corners(t, &cfg)[1],
+            c_br: theme::corners(t, &cfg)[2],
+            c_bl: theme::corners(t, &cfg)[3],
             bar_spacing: f("bar_spacing", -1.0),
             bar_width: f("bar_width", -1.0),
             bar_radius: f("bar_radius", 0.0),
             bar_fade: b("bar_fade", true),
+            bar_count: f("bar_count", 24.0),
+            transcribe_anim: s("transcribe_anim"),
+            overlay_bg: s("overlay_bg"),
+            overlay_bg_value: cfg["overlay_bg"]
+                .as_str()
+                .and_then(theme::parse_hex)
+                .unwrap_or(theme::rgb(t.overlay_bg)),
             eq_colors: SharedString::from(eq_join),
             accent_color: s("accent_color"),
             accent_value: cfg["accent_color"]
@@ -445,8 +472,14 @@ impl App {
                 .unwrap_or(0) as f32;
             (0.55 + 0.4 * (t * 0.0033).sin()).clamp(0.0, 1.0)
         };
-        let bars = *self.anim.borrow_mut().step(rms);
-        self.levels.set_vec(bars.to_vec());
+        let (bars, heard) = {
+            let mut anim = self.anim.borrow_mut();
+            let (b, h) = anim.step(rms);
+            (b.to_vec(), h)
+        };
+        self.levels.set_vec(bars);
+        self.overlay.set_heard(heard);
+        self.ui.global::<Look>().set_heard(heard);
     }
 
     // ── message handling (UI thread) ────────────────────────────────
@@ -680,7 +713,7 @@ fn main() {
 
     let toasts = Rc::new(VecModel::from(Vec::<Toast>::new()));
     ui.set_toasts(ModelRc::from(Rc::clone(&toasts)));
-    let levels = Rc::new(VecModel::from(vec![0.0f32; BAR_COUNT]));
+    let levels = Rc::new(VecModel::from(vec![0.0f32; 24]));
     overlay.set_levels(ModelRc::from(Rc::clone(&levels)));
 
     let app = Rc::new(App {
@@ -697,7 +730,7 @@ fn main() {
         toasts,
         levels,
         eq: Rc::new(VecModel::from(Vec::<slint::Color>::new())),
-        anim: RefCell::new(BarAnim::new()),
+        anim: RefCell::new(BarAnim::new(24)),
         rms: Cell::new(0.0),
         ls: RefCell::new(ls::LsOverlay::spawn()),
         level_timer: slint::Timer::default(),
@@ -812,6 +845,35 @@ fn main() {
         let a = Rc::clone(&app);
         app.ui
             .on_border_clear(move || a.patch(kv("border_color", json!(""))));
+    }
+    {
+        // per-corner radii: patch the full 4-list (tl,tr,br,bl)
+        let a = Rc::clone(&app);
+        app.ui.on_set_corner(move |i, v| {
+            let (t, cfg) = {
+                let cfg = a.cfg.borrow();
+                (
+                    theme::by_name(cfg["theme"].as_str().unwrap_or("macaw")),
+                    cfg.clone(),
+                )
+            };
+            let mut cc = theme::corners(t, &cfg);
+            if let Some(slot) = cc.get_mut(i as usize) {
+                *slot = v.max(0.0);
+            }
+            let list: Vec<i64> = cc.iter().map(|c| *c as i64).collect();
+            a.patch(json!({ "corners": list, "corner_link": false }));
+        });
+    }
+    {
+        let a = Rc::clone(&app);
+        app.ui
+            .on_pillbg_picked(move |c| a.patch(kv("overlay_bg", json!(hex(c)))));
+    }
+    {
+        let a = Rc::clone(&app);
+        app.ui
+            .on_pillbg_clear(move || a.patch(kv("overlay_bg", json!(""))));
     }
     app.ui.on_set_autostart(set_autostart);
     {

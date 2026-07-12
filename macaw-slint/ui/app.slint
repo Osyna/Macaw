@@ -65,6 +65,9 @@ export component MainWindow inherits Window {
     callback eq-set(int, color);
     callback eq-add();
     callback eq-remove(int);
+    callback set-corner(int, float);
+    callback pillbg-picked(color);
+    callback pillbg-clear();
     callback accent-picked(color);
     callback accent-clear();
     callback border-picked(color);
@@ -155,6 +158,9 @@ export component MainWindow inherits Window {
             eq-set(i, c) => { root.eq-set(i, c); }
             eq-add => { root.eq-add(); }
             eq-remove(i) => { root.eq-remove(i); }
+            set-corner(i, v) => { root.set-corner(i, v); }
+            pillbg-picked(c) => { root.pillbg-picked(c); }
+            pillbg-clear => { root.pillbg-clear(); }
             accent-picked(c) => { root.accent-picked(c); }
             accent-clear => { root.accent-clear(); }
             border-picked(c) => { root.border-picked(c); }

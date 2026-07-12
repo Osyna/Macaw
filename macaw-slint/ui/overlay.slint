@@ -7,9 +7,10 @@ import { OverlayPill } from "pill.slint";
 
 export component OverlayWindow inherits Window {
     in property <string> mode <=> pill.mode;
+    in property <string> anim <=> pill.anim;
     in property <[float]> levels <=> pill.levels;
+    in property <float> heard <=> pill.heard;
     in property <string> error-text <=> pill.error-text;
-
     in property <color> pill-bg <=> pill.pill-bg;
     in property <float> pill-opacity <=> pill.pill-opacity;
     in property <color> idle-color <=> pill.idle-color;
@@ -22,11 +23,10 @@ export component OverlayWindow inherits Window {
     in property <length> r-bl <=> pill.r-bl;
     in property <length> pill-border-width <=> pill.pill-border-width;
     in property <color> pill-border-color <=> pill.pill-border-color;
-    in property <length> bar-width <=> pill.bar-width;
-    in property <length> bar-spacing <=> pill.bar-spacing;
+    in property <float> bar-width <=> pill.bar-width;
+    in property <float> bar-spacing <=> pill.bar-spacing;
     in property <length> bar-radius <=> pill.bar-radius;
     in property <bool> bar-fade <=> pill.bar-fade;
-
     title: "macaw-overlay";
     no-frame: true;
     always-on-top: true;
