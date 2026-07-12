@@ -165,13 +165,13 @@ export component SettingsView inherits Flickable {
     viewport-height: cols.preferred-height;
 
     cols := HorizontalLayout {
+        width: root.width;
         padding: 16px;
         spacing: 14px;
-        alignment: stretch;
 
         // ── left column: audio / hotkey / cloud / system ─────────────
         VerticalLayout {
-            width: 42%;
+            width: (root.width - 46px) * 0.42;
             alignment: start;
             spacing: 14px;
 
@@ -299,6 +299,7 @@ export component SettingsView inherits Flickable {
 
         // ── right column: appearance (state-scoped) ──────────────────
         VerticalLayout {
+            width: (root.width - 46px) * 0.58;
             alignment: start;
             spacing: 14px;
 

@@ -898,20 +898,14 @@ fn main() {
     slint::BackendSelector::new()
         .backend_name("winit".into())
         .with_winit_window_attributes_hook(move |attrs| {
-            use slint::winit_030::winit::dpi::LogicalSize;
             use slint::winit_030::winit::platform::wayland::WindowAttributesExtWayland;
             let i = counter.get();
             counter.set(i + 1);
-            if i == 0 {
-                // settings window: hard-fixed size, not resizable
-                attrs
-                    .with_name("macaw", "")
-                    .with_resizable(false)
-                    .with_min_inner_size(LogicalSize::new(1180.0, 760.0))
-                    .with_max_inner_size(LogicalSize::new(1180.0, 760.0))
-            } else {
-                attrs.with_name(hypr::OVERLAY_TITLE, "")
-            }
+            // Size hints come from the fixed .slint window size — adding
+            // min/max here too raced Slint's own hints and could kill the
+            // surface (min > max protocol error) before first map.
+            let app_id = if i == 0 { "macaw" } else { hypr::OVERLAY_TITLE };
+            attrs.with_name(app_id, "")
         })
         .select()
         .expect("select winit backend");
