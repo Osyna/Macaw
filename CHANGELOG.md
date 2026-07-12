@@ -4,6 +4,18 @@ Notable changes to Macaw. Older releases live on the [releases page](https://git
 
 ## Unreleased
 
+- **Faster transcription on every model.** A Silero VAD gate now cuts
+  silent stretches before audio reaches any backend — dictation is often
+  30–60% silence, so this is a straight speed multiplier and it removes
+  Whisper's hallucinate-on-silence failure mode. New "Skip silence"
+  toggle in Settings (`vad_gate`, on by default; zero new dependencies —
+  reuses the Silero model faster-whisper already ships).
+
+- **Faster NeMo models.** Parakeet and Canary-Qwen now run under bf16
+  autocast on CUDA (NVIDIA's own acceleration recipe), and `cuda-python`
+  is pinned in the `nemo` extra so CUDA-graph decoding can never be
+  silently disabled by a dependency shuffle.
+
 - **About**: click the parrot next to the Macaw title — version, GitHub,
   releases and osyna.com links in a small overlay.
 

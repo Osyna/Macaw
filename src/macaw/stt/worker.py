@@ -42,6 +42,21 @@ def _emit(obj: dict) -> None:
 # -- per-backend loaders: return a fn(audio: np.ndarray) -> str --------------
 
 
+def _amp():
+    """bf16 autocast on CUDA — free 2x-class speedup on Ampere+; NVIDIA's own
+    NeMo acceleration recipe. No-op on CPU or pre-bf16 GPUs."""
+    import contextlib
+
+    try:
+        import torch
+
+        if torch.cuda.is_available() and torch.cuda.is_bf16_supported():
+            return torch.autocast("cuda", dtype=torch.bfloat16)
+    except Exception:  # noqa: BLE001 — autocast is an optimization, never a gate
+        pass
+    return contextlib.nullcontext()
+
+
 def _load_moonshine(model: str, language: str):
     import moonshine_onnx
 
@@ -61,7 +76,8 @@ def _load_parakeet(model: str, language: str):
     m = nemo_asr.models.ASRModel.from_pretrained(model)
 
     def run(audio):
-        out = m.transcribe([audio], batch_size=1)
+        with _amp():
+            out = m.transcribe([audio], batch_size=1)
         return _nemo_text(out)
 
     return run
@@ -82,19 +98,20 @@ def _load_canary(model: str, language: str):
             audio, dtype=torch.float32, device=m.device
         ).unsqueeze(0)
         audio_lens = torch.tensor([audio_t.shape[1]], dtype=torch.long, device=m.device)
-        ids = m.generate(
-            prompts=[
-                [
-                    {
-                        "role": "user",
-                        "content": f"Transcribe the following: {m.audio_locator_tag}",
-                    }
-                ]
-            ],
-            audios=audio_t,
-            audio_lens=audio_lens,
-            max_new_tokens=256,
-        )
+        with _amp():
+            ids = m.generate(
+                prompts=[
+                    [
+                        {
+                            "role": "user",
+                            "content": f"Transcribe the following: {m.audio_locator_tag}",
+                        }
+                    ]
+                ],
+                audios=audio_t,
+                audio_lens=audio_lens,
+                max_new_tokens=256,
+            )
         return m.tokenizer.ids_to_text(ids[0].cpu()).strip()
 
     return run

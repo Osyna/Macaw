@@ -234,6 +234,7 @@ class Engine:
             model_size=self.cfg.model,
             language=_lang_for(self.cfg),
             punctuation_hints=self.cfg.punctuation_hints,
+            vad_gate=self.cfg.vad_gate,
         )
         self.transcriber.model_params = self.cfg.model_params.get(self.cfg.model, {})
 
@@ -742,6 +743,7 @@ class Engine:
         self.cfg = cfg
         self.transcriber.language = _lang_for(cfg)
         self.transcriber.punctuation_hints = cfg.punctuation_hints
+        self.transcriber.vad_gate = cfg.vad_gate
         self.transcriber.model_params = cfg.model_params.get(cfg.model, {})
         if cfg.device_index != old.device_index and not self.is_recording:
             self.capture.stop()  # the mic meter may hold the old stream open

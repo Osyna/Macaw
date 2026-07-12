@@ -38,6 +38,80 @@ def test_silence_gate_returns_empty_without_loading():
     assert t.transcribe(np.zeros(16_000, dtype=np.float32)) == ""
 
 
+class _EchoBackend:
+    """Records what audio reaches the backend; returns a fixed string."""
+
+    def __init__(self):
+        self.seen: np.ndarray | None = None
+
+    def transcribe(self, audio, sample_rate=16_000):
+        self.seen = audio
+        return "ok"
+
+
+def _gated(monkeypatch, chunks, vad_gate=True):
+    """Transcriber with a stubbed VAD + echo backend; returns (t, backend).
+    Deterministic: Silero itself isn't under test, the gating logic is."""
+    import faster_whisper.vad as fwv
+
+    from macaw.stt.base import ModelInfo
+
+    monkeypatch.setattr(fwv, "get_speech_timestamps", lambda audio, opts: chunks)
+    t = Transcriber(model_size="large-v3-turbo", vad_gate=vad_gate)
+    echo = _EchoBackend()
+    echo.model = ModelInfo(
+        id="x", backend="whisper", label="x", size="", speed="", languages=""
+    )
+    t._backend = echo
+    monkeypatch.setattr(t, "_ensure_backend", lambda: echo)
+    return t, echo
+
+
+def test_vad_gate_trims_silence(monkeypatch):
+    # 10 s of audio, VAD says speech is 1 s in the middle -> backend sees 1 s.
+    t, echo = _gated(monkeypatch, [{"start": 16_000, "end": 32_000}])
+    audio = np.full(160_000, 0.1, dtype=np.float32)
+    assert t.transcribe(audio) == "ok"
+    assert echo.seen.size == 16_000
+
+
+def test_vad_gate_no_speech_short_circuits(monkeypatch):
+    # VAD finds nothing -> '' without ever touching the backend.
+    t, echo = _gated(monkeypatch, [])
+    assert t.transcribe(np.full(160_000, 0.1, dtype=np.float32)) == ""
+    assert echo.seen is None
+
+
+def test_vad_gate_mostly_speech_passes_through(monkeypatch):
+    # >=90% speech -> exact original audio, no copy/concat.
+    t, echo = _gated(monkeypatch, [{"start": 0, "end": 158_000}])
+    audio = np.full(160_000, 0.1, dtype=np.float32)
+    t.transcribe(audio)
+    assert echo.seen is audio
+
+
+def test_vad_gate_off_passes_everything(monkeypatch):
+    t, echo = _gated(monkeypatch, [{"start": 16_000, "end": 32_000}], vad_gate=False)
+    audio = np.full(160_000, 0.1, dtype=np.float32)
+    t.transcribe(audio)
+    assert echo.seen is audio
+
+
+def test_vad_gate_failure_never_loses_audio(monkeypatch):
+    # A crashing VAD must degrade to unfiltered transcription, not data loss.
+    import faster_whisper.vad as fwv
+
+    t, echo = _gated(monkeypatch, [])
+
+    def boom(audio, opts):
+        raise RuntimeError("onnx exploded")
+
+    monkeypatch.setattr(fwv, "get_speech_timestamps", boom)
+    audio = np.full(160_000, 0.1, dtype=np.float32)
+    assert t.transcribe(audio) == "ok"
+    assert echo.seen is audio
+
+
 def test_empty_model_is_not_ready():
     # No model selected yet → never ready; the engine blocks recording on this.
     assert Transcriber(model_size="").is_ready() is False

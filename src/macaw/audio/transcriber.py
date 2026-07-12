@@ -23,10 +23,12 @@ class Transcriber:
         model_size: str = "large-v3-turbo",
         language: str = "en",
         punctuation_hints: bool = True,
+        vad_gate: bool = True,
     ) -> None:
         self.model_size = model_size
         self.language = language
         self.punctuation_hints = punctuation_hints
+        self.vad_gate = vad_gate
         self.model_params: dict = {}  # tunables for the current model
         self._backend = None
 
@@ -87,6 +89,35 @@ class Transcriber:
             ).astype(np.float32)
         return audio
 
+    @staticmethod
+    def _trim_silence(audio: np.ndarray) -> np.ndarray:
+        """Silero-VAD gate: cut non-speech stretches so every backend pays for
+        speech only (Whisper pads to a full 30 s window regardless of content,
+        and hallucinates on silence). Conservative: 2 s minimum gap, 400 ms
+        padding around speech; mostly-speech audio passes through untouched.
+        Returns an empty array when no speech at all is detected."""
+        try:
+            # faster-whisper (a base dep) bundles the Silero ONNX model; the
+            # session is cached inside the module after the first call.
+            from faster_whisper.vad import VadOptions, get_speech_timestamps
+
+            chunks = get_speech_timestamps(
+                audio,
+                VadOptions(min_silence_duration_ms=2000, speech_pad_ms=400),
+            )
+        except Exception as exc:  # noqa: BLE001 — gate must never lose audio
+            logger.warning("VAD gate failed (%s) — transcribing unfiltered", exc)
+            return audio
+        if not chunks:
+            return audio[:0]
+        kept = sum(c["end"] - c["start"] for c in chunks)
+        if kept >= 0.9 * audio.size:
+            return audio  # mostly speech — skip the copy, keep exact boundaries
+        logger.info(
+            "VAD gate: %.1fs -> %.1fs of speech", audio.size / 16_000, kept / 16_000
+        )
+        return np.concatenate([audio[c["start"] : c["end"]] for c in chunks])
+
     # -- transcription --------------------------------------------------
 
     def transcribe(self, audio: np.ndarray, sample_rate: int = 16_000) -> str:
@@ -97,6 +128,10 @@ class Transcriber:
         # Silence gate (dot avoids allocating a full squared copy).
         if audio.size == 0 or float(np.dot(audio, audio)) / audio.size < 1e-6:
             return ""
+        if self.vad_gate:
+            audio = self._trim_silence(audio)
+            if audio.size == 0:
+                return ""  # no speech at all — nothing to transcribe
 
         logger.info("Transcribing (%s, %s)...", backend.model.id, self.language)
         # Backend failures propagate: the engine turns them into an overlay

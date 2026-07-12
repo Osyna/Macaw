@@ -31,6 +31,9 @@ moonshine = [
 ]
 nemo = [  # Parakeet TDT + Canary-Qwen — needs a CUDA GPU
     "nemo_toolkit[asr]>=2.0",
+    # Without cuda-python NeMo silently disables CUDA-graph decoding and logs
+    # "Cuda graphs with while loops are disabled" — a 3-5x decode slowdown.
+    "cuda-python>=12.3",
     # Steer resolution to a modern numba/llvmlite with Python 3.13 wheels;
     # without this uv backtracks to numba 0.53 (no 3.10+ support, source build).
     "numba>=0.60",

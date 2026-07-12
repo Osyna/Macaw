@@ -13,6 +13,7 @@ export struct Cfg {
     output-mode: string,       // clipboard | type
     device-label: string,
     silence-timeout: float,
+    vad-gate: bool,
     level-gain: float,
     sound-enabled: bool,
     streaming: bool,
@@ -157,6 +158,11 @@ export component SettingsView inherits ScrollArea {
                         changed(v) => { root.set-num("silence_timeout", v); }
                     }
                     Text { text: "\{cfg.silence-timeout}s"; color: Theme.pal.muted; font-size: 12px; vertical-alignment: center; }
+                }
+                Row {
+                    label: "Skip silence";
+                    hint: "Cuts silent stretches before transcription — faster on every model and stops silence hallucinations. Turn off only if words get clipped.";
+                    Toggle { checked: cfg.vad-gate; toggled(v) => { root.set-bool("vad_gate", v); } }
                 }
                 Row {
                     label: "Output";

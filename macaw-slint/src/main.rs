@@ -327,6 +327,7 @@ impl App {
             output_mode: s("output_mode"),
             device_label: SharedString::new(),
             silence_timeout: f("silence_timeout", 3.0),
+            vad_gate: b("vad_gate", true),
             level_gain: f("level_gain", 1.0),
             sound_enabled: b("sound_enabled", true),
             streaming: b("streaming", false),
