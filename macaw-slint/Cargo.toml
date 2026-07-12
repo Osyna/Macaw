@@ -1,0 +1,39 @@
+[package]
+name = "macaw-ui"
+version = "0.5.0"
+description = "Macaw — native Slint frontend (tray, settings/models, recording overlay)"
+edition = "2021"
+rust-version = "1.92"
+
+[[bin]]
+name = "macaw-ui"
+path = "src/main.rs"
+
+[dependencies]
+# UI — winit/Wayland backend + software renderer: pure CPU, no GL/GPU driver
+# mappings (~2× smaller RSS than femtovg on NVIDIA), plenty for a settings
+# window and a 210×52 overlay. unstable-winit-030 gives the window-attributes
+# hook (per-window Wayland app_id so Hyprland rules can target the overlay).
+slint = { version = "1.17", default-features = false, features = [
+    "std",
+    "compat-1-2",
+    "backend-winit-wayland",
+    "renderer-software",
+    "unstable-winit-030",
+] }
+# Engine WebSocket client — blocking, one thread, no async runtime.
+tungstenite = "0.28"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# StatusNotifierItem tray (Hyprland/waybar) — no tokio: blocking + async-io.
+ksni = { version = "0.3.5", default-features = false, features = ["blocking", "async-io"] }
+
+[build-dependencies]
+slint-build = "1"
+
+[profile.release]
+opt-level = "z"
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = true

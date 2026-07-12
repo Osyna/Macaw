@@ -1,0 +1,279 @@
+// Hand-rolled controls — no std-widgets: smaller binary, one visual language,
+// every color from Theme.pal so the whole app re-skins live.
+
+import { Theme } from "theme.slint";
+
+export component Btn inherits Rectangle {
+    in property <string> text;
+    in property <bool> primary: false;
+    in property <bool> danger: false;
+    in property <bool> enabled: true;
+    callback clicked;
+
+    height: 30px;
+    width: label.preferred-width + 24px;
+    border-radius: 7px;
+    background: !root.enabled ? Theme.pal.control
+        : touch.pressed ? (root.primary ? Theme.pal.accent.darker(15%) : Theme.pal.control.darker(8%))
+        : root.danger ? (touch.has-hover ? Theme.pal.danger : Theme.pal.control)
+        : root.primary ? Theme.pal.accent
+        : touch.has-hover ? Theme.pal.control.darker(4%) : Theme.pal.control;
+    border-width: 1px;
+    border-color: root.primary ? transparent : Theme.pal.border;
+
+    label := Text {
+        text: root.text;
+        color: !root.enabled ? Theme.pal.muted
+            : root.primary ? Theme.pal.accent-fg
+            : root.danger && touch.has-hover ? white
+            : root.danger ? Theme.pal.danger : Theme.pal.fg;
+        font-size: 13px;
+        font-weight: 600;
+    }
+    touch := TouchArea {
+        enabled: root.enabled;
+        clicked => { root.clicked(); }
+        mouse-cursor: root.enabled ? MouseCursor.pointer : MouseCursor.default;
+    }
+}
+
+export component Toggle inherits Rectangle {
+    in-out property <bool> checked;
+    in property <bool> enabled: true;
+    callback toggled(bool);
+
+    width: 40px;
+    height: 22px;
+    border-radius: 11px;
+    background: root.checked ? Theme.pal.accent : Theme.pal.border;
+    animate background { duration: 120ms; }
+
+    Rectangle {
+        x: root.checked ? parent.width - self.width - 3px : 3px;
+        y: 3px;
+        width: 16px;
+        height: 16px;
+        border-radius: 8px;
+        background: white;
+        animate x { duration: 120ms; easing: ease-out; }
+    }
+    TouchArea {
+        enabled: root.enabled;
+        clicked => {
+            root.checked = !root.checked;
+            root.toggled(root.checked);
+        }
+        mouse-cursor: MouseCursor.pointer;
+    }
+}
+
+export component SliderX inherits Rectangle {
+    in-out property <float> value: 0;
+    in property <float> minimum: 0;
+    in property <float> maximum: 100;
+    in property <float> step: 1;
+    callback changed(float);
+
+    height: 22px;
+    preferred-height: 22px;
+    min-width: 110px;
+    preferred-width: 150px;
+    max-width: 220px;
+    horizontal-stretch: 0;
+    clip: true;
+    property <float> t: min(1.0, max(0.0, (root.value - root.minimum) / max(0.0001, root.maximum - root.minimum)));
+
+    Rectangle { // track
+        y: parent.height / 2 - 2px;
+        height: 4px;
+        border-radius: 2px;
+        background: Theme.pal.border;
+    }
+    Rectangle { // fill
+        x: 0;
+        y: parent.height / 2 - 2px;
+        width: parent.width * root.t;
+        height: 4px;
+        border-radius: 2px;
+        background: Theme.pal.accent;
+    }
+    Rectangle { // knob
+        x: (parent.width - self.width) * root.t;
+        y: parent.height / 2 - 7px;
+        width: 14px;
+        height: 14px;
+        border-radius: 7px;
+        background: white;
+        border-width: 1px;
+        border-color: Theme.pal.border;
+        drop-shadow-blur: 2px;
+        drop-shadow-color: #00000030;
+    }
+    TouchArea {
+        moved => { root.set-from-x(self.mouse-x); }
+        clicked => { root.set-from-x(self.mouse-x); }
+        mouse-cursor: MouseCursor.pointer;
+    }
+    function set-from-x(mx: length) {
+        root.value = min(root.maximum, max(root.minimum,
+            root.minimum + (root.maximum - root.minimum) * (mx / root.width)));
+        root.value = round(root.value / root.step) * root.step;
+        root.changed(root.value);
+    }
+}
+
+// Dropdown: options popup drawn with PopupWindow.
+export component Select inherits Rectangle {
+    in property <[string]> options;
+    in-out property <int> current: 0;
+    callback changed(int);
+
+    height: 30px;
+    min-width: 140px;
+    border-radius: 7px;
+    background: Theme.pal.control;
+    border-width: 1px;
+    border-color: Theme.pal.border;
+
+    Text {
+        x: 10px;
+        text: root.current >= 0 && root.current < root.options.length ? root.options[root.current] : "";
+        color: Theme.pal.fg;
+        font-size: 13px;
+        vertical-alignment: center;
+        height: 100%;
+    }
+    Text {
+        x: parent.width - 20px;
+        text: "▾";
+        color: Theme.pal.muted;
+        font-size: 11px;
+        vertical-alignment: center;
+        height: 100%;
+    }
+    TouchArea {
+        clicked => { pop.show(); }
+        mouse-cursor: MouseCursor.pointer;
+    }
+    pop := PopupWindow {
+        x: 0;
+        y: root.height + 2px;
+        width: root.width;
+        Rectangle {
+            background: Theme.pal.surface;
+            border-radius: 7px;
+            border-width: 1px;
+            border-color: Theme.pal.border;
+            drop-shadow-blur: 12px;
+            drop-shadow-color: #00000040;
+            VerticalLayout {
+                padding: 4px;
+                for opt[i] in root.options: Rectangle {
+                    height: 26px;
+                    border-radius: 5px;
+                    background: ta.has-hover ? Theme.pal.control : transparent;
+                    Text {
+                        x: 8px;
+                        text: opt;
+                        color: i == root.current ? Theme.pal.accent : Theme.pal.fg;
+                        font-size: 13px;
+                        vertical-alignment: center;
+                        height: 100%;
+                    }
+                    ta := TouchArea {
+                        clicked => {
+                            root.current = i;
+                            root.changed(i);
+                        }
+                        mouse-cursor: MouseCursor.pointer;
+                    }
+                }
+            }
+        }
+    }
+}
+
+export component Field inherits Rectangle {
+    in-out property <string> text;
+    in property <string> placeholder;
+    in property <bool> secret: false;
+    callback edited(string);
+    callback submitted(string);
+
+    height: 30px;
+    min-width: 120px;
+    border-radius: 7px;
+    background: Theme.pal.control;
+    border-width: 1px;
+    border-color: input.has-focus ? Theme.pal.accent : Theme.pal.border;
+
+    input := TextInput {
+        x: 10px;
+        width: parent.width - 20px;
+        height: 100%;
+        vertical-alignment: center;
+        text <=> root.text;
+        color: Theme.pal.fg;
+        font-size: 13px;
+        single-line: true;
+        input-type: root.secret ? InputType.password : InputType.text;
+        edited => { root.edited(self.text); }
+        accepted => { root.submitted(self.text); }
+    }
+    if root.text == "" && !input.has-focus: Text {
+        x: 10px;
+        text: root.placeholder;
+        color: Theme.pal.muted;
+        font-size: 13px;
+        vertical-alignment: center;
+        height: 100%;
+    }
+}
+
+export component Badge inherits Rectangle {
+    in property <string> text;
+    in property <color> tint: Theme.pal.muted;
+    height: 18px;
+    width: t.preferred-width + 12px;
+    border-radius: 9px;
+    background: root.tint.with-alpha(0.14);
+    t := Text {
+        text: root.text;
+        color: root.tint;
+        font-size: 10px;
+        font-weight: 700;
+    }
+}
+
+export component ProgressBar inherits Rectangle {
+    // pct < 0 => indeterminate sweep
+    in property <float> pct: -1;
+    height: 6px;
+    border-radius: 3px;
+    background: Theme.pal.border;
+    clip: true;
+
+    if root.pct >= 0: Rectangle {
+        x: 0;
+        width: parent.width * min(1.0, root.pct / 100);
+        height: 100%;
+        border-radius: 3px;
+        background: Theme.pal.accent;
+        animate width { duration: 150ms; }
+    }
+    if root.pct < 0: Rectangle {
+        property <float> t: Math.mod(animation-tick() / 1.2s, 1.0);
+        x: parent.width * (self.t * 1.4 - 0.4);
+        width: parent.width * 0.4;
+        height: 100%;
+        border-radius: 3px;
+        background: Theme.pal.accent;
+    }
+}
+
+export component SectionTitle inherits Text {
+    color: Theme.pal.muted;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1px;
+}

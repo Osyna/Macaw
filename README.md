@@ -259,6 +259,22 @@ macaw-engine  <----+          macaw --trigger --[ZMQ IPC]--> macaw-engine
 
 `Transcriber` is a thin facade. It normalizes audio to mono float32 at 16 kHz and gates silence, then hands off to whichever backend the configured model points at. Whisper runs in-process; the others carry native dependency stacks that don't get along with the CUDA + faster-whisper environment, so each lives in its own isolated venv under `~/.local/share/macaw/backends/<extra>/`, driven by a sidecar worker (`stt/worker.py`) that swaps audio and text over a pipe. The Model Manager's Install button builds that venv for you, and nothing touches the main environment.
 
+### Native Slint frontend (in development)
+
+`macaw-slint/` holds the next-generation frontend: pure Rust with
+[Slint](https://slint.dev) — one ~11 MB binary at ~23 MB RSS, no webview, no
+GTK, no async runtime. Same engine, same WebSocket protocol, same features
+(tray via StatusNotifierItem, Settings + Models, themeable overlay). On
+Hyprland the overlay is positioned through runtime window rules; other
+compositors get a floating window. Linux-only and built locally for now —
+the Tauri app remains the packaged path until this ships through CI.
+
+```sh
+cd macaw-slint && cargo build --release
+MACAW_ENGINE_CMD="uv run macaw-engine" ./target/release/macaw-ui   # dev engine
+# packaged: put a `macaw-engine` binary next to `macaw-ui`, or have it on $PATH
+```
+
 ### Adding a model
 
 Adding a model is two small files: a backend and a YAML entry.

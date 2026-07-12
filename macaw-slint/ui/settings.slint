@@ -1,0 +1,271 @@
+// Settings: every control writes one config field through a typed callback;
+// Rust turns it into a `config.set {patch}` RPC. The engine's `config` event
+// echoes back and re-fills `cfg`, so the UI never holds its own truth.
+
+import { Theme } from "theme.slint";
+import { Btn, Toggle, SliderX, Select, Field, SectionTitle } from "widgets.slint";
+
+export struct Cfg {
+    language: string,
+    output-mode: string,       // clipboard | type
+    device-label: string,
+    silence-timeout: float,
+    sound-enabled: bool,
+    streaming: bool,
+    punctuation-hints: bool,
+    hotkey-enabled: bool,
+    hotkey: string,
+    theme: string,
+    window-position: string,
+    overlay-opacity: float,
+    overlay-width: float,
+    overlay-height: float,
+    overlay-x: string,
+    overlay-y: string,
+    corner-radius: float,
+    bar-spacing: float,
+    bar-width: float,
+    bar-radius: float,
+    bar-fade: bool,
+    eq-colors: string,         // comma-joined hex
+    accent-color: string,
+    border-color: string,
+    border-width: float,
+    api-key-set: bool,
+    proxy: string,
+    ssl-verify: bool,
+    autostart: bool,
+}
+
+component Row inherits HorizontalLayout {
+    in property <string> label;
+    spacing: 12px;
+    height: 34px;
+    preferred-height: 34px;
+    Text {
+        text: root.label;
+        color: Theme.pal.fg;
+        font-size: 13px;
+        vertical-alignment: center;
+        width: 180px;
+    }
+    @children
+}
+
+component Card inherits Rectangle {
+    in property <string> title;
+    border-radius: 12px;
+    background: Theme.pal.surface;
+    border-width: 1px;
+    border-color: Theme.pal.border;
+    VerticalLayout {
+        padding: 18px;
+        spacing: 6px;
+        SectionTitle { text: root.title; }
+        @children
+    }
+}
+
+export component SettingsView inherits Flickable {
+    in property <Cfg> cfg;
+    in property <[string]> devices;      // labels; [0] = "System default"
+    in-out property <int> device-current: 0;
+    in property <bool> capturing-hotkey: false;
+
+    callback set-str(string, string);    // key, value
+    callback set-num(string, float);
+    callback set-bool(string, bool);
+    callback pick-device(int);
+    callback capture-hotkey();
+    callback preview-overlay();
+    callback set-autostart(bool);
+    callback set-api-key(string);
+
+    property <[string]> positions: ["bottom_center", "bottom_left", "bottom_right", "top_center", "top_left", "top_right", "custom"];
+    property <[string]> themes: ["macaw", "oled", "light", "catppuccin"];
+    property <[string]> modes: ["clipboard", "type"];
+
+    viewport-height: col.preferred-height;
+
+    col := VerticalLayout {
+        padding: 20px;
+        width: root.width;
+        alignment: start;
+        spacing: 14px;
+
+        Card {
+            title: "RECORDING";
+            Row {
+                label: "Microphone";
+                Select {
+                    options: root.devices;
+                    current <=> root.device-current;
+                    changed(i) => { root.pick-device(i); }
+                }
+            }
+            Row {
+                label: "Stop after silence";
+                SliderX {
+                    value: cfg.silence-timeout;
+                    minimum: 1;
+                    maximum: 10;
+                    step: 0.5;
+                    changed(v) => { root.set-num("silence_timeout", v); }
+                }
+                Text { text: "\{cfg.silence-timeout}s"; color: Theme.pal.muted; font-size: 12px; vertical-alignment: center; }
+            }
+            Row {
+                label: "Output";
+                Select {
+                    options: ["Clipboard", "Type into window"];
+                    current: cfg.output-mode == "type" ? 1 : 0;
+                    changed(i) => { root.set-str("output_mode", i == 1 ? "type" : "clipboard"); }
+                }
+            }
+            Row {
+                label: "Language (ISO code)";
+                Field {
+                    text: cfg.language;
+                    placeholder: "en";
+                    submitted(v) => { root.set-str("language", v); }
+                }
+            }
+            Row {
+                label: "Sounds";
+                Toggle { checked: cfg.sound-enabled; toggled(v) => { root.set-bool("sound_enabled", v); } }
+            }
+            Row {
+                label: "Punctuation hints";
+                Toggle { checked: cfg.punctuation-hints; toggled(v) => { root.set-bool("punctuation_hints", v); } }
+            }
+            Row {
+                label: "Live typing (streaming)";
+                Toggle { checked: cfg.streaming; toggled(v) => { root.set-bool("streaming", v); } }
+            }
+        }
+
+        Card {
+            title: "HOTKEY";
+            Row {
+                label: "Global hotkey";
+                Toggle { checked: cfg.hotkey-enabled; toggled(v) => { root.set-bool("hotkey_enabled", v); } }
+                Text {
+                    text: root.capturing-hotkey ? "press keys…" : (cfg.hotkey == "" ? "not set" : cfg.hotkey);
+                    color: root.capturing-hotkey ? Theme.pal.accent : Theme.pal.muted;
+                    font-size: 13px;
+                    vertical-alignment: center;
+                    horizontal-stretch: 1;
+                }
+                Btn { text: "Capture"; enabled: !root.capturing-hotkey; clicked => { root.capture-hotkey(); } }
+            }
+        }
+
+        Card {
+            title: "APPEARANCE";
+            Row {
+                label: "Theme";
+                Select {
+                    options: root.themes;
+                    current: cfg.theme == "oled" ? 1 : cfg.theme == "light" ? 2 : cfg.theme == "catppuccin" ? 3 : 0;
+                    changed(i) => { root.set-str("theme", root.themes[i]); }
+                }
+                Rectangle { horizontal-stretch: 1; }
+                Btn { text: "Preview overlay"; clicked => { root.preview-overlay(); } }
+            }
+            Row {
+                label: "Overlay position";
+                Select {
+                    options: root.positions;
+                    current: cfg.window-position == "bottom_left" ? 1
+                        : cfg.window-position == "bottom_right" ? 2
+                        : cfg.window-position == "top_center" ? 3
+                        : cfg.window-position == "top_left" ? 4
+                        : cfg.window-position == "top_right" ? 5
+                        : cfg.window-position == "custom" ? 6 : 0;
+                    changed(i) => { root.set-str("window_position", root.positions[i]); }
+                }
+            }
+            if cfg.window-position == "custom": Row {
+                label: "Custom X / Y";
+                Field { text: cfg.overlay-x; placeholder: "0"; submitted(v) => { root.set-str("overlay_x", v); } }
+                Field { text: cfg.overlay-y; placeholder: "0"; submitted(v) => { root.set-str("overlay_y", v); } }
+            }
+            Row {
+                label: "Opacity";
+                SliderX {
+                    value: cfg.overlay-opacity;
+                    minimum: 0.5;
+                    maximum: 1.0;
+                    step: 0.02;
+                    changed(v) => { root.set-num("overlay_opacity", v); }
+                }
+            }
+            Row {
+                label: "Size (W × H)";
+                SliderX { value: cfg.overlay-width; minimum: 140; maximum: 480; step: 2; changed(v) => { root.set-num("overlay_width", v); } }
+                SliderX { value: cfg.overlay-height; minimum: 36; maximum: 120; step: 2; changed(v) => { root.set-num("overlay_height", v); } }
+                Text { text: "\{Math.round(cfg.overlay-width)}×\{Math.round(cfg.overlay-height)}"; color: Theme.pal.muted; font-size: 12px; vertical-alignment: center; }
+            }
+            Row {
+                label: "Corner radius (-1 = theme)";
+                SliderX { value: cfg.corner-radius; minimum: -1; maximum: 30; step: 1; changed(v) => { root.set-num("corner_radius", v); } }
+            }
+            Row {
+                label: "Bars (width / gap / radius)";
+                SliderX { value: cfg.bar-width; minimum: -1; maximum: 16; step: 1; changed(v) => { root.set-num("bar_width", v); } }
+                SliderX { value: cfg.bar-spacing; minimum: -1; maximum: 16; step: 1; changed(v) => { root.set-num("bar_spacing", v); } }
+                SliderX { value: cfg.bar-radius; minimum: 0; maximum: 16; step: 1; changed(v) => { root.set-num("bar_radius", v); } }
+            }
+            Row {
+                label: "Quiet bars fade";
+                Toggle { checked: cfg.bar-fade; toggled(v) => { root.set-bool("bar_fade", v); } }
+            }
+            Row {
+                label: "EQ colors (hex, comma)";
+                Field {
+                    text: cfg.eq-colors;
+                    placeholder: "#E5322B, #F7B500, #2F6FD0";
+                    submitted(v) => { root.set-str("eq_colors", v); }
+                }
+            }
+            Row {
+                label: "Accent / border color";
+                Field { text: cfg.accent-color; placeholder: "theme"; submitted(v) => { root.set-str("accent_color", v); } }
+                Field { text: cfg.border-color; placeholder: "theme"; submitted(v) => { root.set-str("border_color", v); } }
+            }
+            Row {
+                label: "Border width";
+                SliderX { value: cfg.border-width; minimum: 0; maximum: 6; step: 1; changed(v) => { root.set-num("border_width", v); } }
+            }
+        }
+
+        Card {
+            title: "CLOUD & NETWORK";
+            Row {
+                label: "OpenAI API key";
+                Field {
+                    text: "";
+                    secret: true;
+                    placeholder: cfg.api-key-set ? "•••••••• (set)" : "sk-…";
+                    submitted(v) => { root.set-api-key(v); }
+                }
+            }
+            Row {
+                label: "HTTP(S) proxy";
+                Field { text: cfg.proxy; placeholder: "http://host:port"; submitted(v) => { root.set-str("proxy", v); } }
+            }
+            Row {
+                label: "Verify SSL certificates";
+                Toggle { checked: cfg.ssl-verify; toggled(v) => { root.set-bool("ssl_verify", v); } }
+            }
+        }
+
+        Card {
+            title: "SYSTEM";
+            Row {
+                label: "Start on login";
+                Toggle { checked: cfg.autostart; toggled(v) => { root.set-autostart(v); } }
+            }
+        }
+    }
+}

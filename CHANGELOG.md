@@ -2,6 +2,23 @@
 
 Notable changes to Macaw. Older releases live on the [releases page](https://github.com/Osyna/Macaw/releases).
 
+## Unreleased
+
+- **New native frontend built with Slint** (`macaw-slint/`, Linux-first, local
+  builds only for now). Replaces the Tauri/WebKit shell with one 11 MB Rust
+  binary — ~23 MB RSS (was ~230 MB+ with the webview), pure-CPU software
+  renderer (no GL/GPU driver in the UI process), no tokio, no GTK, no
+  JavaScript. Feature parity: tray (ksni/StatusNotifierItem), Settings +
+  Models manager, recording overlay (equalizer, loader, ✓, error flash),
+  single-instance with `--settings/--models/--trigger/--stop` forwarding,
+  live theme + overlay customization.
+- Overlay positioning on Hyprland now uses runtime window rules
+  (new 0.5x `windowrule` syntax, legacy `windowrulev2` fallback) — no
+  gtk-layer-shell dependency for the Slint frontend.
+- The Tauri app (`src-tauri/` + `ui/`) remains the packaged/release path
+  until the Slint frontend ships through CI; it will be removed after that
+  cutover.
+
 ## v0.4.3
 
 - **Fixed: sandboxed models (NeMo Parakeet & co.) crashed in packaged builds.**

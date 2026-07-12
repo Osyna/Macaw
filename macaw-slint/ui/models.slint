@@ -1,0 +1,194 @@
+// Model manager: one card per model, states = missing-dep / not-downloaded /
+// ready / active, plus live install/download progress from engine events.
+
+import { Theme } from "theme.slint";
+import { Btn, Badge, ProgressBar, SectionTitle } from "widgets.slint";
+
+export struct ModelRow {
+    id: string,
+    label: string,
+    backend: string,
+    size: string,
+    speed: string,
+    languages: string,
+    hardware: string,
+    vram: string,
+    streaming: bool,
+    cloud: bool,
+    recommended: bool,
+    rating: int,
+    pros: string,
+    cons: string,
+    notes: string,
+    available: bool,     // dependency (extra) installed
+    installed: bool,     // weights on disk
+    ready: bool,         // can transcribe right now
+    active: bool,
+    extra: string,       // pip extra, "" = in base deps
+    disk-size: string,   // human, "" if none
+    api-key-set: bool,
+    busy: bool,          // an op targets this row
+    progress-pct: float, // -1 = indeterminate
+    progress-msg: string,
+}
+
+component Stars inherits HorizontalLayout {
+    in property <int> rating; // 0..5
+    spacing: 1px;
+    for i in 5: Text {
+        text: i < root.rating ? "★" : "☆";
+        color: i < root.rating ? Theme.pal.warn : Theme.pal.border;
+        font-size: 12px;
+    }
+}
+
+component ModelCard inherits Rectangle {
+    in property <ModelRow> m;
+    in property <bool> op-running; // any op in flight (disables all actions)
+    callback install(string);
+    callback download(string);
+    callback activate(string);
+    callback delete(string);
+    callback cancel();
+
+    border-radius: 12px;
+    background: Theme.pal.surface;
+    border-width: m.active ? 2px : 1px;
+    border-color: m.active ? Theme.pal.accent : Theme.pal.border;
+
+    col := VerticalLayout {
+        padding: 16px;
+        spacing: 8px;
+
+        HorizontalLayout {
+            spacing: 8px;
+            Text {
+                text: m.label;
+                color: Theme.pal.fg;
+                font-size: 15px;
+                font-weight: 700;
+            }
+            Stars { rating: m.rating; }
+            Rectangle { horizontal-stretch: 1; }
+            if m.active: Badge { text: "ACTIVE"; tint: Theme.pal.accent; }
+            if m.recommended && !m.active: Badge { text: "RECOMMENDED"; tint: Theme.pal.ok; }
+            if m.cloud: Badge { text: "CLOUD"; tint: Theme.pal.warn; }
+            if m.streaming: Badge { text: "STREAMING"; tint: Theme.pal.accent; }
+        }
+
+        HorizontalLayout {
+            spacing: 6px;
+            Badge { text: m.size; }
+            Badge { text: m.speed; }
+            Badge { text: "\{m.languages} lang"; }
+            Badge { text: m.hardware; }
+            if m.vram != "-" && m.vram != "": Badge { text: "VRAM \{m.vram}"; }
+            Rectangle { horizontal-stretch: 1; }
+        }
+
+        if m.notes != "": Text {
+            text: m.notes;
+            color: Theme.pal.muted;
+            font-size: 12px;
+            wrap: word-wrap;
+        }
+        if m.pros != "": Text {
+            text: "+ \{m.pros}";
+            color: Theme.pal.ok;
+            font-size: 12px;
+            wrap: word-wrap;
+        }
+        if m.cons != "": Text {
+            text: "− \{m.cons}";
+            color: Theme.pal.warn;
+            font-size: 12px;
+            wrap: word-wrap;
+        }
+
+        if m.busy: VerticalLayout {
+            spacing: 4px;
+            ProgressBar { pct: m.progress-pct; }
+            HorizontalLayout {
+                Text {
+                    text: m.progress-msg;
+                    color: Theme.pal.muted;
+                    font-size: 11px;
+                    overflow: elide;
+                    horizontal-stretch: 1;
+                }
+                Btn { text: "Cancel"; clicked => { root.cancel(); } }
+            }
+        }
+
+        if !m.busy: HorizontalLayout {
+            spacing: 8px;
+            alignment: start;
+            // dependency missing -> install extra; weights missing -> download;
+            // cloud + no key -> hint; ready -> activate.
+            if !m.available && m.extra != "": Btn {
+                text: "Install \{m.extra} deps";
+                primary: true;
+                enabled: !root.op-running;
+                clicked => { root.install(m.extra); }
+            }
+            if m.available && !m.ready && !m.cloud: Btn {
+                text: "Download";
+                primary: true;
+                enabled: !root.op-running;
+                clicked => { root.download(m.id); }
+            }
+            if m.cloud && !m.api-key-set: Text {
+                text: "Set your OpenAI API key in Settings";
+                color: Theme.pal.warn;
+                font-size: 12px;
+                vertical-alignment: center;
+            }
+            if m.ready && !m.active: Btn {
+                text: "Set active";
+                primary: true;
+                enabled: !root.op-running;
+                clicked => { root.activate(m.id); }
+            }
+            if m.installed: Btn {
+                text: "Delete";
+                danger: true;
+                enabled: !root.op-running;
+                clicked => { root.delete(m.id); }
+            }
+            if m.disk-size != "": Text {
+                text: "on disk: \{m.disk-size}";
+                color: Theme.pal.muted;
+                font-size: 12px;
+                vertical-alignment: center;
+            }
+        }
+    }
+}
+
+export component ModelsView inherits Flickable {
+    in property <[ModelRow]> models;
+    in property <bool> op-running;
+    callback install(string);
+    callback download(string);
+    callback activate(string);
+    callback delete(string);
+    callback cancel();
+
+    viewport-height: list.preferred-height;
+
+    list := VerticalLayout {
+        padding: 16px;
+        width: root.width;
+        alignment: start;
+        spacing: 12px;
+        for m in root.models: ModelCard {
+            m: m;
+            op-running: root.op-running;
+            install(e) => { root.install(e); }
+            download(id) => { root.download(id); }
+            activate(id) => { root.activate(id); }
+            delete(id) => { root.delete(id); }
+            cancel => { root.cancel(); }
+        }
+    }
+}

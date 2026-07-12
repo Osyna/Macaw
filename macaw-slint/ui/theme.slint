@@ -1,0 +1,39 @@
+// Palette plumbing. Rust owns the theme table (ported from the old ui/src/
+// theme.ts) and pushes a resolved Palette — theme defaults merged with the
+// user's config overrides — into this global whenever config changes.
+
+export struct Palette {
+    bg: color,
+    surface: color,
+    control: color,
+    fg: color,
+    muted: color,
+    border: color,
+    accent: color,
+    accent-fg: color,
+    ok: color,
+    warn: color,
+    danger: color,
+    overlay-bg: color,
+    eq-idle: color,
+}
+
+export global Theme {
+    // macaw palette as compile-time default; Rust replaces it on startup.
+    in-out property <Palette> pal: {
+        bg: #FDF4EA,
+        surface: #FFFFFF,
+        control: #FBF1E4,
+        fg: #1B1712,
+        muted: #8A7C6C,
+        border: #EADBC7,
+        accent: #E5322B,
+        accent-fg: #FFFFFF,
+        ok: #2E9E6B,
+        warn: #B8860B,
+        danger: #C81F1A,
+        overlay-bg: #171310,
+        eq-idle: #E7D8C4,
+    };
+    in-out property <length> radius: 10px;
+}
