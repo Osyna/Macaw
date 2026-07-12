@@ -39,10 +39,10 @@ component TabBtn inherits Rectangle {
 export component MainWindow inherits Window {
     title: "Macaw";
     default-font-family: "monospace"; // terminal chrome; the pill keeps the UI font
-    min-width: 760px;
-    min-height: 520px;
-    preferred-width: 920px;
-    preferred-height: 660px;
+    min-width: 980px;
+    min-height: 620px;
+    preferred-width: 1180px;
+    preferred-height: 760px;
     background: Theme.pal.bg;
 
     in-out property <string> tab: "settings"; // settings | models
@@ -76,8 +76,17 @@ export component MainWindow inherits Window {
     callback border-clear();
     in property <[string]> theme-names;
     in-out property <int> theme-current;
+    callback trans-set(int, color);
+    callback trans-add();
+    callback trans-remove(int);
+    callback done-picked(color);
+    callback done-clear();
+    callback error-picked(color);
+    callback error-clear();
     // models plumbing (forwarded)
     in property <[ModelRow]> models;
+    in property <ModelRow> sel;
+    in property <bool> have-sel;
     in property <bool> op-running;
     in property <[ParamRow]> detail-params;
     in property <[string]> langs;
@@ -184,11 +193,20 @@ export component MainWindow inherits Window {
             accent-clear => { root.accent-clear(); }
             border-picked(c) => { root.border-picked(c); }
             border-clear => { root.border-clear(); }
+            trans-set(i, c) => { root.trans-set(i, c); }
+            trans-add => { root.trans-add(); }
+            trans-remove(i) => { root.trans-remove(i); }
+            done-picked(c) => { root.done-picked(c); }
+            done-clear => { root.done-clear(); }
+            error-picked(c) => { root.error-picked(c); }
+            error-clear => { root.error-clear(); }
             theme-names: root.theme-names;
             theme-current <=> root.theme-current;
         }
         if root.tab == "models": ModelsView {
             models: root.models;
+            sel: root.sel;
+            have-sel: root.have-sel;
             op-running: root.op-running;
             detail-params: root.detail-params;
             langs: root.langs;

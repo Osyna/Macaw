@@ -8,6 +8,8 @@ import { OverlayPill } from "pill.slint";
 export component OverlayWindow inherits Window {
     in property <string> mode <=> pill.mode;
     in property <string> anim <=> pill.anim;
+    in property <float> anim-speed <=> pill.anim-speed;
+    in property <[color]> loader-colors <=> pill.loader-colors;
     in property <[float]> levels <=> pill.levels;
     in property <float> heard <=> pill.heard;
     in property <string> error-text <=> pill.error-text;

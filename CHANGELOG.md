@@ -4,6 +4,17 @@ Notable changes to Macaw. Older releases live on the [releases page](https://git
 
 ## Unreleased
 
+- **Horizontal layouts.** Settings is two-column (audio/system left, the
+  full appearance editor right); the Model manager is master-detail like the
+  original PyQt app — compact list with status dots on the left, one big
+  always-visible dossier (specs, links, language, parameters, actions) on
+  the right, auto-selecting the active model.
+- **State-scoped appearance editing**: the preview chips (Recording /
+  Transcribing / Done / Error) now switch the controls underneath. Each
+  state owns its options — Recording: bars + gradient; Transcribing:
+  animation, speed (0.25–3×), and a "use recording colors" link that can be
+  unlinked for its own gradient; Done: check color; Error: flash color.
+
 - **The 10 themes now style the indicator only.** The app window is a
   minimal terminal-like chrome — monochrome, hard 0-radius corners, no
   shadows, monospace — in Dark (real black) or Light, chosen under

@@ -110,6 +110,7 @@ struct App {
     toasts: Rc<VecModel<Toast>>,
     levels: Rc<VecModel<f32>>,
     eq: Rc<VecModel<slint::Color>>,
+    trans: Rc<VecModel<slint::Color>>, // resolved transcribing stops
     anim: RefCell<BarAnim>,
     rms: Cell<f32>,
     ls: RefCell<Option<ls::LsOverlay>>,
@@ -182,15 +183,42 @@ impl App {
             self.anim.borrow_mut().set_count(count);
             self.levels.set_vec(vec![0.0f32; count]);
         }
+        // per-state colors: transcribing follows recording unless unlinked
+        let trans_linked = cfg["trans_link"].as_bool().unwrap_or(true);
+        let own: Vec<slint::Color> = cfg["trans_colors"]
+            .as_array()
+            .map(|a| {
+                a.iter()
+                    .filter_map(|v| v.as_str().and_then(theme::parse_hex))
+                    .collect()
+            })
+            .unwrap_or_default();
+        let trans: Vec<slint::Color> = if trans_linked || own.is_empty() {
+            self.eq.iter().collect()
+        } else {
+            own
+        };
+        self.trans.set_vec(trans);
+        let done_color = cfg["done_color"]
+            .as_str()
+            .and_then(theme::parse_hex)
+            .unwrap_or(theme::rgb(t.ok));
+        let error_color = cfg["error_color"]
+            .as_str()
+            .and_then(theme::parse_hex)
+            .unwrap_or(theme::rgb(t.danger));
+        let anim_speed = cfg["anim_speed"].as_f64().unwrap_or(1.0).clamp(0.25, 3.0) as f32;
 
         let o = &self.overlay;
         o.set_pill_bg(pill_bg);
         o.set_pill_opacity(opacity);
         o.set_idle_color(theme::rgb(t.eq_idle));
-        o.set_ok_color(theme::rgb(t.ok));
-        o.set_danger_color(theme::rgb(t.danger));
+        o.set_ok_color(done_color);
+        o.set_danger_color(error_color);
         o.set_eq_colors(ModelRc::from(Rc::clone(&self.eq)));
         o.set_anim(SharedString::from(anim.as_str()));
+        o.set_anim_speed(anim_speed);
+        o.set_loader_colors(ModelRc::from(Rc::clone(&self.trans)));
         o.set_r_tl(c[0]);
         o.set_r_tr(c[1]);
         o.set_r_br(c[2]);
@@ -206,10 +234,12 @@ impl App {
         look.set_pill_bg(pill_bg);
         look.set_pill_opacity(opacity);
         look.set_idle_color(theme::rgb(t.eq_idle));
-        look.set_ok_color(theme::rgb(t.ok));
-        look.set_danger_color(theme::rgb(t.danger));
+        look.set_ok_color(done_color);
+        look.set_danger_color(error_color);
         look.set_eq_colors(ModelRc::from(Rc::clone(&self.eq)));
         look.set_anim(SharedString::from(anim.as_str()));
+        look.set_anim_speed(anim_speed);
+        look.set_loader_colors(ModelRc::from(Rc::clone(&self.trans)));
         look.set_r_tl(c[0]);
         look.set_r_tr(c[1]);
         look.set_r_br(c[2]);
@@ -226,21 +256,24 @@ impl App {
 
         // layer-shell overlay process gets the same resolved look + geometry
         let eq_hex: Vec<String> = self.eq.iter().map(hex).collect();
+        let trans_hex: Vec<String> = self.trans.iter().map(hex).collect();
         self.ls_send(json!({
             "cmd": "look",
             "pill_bg": hex(pill_bg),
             "opacity": opacity,
             "idle": format!("#{:06X}", t.eq_idle),
-            "ok": format!("#{:06X}", t.ok),
-            "danger": format!("#{:06X}", t.danger),
+            "ok": hex(done_color),
+            "danger": hex(error_color),
             "border_color": hex(border_color),
             "border_width": bw,
             "r_tl": c[0], "r_tr": c[1], "r_br": c[2], "r_bl": c[3],
             "bar_width": bar_w, "bar_spacing": bar_s, "bar_radius": bar_radius,
             "bar_fade": bar_fade,
             "anim": anim,
+            "anim_speed": anim_speed,
             "bar_count": count,
             "eq": eq_hex,
+            "loader": trans_hex,
             "width": cfg["overlay_width"].as_u64().unwrap_or(210),
             "height": cfg["overlay_height"].as_u64().unwrap_or(52),
             "position": cfg["window_position"].as_str().unwrap_or("bottom_center"),
@@ -295,6 +328,18 @@ impl App {
             bar_fade: b("bar_fade", true),
             bar_count: f("bar_count", 24.0),
             transcribe_anim: s("transcribe_anim"),
+            anim_speed: f("anim_speed", 1.0),
+            trans_link: b("trans_link", true),
+            done_color: s("done_color"),
+            done_value: cfg["done_color"]
+                .as_str()
+                .and_then(theme::parse_hex)
+                .unwrap_or(theme::rgb(t.ok)),
+            error_color: s("error_color"),
+            error_value: cfg["error_color"]
+                .as_str()
+                .and_then(theme::parse_hex)
+                .unwrap_or(theme::rgb(t.danger)),
             overlay_bg: s("overlay_bg"),
             overlay_bg_value: cfg["overlay_bg"]
                 .as_str()
@@ -442,6 +487,12 @@ impl App {
             })
             .collect();
         self.ui.set_op_running(op.is_some());
+        // selected dossier (master-detail right pane)
+        let sel_row = rows.iter().find(|r| r.expanded).cloned();
+        self.ui.set_have_sel(sel_row.is_some());
+        if let Some(r) = sel_row {
+            self.ui.set_sel(r);
+        }
         self.ui.set_models(ModelRc::from(rows.as_slice()));
         let label = raw
             .iter()
@@ -614,6 +665,16 @@ impl App {
                 self.apply_config();
             }
             Msg::ModelsLoaded(list) => {
+                // default the dossier to the active model
+                if self.expanded.borrow().is_empty() {
+                    if let Some(active) = list
+                        .iter()
+                        .find(|m| m["active"].as_bool().unwrap_or(false))
+                        .and_then(|m| m["id"].as_str())
+                    {
+                        *self.expanded.borrow_mut() = active.to_string();
+                    }
+                }
                 self.models_raw.replace(list);
                 self.render_models();
             }
@@ -836,6 +897,7 @@ fn main() {
         toasts,
         levels,
         eq: Rc::new(VecModel::from(Vec::<slint::Color>::new())),
+        trans: Rc::new(VecModel::from(Vec::<slint::Color>::new())),
         anim: RefCell::new(BarAnim::new(24)),
         rms: Cell::new(0.0),
         ls: RefCell::new(ls::LsOverlay::spawn()),
@@ -1048,12 +1110,59 @@ fn main() {
     {
         let a = Rc::clone(&app);
         app.ui.on_toggle_expand(move |id| {
-            let id = id.to_string();
-            let mut cur = a.expanded.borrow_mut();
-            *cur = if *cur == id { String::new() } else { id };
-            drop(cur);
+            // master-detail: always select (no deselect on re-click)
+            *a.expanded.borrow_mut() = id.to_string();
             a.render_models();
         });
+    }
+    {
+        // transcribing gradient (own stops; editor shown only when unlinked)
+        let a = Rc::clone(&app);
+        app.ui.on_trans_set(move |i, c| {
+            let mut stops: Vec<String> = a.trans.iter().map(hex).collect();
+            if let Some(s) = stops.get_mut(i as usize) {
+                *s = hex(c);
+            }
+            a.patch(kv("trans_colors", json!(stops)));
+        });
+    }
+    {
+        let a = Rc::clone(&app);
+        app.ui.on_trans_add(move || {
+            let mut stops: Vec<String> = a.trans.iter().map(hex).collect();
+            stops.push(stops.last().cloned().unwrap_or_else(|| "#E5322B".into()));
+            a.patch(kv("trans_colors", json!(stops)));
+        });
+    }
+    {
+        let a = Rc::clone(&app);
+        app.ui.on_trans_remove(move |i| {
+            let mut stops: Vec<String> = a.trans.iter().map(hex).collect();
+            if (i as usize) < stops.len() && stops.len() > 1 {
+                stops.remove(i as usize);
+            }
+            a.patch(kv("trans_colors", json!(stops)));
+        });
+    }
+    {
+        let a = Rc::clone(&app);
+        app.ui
+            .on_done_picked(move |c| a.patch(kv("done_color", json!(hex(c)))));
+    }
+    {
+        let a = Rc::clone(&app);
+        app.ui
+            .on_done_clear(move || a.patch(kv("done_color", json!(""))));
+    }
+    {
+        let a = Rc::clone(&app);
+        app.ui
+            .on_error_picked(move |c| a.patch(kv("error_color", json!(hex(c)))));
+    }
+    {
+        let a = Rc::clone(&app);
+        app.ui
+            .on_error_clear(move || a.patch(kv("error_color", json!(""))));
     }
     app.ui.on_open_url(|url| {
         let _ = std::process::Command::new("xdg-open")

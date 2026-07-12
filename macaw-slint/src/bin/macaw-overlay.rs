@@ -202,6 +202,14 @@ impl Overlay {
         ui.set_bar_radius(f("bar_radius", 0.0));
         ui.set_bar_fade(v["bar_fade"].as_bool().unwrap_or(true));
         ui.set_anim(v["anim"].as_str().unwrap_or("waves").into());
+        ui.set_anim_speed(f("anim_speed", 1.0));
+        if let Some(stops) = v["loader"].as_array() {
+            let lc: Vec<slint::Color> = stops
+                .iter()
+                .filter_map(|s| s.as_str().and_then(parse_hex))
+                .collect();
+            ui.set_loader_colors(ModelRc::from(lc.as_slice()));
+        }
         let count = v["bar_count"].as_u64().unwrap_or(24).clamp(8, 48) as usize;
         if self.levels.row_count() != count {
             self.anim.set_count(count);

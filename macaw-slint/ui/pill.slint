@@ -12,10 +12,11 @@
 export component OverlayPill inherits Rectangle {
     in property <string> mode: "eq"; // eq | loader | done | error
     in property <string> anim: "waves"; // loader: waves | sweep | pulse | dots
+    in property <float> anim-speed: 1.0;
     in property <[float]> levels;
     in property <float> heard: 0; // 0..1 — idle→lit color blend (eq mode)
+    in property <[color]> loader-colors: [#E5322B, #F7B500, #2F6FD0];
     in property <string> error-text: "";
-
     in property <color> pill-bg: #171310;
     in property <float> pill-opacity: 0.94;
     in property <color> idle-color: #E7D8C4;
@@ -68,7 +69,23 @@ export component OverlayPill inherits Rectangle {
         return eq-colors[pal-i(frac)].mix(eq-colors[pal-i(frac) + 1], 1 - pal-t(frac));
     }
 
-    property <float> t: animation-tick() / 1s * 4.8; // old loader: 4.8 rad/s
+    property <float> t: animation-tick() / 1s * 4.8 * max(0.25, anim-speed);
+
+    // loader palette: per-state stops (Rust resolves link-to-recording)
+    pure function lpal-i(frac: float) -> int {
+        return min(loader-colors.length - 2, floor(clamp(frac, 0, 1) * (loader-colors.length - 1)));
+    }
+    pure function lpal(frac: float) -> color {
+        if (loader-colors.length == 0) {
+            return pal(frac);
+        }
+        if (loader-colors.length == 1) {
+            return loader-colors[0];
+        }
+        return loader-colors[lpal-i(frac)].mix(
+            loader-colors[lpal-i(frac) + 1],
+            1 - clamp(clamp(frac, 0, 1) * (loader-colors.length - 1) - lpal-i(frac), 0, 1));
+    }
 
     background: root.mode == "error" ? root.danger-color.with-alpha(root.pill-opacity)
                                      : root.pill-bg.with-alpha(root.pill-opacity);
@@ -115,7 +132,7 @@ export component OverlayPill inherits Rectangle {
             y: (root.height - self.height) / 2;
             height: 3px + self.amp * parent.maxh;
             border-radius: root.br;
-            background: root.pal(self.fx)
+            background: root.lpal(self.fx)
                 .with-alpha(root.bar-fade ? (60 + self.amp * 175) / 255 : 1.0);
         }
     }
@@ -126,7 +143,7 @@ export component OverlayPill inherits Rectangle {
         width: 40px;
         height: 4px;
         border-radius: 2px;
-        background: root.pal(0.5);
+        background: root.lpal(0.5);
     }
     // dots: three bouncing dots
     if root.mode == "loader" && root.anim == "dots": Rectangle {
@@ -137,7 +154,7 @@ export component OverlayPill inherits Rectangle {
             width: 8px;
             height: 8px;
             border-radius: 4px;
-            background: root.pal(i / 2.0).with-alpha(0.45 + 0.55 * self.ph);
+            background: root.lpal(i / 2.0).with-alpha(0.45 + 0.55 * self.ph);
         }
     }
 

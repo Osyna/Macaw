@@ -1,8 +1,7 @@
-// Model manager: search + filters over expandable cards. Collapsed = badges,
-// status and primary actions; expanded = full dossier — description, pros &
-// cons, spec table (min/recommended), provenance links, per-model language,
-// and the backend's tunable parameters. One card expands at a time, so the
-// param/language detail models live on the view root (filled by Rust).
+// Model manager, PyQt-style master-detail: a compact list on the left
+// (search + status filters), one permanently-visible dossier on the right —
+// description, pros & cons, spec table, provenance links, per-model language
+// and backend parameters, plus the actions and live progress.
 
 import { Theme } from "theme.slint";
 import { Btn, Badge, ProgressBar, SectionTitle, Toggle, SliderX, Select, Field } from "widgets.slint";
@@ -36,7 +35,7 @@ export struct ModelRow {
     repo-url: string,
     lang-select: bool,
     has-params: bool,
-    expanded: bool,
+    expanded: bool,      // = selected (dossier shown on the right)
     busy: bool,
     progress-pct: float, // -1 = indeterminate
     progress-msg: string,
@@ -83,6 +82,7 @@ component KV inherits HorizontalLayout {
         vertical-alignment: center;
         overflow: elide;
         horizontal-stretch: 1;
+        wrap: word-wrap;
     }
 }
 
@@ -90,8 +90,8 @@ component FilterChip inherits Rectangle {
     in property <string> text;
     in property <bool> active;
     callback clicked;
-    width: t.preferred-width + 20px;
-    height: 28px;
+    width: t.preferred-width + 16px;
+    height: 26px;
     border-radius: Theme.radius;
     background: root.active ? Theme.pal.accent : Theme.pal.control;
     border-width: 1px;
@@ -99,7 +99,7 @@ component FilterChip inherits Rectangle {
     t := Text {
         text: root.text;
         color: root.active ? Theme.pal.accent-fg : Theme.pal.fg;
-        font-size: 12px;
+        font-size: 11px;
         font-weight: 600;
     }
     TouchArea {
@@ -108,254 +108,76 @@ component FilterChip inherits Rectangle {
     }
 }
 
-component ModelCard inherits Rectangle {
+// compact list entry
+component ModelItem inherits Rectangle {
     in property <ModelRow> m;
-    in property <bool> op-running;
-    // detail models for the (single) expanded card
-    in property <[ParamRow]> detail-params;
-    in property <[string]> langs;
-    in property <int> lang-current;
-
-    callback install(string);
-    callback download(string);
-    callback activate(string);
-    callback delete(string);
-    callback cancel();
-    callback toggle-expand(string);
-    callback open-url(string);
-    callback set-lang(string, int);
-    callback param-num(string, string, float);
-    callback param-bool(string, string, bool);
-
-    border-radius: Theme.radius;
-    background: Theme.pal.surface;
-    border-width: m.active ? 2px : 1px;
+    callback select(string);
+    height: inner.preferred-height + 20px;
+    background: m.expanded ? Theme.pal.control : (ta.has-hover ? Theme.pal.control.with-alpha(0.5) : transparent);
+    border-width: m.expanded ? 1px : 0px;
     border-color: m.active ? Theme.pal.accent : Theme.pal.border;
 
-    col := VerticalLayout {
-        padding: 16px;
-        spacing: 8px;
-
-        // ── header (click to expand) ─────────────────────────────────
-        Rectangle {
-            height: 24px;
-            head := HorizontalLayout {
-                spacing: 8px;
-                Text {
-                    text: m.expanded ? "▾" : "▸";
-                    color: Theme.pal.muted;
-                    font-size: 12px;
-                    vertical-alignment: center;
-                }
-                Text {
-                    text: m.label;
-                    color: Theme.pal.fg;
-                    font-size: 15px;
-                    font-weight: 700;
-                    vertical-alignment: center;
-                }
-                Stars { rating: m.rating; }
-                Badge { text: m.backend; }
-                Rectangle { horizontal-stretch: 1; }
-                if m.active: Badge { text: "ACTIVE"; tint: Theme.pal.accent; }
-                if m.recommended && !m.active: Badge { text: "RECOMMENDED"; tint: Theme.pal.ok; }
-                if m.cloud: Badge { text: "CLOUD"; tint: Theme.pal.warn; }
-                if m.streaming: Badge { text: "STREAMING"; tint: Theme.pal.accent; }
-                if !m.cloud && !m.streaming: Badge { text: "OFFLINE"; }
-            }
-            TouchArea {
-                clicked => { root.toggle-expand(m.id); }
-                mouse-cursor: MouseCursor.pointer;
-            }
-        }
-
+    inner := VerticalLayout {
+        x: 10px;
+        y: 10px;
+        width: parent.width - 20px;
+        spacing: 3px;
         HorizontalLayout {
             spacing: 6px;
-            alignment: start;
-            Badge { text: m.size; }
-            Badge { text: m.speed; }
-            Badge { text: "\{m.languages} lang"; }
-            Badge { text: m.hardware; }
-            if m.vram != "-" && m.vram != "": Badge { text: "VRAM \{m.vram}"; }
-        }
-
-        // ── expanded dossier ─────────────────────────────────────────
-        if m.expanded && m.notes != "": Text {
-            text: m.notes;
-            color: Theme.pal.fg;
-            font-size: 12px;
-            wrap: word-wrap;
-        }
-        if m.expanded && m.pros != "": Text {
-            text: "+ \{m.pros}";
-            color: Theme.pal.ok;
-            font-size: 12px;
-            wrap: word-wrap;
-        }
-        if m.expanded && m.cons != "": Text {
-            text: "− \{m.cons}";
-            color: Theme.pal.warn;
-            font-size: 12px;
-            wrap: word-wrap;
-        }
-        if m.expanded: VerticalLayout {
-            spacing: 2px;
-            SectionTitle { text: "SPECS"; }
-            KV { k: "Engine"; v: m.backend; }
-            KV { k: "Speed"; v: m.speed; }
-            KV { k: "Languages"; v: m.languages; }
-            if m.min-specs != "": KV { k: "Minimal"; v: m.min-specs; }
-            if m.rec-specs != "": KV { k: "Recommended"; v: m.rec-specs; }
-            if m.vram != "-" && m.vram != "": KV { k: "VRAM"; v: m.vram; }
-            if m.disk-size != "": KV { k: "On disk"; v: m.disk-size; }
-        }
-        if m.expanded && (m.source-url != "" || m.repo-url != ""): HorizontalLayout {
-            spacing: 8px;
-            alignment: start;
-            if m.source-url != "": Btn {
-                text: "Library ↗";
-                clicked => { root.open-url(m.source-url); }
+            Rectangle { // status dot: ready green / installed amber / none gray
+                y: parent.height / 2 - 4px;
+                width: 8px;
+                height: 8px;
+                background: m.active ? Theme.pal.accent
+                    : m.ready ? Theme.pal.ok
+                    : m.installed ? Theme.pal.warn : Theme.pal.border;
             }
-            if m.repo-url != "": Btn {
-                text: "Weights ↗";
-                clicked => { root.open-url(m.repo-url); }
-            }
-        }
-        if m.expanded && m.lang-select: HorizontalLayout {
-            spacing: 10px;
-            height: 34px;
             Text {
-                text: "Spoken language";
+                text: m.label;
                 color: Theme.pal.fg;
                 font-size: 13px;
-                width: 140px;
+                font-weight: m.expanded ? 700 : 500;
+                overflow: elide;
+                horizontal-stretch: 1;
                 vertical-alignment: center;
             }
-            Select {
-                options: root.langs;
-                current: root.lang-current;
-                changed(i) => { root.set-lang(m.id, i); }
-            }
         }
-        if m.expanded && m.has-params: VerticalLayout {
-            spacing: 4px;
-            SectionTitle { text: "PARAMETERS"; }
-            for p in root.detail-params: VerticalLayout {
-                spacing: 2px;
-                HorizontalLayout {
-                    spacing: 10px;
-                    height: 30px;
-                    Text {
-                        text: p.label;
-                        color: Theme.pal.fg;
-                        font-size: 13px;
-                        width: 140px;
-                        vertical-alignment: center;
-                    }
-                    if p.kind == "bool": Toggle {
-                        checked: p.bvalue;
-                        toggled(v) => { root.param-bool(m.id, p.key, v); }
-                    }
-                    if p.kind != "bool": SliderX {
-                        value: p.value;
-                        minimum: p.minimum;
-                        maximum: p.maximum;
-                        step: p.step;
-                        changed(v) => { root.param-num(m.id, p.key, v); }
-                    }
-                    if p.kind != "bool": Text {
-                        text: p.kind == "int" ? "\{Math.round(p.value)}" : "\{Math.round(p.value * 100) / 100}";
-                        color: Theme.pal.muted;
-                        font-size: 12px;
-                        vertical-alignment: center;
-                    }
-                }
-                if p.hint != "": Text {
-                    text: p.hint;
-                    color: Theme.pal.muted;
-                    font-size: 11px;
-                    wrap: word-wrap;
-                }
-            }
-        }
-
-        // ── progress / actions ───────────────────────────────────────
-        if m.busy: VerticalLayout {
-            spacing: 4px;
-            ProgressBar { pct: m.progress-pct; }
-            HorizontalLayout {
-                Text {
-                    text: m.progress-msg;
-                    color: Theme.pal.muted;
-                    font-size: 11px;
-                    overflow: elide;
-                    horizontal-stretch: 1;
-                }
-                Btn { text: "Cancel"; clicked => { root.cancel(); } }
-            }
-        }
-        if !m.busy: HorizontalLayout {
-            spacing: 8px;
+        HorizontalLayout {
+            spacing: 5px;
             alignment: start;
-            if !m.available && m.extra != "": Btn {
-                text: "Install \{m.extra} deps";
-                primary: true;
-                enabled: !root.op-running;
-                clicked => { root.install(m.extra); }
-            }
-            if m.available && !m.ready && !m.cloud: Btn {
-                text: "Download";
-                primary: true;
-                enabled: !root.op-running;
-                clicked => { root.download(m.id); }
-            }
-            if m.cloud && !m.api-key-set: Text {
-                text: "Set your OpenAI API key in Settings";
-                color: Theme.pal.warn;
-                font-size: 12px;
-                vertical-alignment: center;
-            }
-            if m.ready && !m.active: Btn {
-                text: "Set active";
-                primary: true;
-                enabled: !root.op-running;
-                clicked => { root.activate(m.id); }
-            }
-            if m.installed: Btn {
-                text: "Delete";
-                danger: true;
-                enabled: !root.op-running;
-                clicked => { root.delete(m.id); }
-            }
-            if m.disk-size != "" && !m.expanded: Text {
-                text: "on disk: \{m.disk-size}";
+            Badge { text: m.backend; }
+            if m.cloud: Badge { text: "cloud"; tint: Theme.pal.warn; }
+            if m.streaming: Badge { text: "stream"; tint: Theme.pal.accent; }
+            Text {
+                text: m.size;
                 color: Theme.pal.muted;
-                font-size: 12px;
+                font-size: 11px;
                 vertical-alignment: center;
-            }
-            Rectangle { horizontal-stretch: 1; }
-            Btn {
-                text: m.expanded ? "Less" : "Details";
-                clicked => { root.toggle-expand(m.id); }
             }
         }
     }
+    ta := TouchArea {
+        clicked => { root.select(m.id); }
+        mouse-cursor: MouseCursor.pointer;
+    }
 }
 
-export component ModelsView inherits VerticalLayout {
+export component ModelsView inherits HorizontalLayout {
     in property <[ModelRow]> models;
+    in property <ModelRow> sel; // the selected model (Rust keeps it in sync)
+    in property <bool> have-sel: false;
     in property <bool> op-running;
     in property <[ParamRow]> detail-params;
     in property <[string]> langs;
     in property <int> lang-current;
-    in-out property <int> filter-current: 0; // All/Ready/Installed/Cloud/Streaming
+    in-out property <int> filter-current: 0;
 
     callback install(string);
     callback download(string);
     callback activate(string);
     callback delete(string);
     callback cancel();
-    callback toggle-expand(string);
+    callback toggle-expand(string); // = select
     callback open-url(string);
     callback set-lang(string, int);
     callback param-num(string, string, float);
@@ -363,64 +185,236 @@ export component ModelsView inherits VerticalLayout {
     callback search(string);
     callback filter(int);
 
-    // ── toolbar ──────────────────────────────────────────────────────
+    spacing: 0px;
+
+    // ── left: search / filters / list ────────────────────────────────
     Rectangle {
-        height: 52px;
+        width: 300px;
         background: Theme.pal.bg;
-        HorizontalLayout {
-            x: 16px;
-            y: 11px;
-            width: parent.width - 32px;
-            height: 30px;
+        VerticalLayout {
+            padding: 12px;
             spacing: 8px;
             Field {
-                placeholder: "Search models…";
-                min-width: 200px;
+                placeholder: "Search…";
                 edited(t) => { root.search(t); }
             }
-            Rectangle { horizontal-stretch: 1; }
-            for f[i] in ["All", "Ready", "Installed", "Cloud", "Streaming"]: FilterChip {
-                text: f;
-                active: root.filter-current == i;
-                clicked => {
-                    root.filter-current = i;
-                    root.filter(i);
+            HorizontalLayout {
+                spacing: 4px;
+                alignment: start;
+                for f[i] in ["All", "Ready", "Local", "Cloud", "Live"]: FilterChip {
+                    text: f;
+                    active: root.filter-current == i;
+                    clicked => {
+                        root.filter-current = i;
+                        root.filter(i);
+                    }
+                }
+            }
+            Flickable {
+                viewport-height: list.preferred-height;
+                list := VerticalLayout {
+                    alignment: start;
+                    spacing: 4px;
+                    for m in root.models: ModelItem {
+                        m: m;
+                        select(id) => { root.toggle-expand(id); }
+                    }
+                    if root.models.length == 0: Text {
+                        text: "No models match.";
+                        color: Theme.pal.muted;
+                        font-size: 12px;
+                    }
                 }
             }
         }
     }
+    Rectangle { width: 1px; background: Theme.pal.border; }
 
+    // ── right: dossier ───────────────────────────────────────────────
     Flickable {
-        viewport-height: list.preferred-height;
-
-        list := VerticalLayout {
-            padding: 16px;
-            padding-top: 4px;
-            width: root.width;
+        viewport-height: detail.preferred-height;
+        detail := VerticalLayout {
+            padding: 18px;
             alignment: start;
-            spacing: 12px;
-            for m in root.models: ModelCard {
-                m: m;
-                op-running: root.op-running;
-                detail-params: root.detail-params;
-                langs: root.langs;
-                lang-current: root.lang-current;
-                install(e) => { root.install(e); }
-                download(id) => { root.download(id); }
-                activate(id) => { root.activate(id); }
-                delete(id) => { root.delete(id); }
-                cancel => { root.cancel(); }
-                toggle-expand(id) => { root.toggle-expand(id); }
-                open-url(u) => { root.open-url(u); }
-                set-lang(id, i) => { root.set-lang(id, i); }
-                param-num(id, k, v) => { root.param-num(id, k, v); }
-                param-bool(id, k, v) => { root.param-bool(id, k, v); }
-            }
-            if root.models.length == 0: Text {
-                text: "No models match.";
+            spacing: 10px;
+
+            if !root.have-sel: Text {
+                text: "Select a model on the left.";
                 color: Theme.pal.muted;
                 font-size: 13px;
-                horizontal-alignment: center;
+            }
+
+            if root.have-sel: HorizontalLayout {
+                spacing: 10px;
+                Text {
+                    text: sel.label;
+                    color: Theme.pal.fg;
+                    font-size: 18px;
+                    font-weight: 800;
+                    vertical-alignment: center;
+                }
+                Stars { rating: sel.rating; }
+                Rectangle { horizontal-stretch: 1; }
+                if sel.active: Badge { text: "ACTIVE"; tint: Theme.pal.accent; }
+                if sel.recommended && !sel.active: Badge { text: "RECOMMENDED"; tint: Theme.pal.ok; }
+                if sel.cloud: Badge { text: "CLOUD"; tint: Theme.pal.warn; }
+                if sel.streaming: Badge { text: "STREAMING"; tint: Theme.pal.accent; }
+                if !sel.cloud && !sel.streaming: Badge { text: "OFFLINE"; }
+            }
+
+            // actions right under the title — always reachable
+            if root.have-sel && sel.busy: VerticalLayout {
+                spacing: 4px;
+                ProgressBar { pct: sel.progress-pct; }
+                HorizontalLayout {
+                    Text {
+                        text: sel.progress-msg;
+                        color: Theme.pal.muted;
+                        font-size: 11px;
+                        overflow: elide;
+                        horizontal-stretch: 1;
+                    }
+                    Btn { text: "Cancel"; clicked => { root.cancel(); } }
+                }
+            }
+            if root.have-sel && !sel.busy: HorizontalLayout {
+                spacing: 8px;
+                alignment: start;
+                if !sel.available && sel.extra != "": Btn {
+                    text: "Install \{sel.extra} deps";
+                    primary: true;
+                    enabled: !root.op-running;
+                    clicked => { root.install(sel.extra); }
+                }
+                if sel.available && !sel.ready && !sel.cloud: Btn {
+                    text: "Download";
+                    primary: true;
+                    enabled: !root.op-running;
+                    clicked => { root.download(sel.id); }
+                }
+                if sel.cloud && !sel.api-key-set: Text {
+                    text: "Set your OpenAI API key in Settings";
+                    color: Theme.pal.warn;
+                    font-size: 12px;
+                    vertical-alignment: center;
+                }
+                if sel.ready && !sel.active: Btn {
+                    text: "Set active";
+                    primary: true;
+                    enabled: !root.op-running;
+                    clicked => { root.activate(sel.id); }
+                }
+                if sel.installed: Btn {
+                    text: "Delete";
+                    danger: true;
+                    enabled: !root.op-running;
+                    clicked => { root.delete(sel.id); }
+                }
+            }
+
+            if root.have-sel && sel.notes != "": Text {
+                text: sel.notes;
+                color: Theme.pal.fg;
+                font-size: 12px;
+                wrap: word-wrap;
+            }
+            if root.have-sel && sel.pros != "": Text {
+                text: "+ \{sel.pros}";
+                color: Theme.pal.ok;
+                font-size: 12px;
+                wrap: word-wrap;
+            }
+            if root.have-sel && sel.cons != "": Text {
+                text: "− \{sel.cons}";
+                color: Theme.pal.warn;
+                font-size: 12px;
+                wrap: word-wrap;
+            }
+
+            if root.have-sel: VerticalLayout {
+                spacing: 2px;
+                SectionTitle { text: "SPECS"; }
+                KV { k: "Engine"; v: sel.backend; }
+                KV { k: "Download"; v: sel.size; }
+                KV { k: "Speed"; v: sel.speed; }
+                KV { k: "Languages"; v: sel.languages; }
+                KV { k: "Hardware"; v: sel.hardware; }
+                if sel.min-specs != "": KV { k: "Minimal"; v: sel.min-specs; }
+                if sel.rec-specs != "": KV { k: "Recommended"; v: sel.rec-specs; }
+                if sel.vram != "-" && sel.vram != "": KV { k: "VRAM"; v: sel.vram; }
+                if sel.disk-size != "": KV { k: "On disk"; v: sel.disk-size; }
+            }
+
+            if root.have-sel && (sel.source-url != "" || sel.repo-url != ""): HorizontalLayout {
+                spacing: 8px;
+                alignment: start;
+                if sel.source-url != "": Btn {
+                    text: "Library ↗";
+                    clicked => { root.open-url(sel.source-url); }
+                }
+                if sel.repo-url != "": Btn {
+                    text: "Weights ↗";
+                    clicked => { root.open-url(sel.repo-url); }
+                }
+            }
+
+            if root.have-sel && sel.lang-select: HorizontalLayout {
+                spacing: 10px;
+                height: 34px;
+                Text {
+                    text: "Spoken language";
+                    color: Theme.pal.fg;
+                    font-size: 13px;
+                    width: 140px;
+                    vertical-alignment: center;
+                }
+                Select {
+                    options: root.langs;
+                    current: root.lang-current;
+                    changed(i) => { root.set-lang(sel.id, i); }
+                }
+            }
+
+            if root.have-sel && sel.has-params: VerticalLayout {
+                spacing: 4px;
+                SectionTitle { text: "PARAMETERS"; }
+                for p in root.detail-params: VerticalLayout {
+                    spacing: 2px;
+                    HorizontalLayout {
+                        spacing: 10px;
+                        height: 30px;
+                        Text {
+                            text: p.label;
+                            color: Theme.pal.fg;
+                            font-size: 13px;
+                            width: 140px;
+                            vertical-alignment: center;
+                        }
+                        if p.kind == "bool": Toggle {
+                            checked: p.bvalue;
+                            toggled(v) => { root.param-bool(sel.id, p.key, v); }
+                        }
+                        if p.kind != "bool": SliderX {
+                            value: p.value;
+                            minimum: p.minimum;
+                            maximum: p.maximum;
+                            step: p.step;
+                            changed(v) => { root.param-num(sel.id, p.key, v); }
+                        }
+                        if p.kind != "bool": Text {
+                            text: p.kind == "int" ? "\{Math.round(p.value)}" : "\{Math.round(p.value * 100) / 100}";
+                            color: Theme.pal.muted;
+                            font-size: 12px;
+                            vertical-alignment: center;
+                        }
+                    }
+                    if p.hint != "": Text {
+                        text: p.hint;
+                        color: Theme.pal.muted;
+                        font-size: 11px;
+                        wrap: word-wrap;
+                    }
+                }
             }
         }
     }

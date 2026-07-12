@@ -74,6 +74,11 @@ class Config:
     bar_count: int = 24  # number of equaliser bars (8-48)
     overlay_bg: str = ""  # overlay pill background, hex (blank = theme)
     transcribe_anim: str = "waves"  # transcribing loader: waves|sweep|pulse|dots
+    anim_speed: float = 1.0  # transcribing animation speed multiplier (0.25-3)
+    trans_link: bool = True  # transcribing uses the recording (eq) colors
+    trans_colors: list = field(default_factory=list)  # own stops when unlinked
+    done_color: str = ""  # done check-mark colour, hex (blank = theme)
+    error_color: str = ""  # error flash colour, hex (blank = theme)
     model: str = ""  # empty = nothing selected yet (pick one in the Model Manager)
     # Per-model tunables: {model_id: {param_key: value}}
     model_params: dict = field(default_factory=dict)
@@ -125,6 +130,11 @@ class Config:
                 bar_count=int(data.get("bar_count", 24)),
                 overlay_bg=data.get("overlay_bg") or "",
                 transcribe_anim=data.get("transcribe_anim") or "waves",
+                anim_speed=float(data.get("anim_speed", 1.0)),
+                trans_link=bool(data.get("trans_link", True)),
+                trans_colors=list(data.get("trans_colors") or []),
+                done_color=data.get("done_color") or "",
+                error_color=data.get("error_color") or "",
                 model=data.get("model") or "",
                 model_params=data.get("model_params") or {},
                 model_languages=data.get("model_languages") or {},
@@ -235,6 +245,16 @@ class Config:
             "  # overlay pill background colour, hex (blank = theme)\n"
             f"transcribe_anim: {_yv(self.transcribe_anim)}"
             "  # transcribing animation: waves | sweep | pulse | dots\n"
+            f"anim_speed: {_yv(self.anim_speed)}"
+            "  # transcribing animation speed multiplier (0.25-3)\n"
+            f"trans_link: {_yv(self.trans_link)}"
+            "  # transcribing reuses the recording colours (false = own stops)\n"
+            f"trans_colors: {_yv(self.trans_colors)}"
+            "  # transcribing gradient stops when unlinked\n"
+            f"done_color: {_yv(self.done_color)}"
+            "  # done check-mark colour, hex (blank = theme)\n"
+            f"error_color: {_yv(self.error_color)}"
+            "  # error flash colour, hex (blank = theme)\n"
             "\n"
             "# ── Network (advanced) ───────────────────────────────────\n"
             f"proxy: {_yv(self.proxy)}"
