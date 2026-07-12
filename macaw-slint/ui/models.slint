@@ -236,9 +236,6 @@ export component ModelsView inherits HorizontalLayout {
     ScrollArea {
         horizontal-stretch: 1;
         viewport-height: detail.preferred-height;
-        // the dossier of the ACTIVE model is outlined green, like its list row
-        border-width: root.have-sel && sel.active ? 2px : 0px;
-        border-color: Theme.pal.ok;
         detail := VerticalLayout {
             padding: 18px;
             alignment: start;

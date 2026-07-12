@@ -77,8 +77,10 @@ export component OverlayPill inherits Rectangle {
     clip: true;
 
     // ── recording: audio-reactive, selectable ────────────────────────
-    // bars (classic): bottom-anchored, real fade
-    if root.mode == "eq" && (root.record-anim == "bars" || root.record-anim == "mirror"): Rectangle {
+    // bars (classic, bottom-anchored) — also the fallback for any unknown
+    // record-anim value (e.g. a config saved by a build with more variants)
+    if root.mode == "eq" && root.record-anim != "dots" && root.record-anim != "wave"
+        && root.record-anim != "blocks" && root.record-anim != "ripple": Rectangle {
         property <length> vpad: max(8px, root.height * 0.18);
         property <length> maxh: root.height - 2 * self.vpad;
         property <bool> mirror: root.record-anim == "mirror";
@@ -109,26 +111,6 @@ export component OverlayPill inherits Rectangle {
             background: root.idle-color
                 .mix(root.pal(self.frac), 1 - root.heard)
                 .with-alpha(root.bar-fade ? (100 + 155 * min(1.0, lvl)) / 255 : 1.0);
-        }
-    }
-    // orb: one breathing sphere driven by the smoothed energy
-    if root.mode == "eq" && root.record-anim == "orb": Rectangle {
-        property <length> d: root.height * (0.28 + 0.5 * root.heard);
-        x: (root.width - self.d) / 2;
-        y: (root.height - self.d) / 2;
-        width: self.d;
-        height: self.d;
-        border-radius: self.d / 2;
-        background: root.idle-color.mix(root.pal(0.5), 1 - root.heard);
-        // halo ring
-        Rectangle {
-            x: -6px;
-            y: -6px;
-            width: parent.width + 12px;
-            height: parent.height + 12px;
-            border-radius: self.width / 2;
-            border-width: 2px;
-            border-color: root.pal(0.5).with-alpha(0.25 + 0.45 * root.heard);
         }
     }
     // wave: oscilloscope — bars ride a traveling sine, swing scales with level
@@ -192,26 +174,6 @@ export component OverlayPill inherits Rectangle {
             border-radius: self.d / 2;
             border-width: 2px;
             border-color: root.pal(self.ph).with-alpha((1 - self.ph) * (0.2 + 0.8 * root.heard));
-        }
-    }
-    // meter: one horizontal level bar, VU style
-    if root.mode == "eq" && root.record-anim == "meter": Rectangle {
-        property <length> mh: max(6px, root.height * 0.22);
-        Rectangle { // track
-            x: root.hpad;
-            y: (root.height - parent.mh) / 2;
-            width: root.width - 2 * root.hpad;
-            height: parent.mh;
-            border-radius: self.height / 2;
-            background: root.idle-color.with-alpha(0.18);
-            Rectangle { // fill
-                x: 0;
-                y: 0;
-                width: parent.width * clamp(root.heard, 0.02, 1.0);
-                height: parent.height;
-                border-radius: self.height / 2;
-                background: root.pal(root.heard);
-            }
         }
     }
 

@@ -5,7 +5,7 @@ Notable changes to Macaw. Older releases live on the [releases page](https://git
 ## Unreleased
 
 - Models: the **active model is unmistakable** — green outline + "active"
-  badge on its list row, and a green border + ACTIVE badge on its dossier.
+  badge on its list row and a green ACTIVE badge on its dossier.
   Scrollbars now live in their own gutter (no more drawing over list cards)
   and follow the app theme in dark and light mode.
 
@@ -29,9 +29,8 @@ Notable changes to Macaw. Older releases live on the [releases page](https://git
 
 - **Animation galleries.** Animations are now picked from live tiles — every
   tile is the real pill running that animation with your colors:
-  - Recording: `bars` (classic), `mirror`, `dots`, `orb`, `wave`
-    (oscilloscope), `blocks` (segmented VU), `ripple` (energy rings),
-    `meter` (level bar) — all audio-reactive.
+  - Recording: `bars` (classic), `mirror`, `dots`, `wave` (oscilloscope),
+    `blocks` (segmented VU), `ripple` (energy rings) — all audio-reactive.
   - Transcribing: `waves`, `sweep`, `pulse`, `dots` + new `scan`, `cascade`,
     `shimmer`, `orbit`, `typewriter`, `bounce`, `heartbeat`.
   - Done: a new entrance animation — `pop` (default), `flash`, `rise`,
