@@ -76,6 +76,9 @@ export component MainWindow inherits Window {
     callback border-clear();
     in property <[string]> theme-names;
     in-out property <int> theme-current;
+    callback theme-picked(int);
+    callback save-theme(string);
+    callback delete-theme();
     callback trans-set(int, color);
     callback trans-add();
     callback trans-remove(int);
@@ -202,6 +205,9 @@ export component MainWindow inherits Window {
             error-clear => { root.error-clear(); }
             theme-names: root.theme-names;
             theme-current <=> root.theme-current;
+            theme-picked(i) => { root.theme-picked(i); }
+            save-theme(n) => { root.save-theme(n); }
+            delete-theme => { root.delete-theme(); }
         }
         if root.tab == "models": ModelsView {
             models: root.models;

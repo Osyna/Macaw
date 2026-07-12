@@ -22,6 +22,9 @@ export struct Cfg {
     hotkey-enabled: bool,
     hotkey: string,
     theme: string,
+    theme-dirty: bool,
+    theme-is-custom: bool,
+    theme-custom-name: string,
     app-theme: string,
     window-position: string,
     overlay-opacity: float,
@@ -123,6 +126,9 @@ export component SettingsView inherits Flickable {
     callback border-picked(color);
     callback border-clear();
 
+    callback theme-picked(int);
+    callback save-theme(string);
+    callback delete-theme();
     in property <[string]> theme-names;
     in-out property <int> theme-current: 0;
     in-out property <string> preview-mode: "eq";
@@ -334,7 +340,24 @@ export component SettingsView inherits Flickable {
                     Select {
                         options: root.theme-names;
                         current <=> root.theme-current;
-                        changed(i) => { root.set-str("theme", root.theme-names[i]); }
+                        changed(i) => { root.theme-picked(i); }
+                    }
+                }
+                if cfg.theme-dirty || cfg.theme-is-custom: Row {
+                    label: cfg.theme-is-custom ? "Custom theme" : "Save theme as";
+                    tname := Field {
+                        text: cfg.theme-custom-name;
+                        placeholder: "my-theme";
+                    }
+                    Btn {
+                        text: cfg.theme-is-custom ? "Update" : "Save";
+                        primary: true;
+                        clicked => { root.save-theme(tname.text); }
+                    }
+                    if cfg.theme-is-custom: Btn {
+                        text: "Delete";
+                        danger: true;
+                        clicked => { root.delete-theme(); }
                     }
                 }
                 Row {

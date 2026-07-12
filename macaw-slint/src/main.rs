@@ -126,7 +126,7 @@ impl App {
     // ── theme / look ────────────────────────────────────────────────
     fn apply_theme(&self) {
         let cfg = self.cfg.borrow();
-        let name = cfg["theme"].as_str().unwrap_or("macaw").to_string();
+        let name = theme::base_name(&cfg);
         let t = theme::by_name(&name); // INDICATOR look only
                                        // app chrome: minimal terminal, dark (real black) or light
         let ch = if cfg["app_theme"].as_str().unwrap_or("dark") == "light" {
@@ -297,7 +297,7 @@ impl App {
                     .join(", ")
             })
             .unwrap_or_default();
-        let t = theme::by_name(cfg["theme"].as_str().unwrap_or("macaw"));
+        let t = theme::by_name(&theme::base_name(&cfg));
         self.ui.set_cfg(Cfg {
             language: s("language"),
             output_mode: s("output_mode"),
@@ -309,6 +309,15 @@ impl App {
             hotkey_enabled: b("hotkey_enabled", false),
             hotkey: s("hotkey"),
             theme: s("theme"),
+            theme_dirty: theme::is_dirty(&cfg),
+            theme_is_custom: cfg["theme"].as_str().unwrap_or("").starts_with("custom:"),
+            theme_custom_name: SharedString::from(
+                cfg["theme"]
+                    .as_str()
+                    .unwrap_or("")
+                    .strip_prefix("custom:")
+                    .unwrap_or(""),
+            ),
             app_theme: s("app_theme"),
             window_position: s("window_position"),
             overlay_opacity: f("overlay_opacity", 0.94),
@@ -373,8 +382,33 @@ impl App {
             .position(|(i, _)| *i == want)
             .unwrap_or(0);
         self.ui.set_device_current(idx as i32);
-        self.ui
-            .set_theme_current(theme::index_of(cfg["theme"].as_str().unwrap_or("macaw")) as i32);
+        // theme selector: stock + saved customs (+ transient unsaved entry)
+        let mut names: Vec<String> = theme::NAMES.iter().map(|s| s.to_string()).collect();
+        let mut customs: Vec<String> = cfg["custom_themes"]
+            .as_object()
+            .map(|o| o.keys().cloned().collect())
+            .unwrap_or_default();
+        customs.sort();
+        names.extend(customs.iter().cloned());
+        let theme_str = cfg["theme"].as_str().unwrap_or("macaw").to_string();
+        let custom_name = theme_str.strip_prefix("custom:").unwrap_or("").to_string();
+        let is_custom = !custom_name.is_empty();
+        let dirty = theme::is_dirty(&cfg);
+        let mut cur = if is_custom {
+            theme::NAMES.len() + customs.iter().position(|n| *n == custom_name).unwrap_or(0)
+        } else {
+            theme::index_of(&theme_str)
+        };
+        if dirty && !is_custom {
+            names.push("● custom (unsaved)".into());
+            cur = names.len() - 1;
+        }
+        let name_strs: Vec<SharedString> = names
+            .iter()
+            .map(|n| SharedString::from(n.as_str()))
+            .collect();
+        self.ui.set_theme_names(ModelRc::from(name_strs.as_slice()));
+        self.ui.set_theme_current(cur as i32);
         drop(cfg);
         self.apply_theme();
     }
@@ -1223,6 +1257,91 @@ fn main() {
         app.ui.on_models_filter(move |i| {
             a.filter.set(i);
             a.render_models();
+        });
+    }
+    {
+        // theme selector: stock resets overrides; custom applies its snapshot
+        let a = Rc::clone(&app);
+        app.ui.on_theme_picked(move |i| {
+            let i = i as usize;
+            let cfg = a.cfg.borrow();
+            let mut customs: Vec<String> = cfg["custom_themes"]
+                .as_object()
+                .map(|o| o.keys().cloned().collect())
+                .unwrap_or_default();
+            customs.sort();
+            let mut patch = Map::new();
+            for (k, d) in theme::override_defaults() {
+                patch.insert(k.to_string(), d);
+            }
+            if i < theme::NAMES.len() {
+                patch.insert("theme".into(), json!(theme::NAMES[i]));
+            } else if let Some(name) = customs.get(i - theme::NAMES.len()) {
+                if let Some(saved) = cfg["custom_themes"][name].as_object() {
+                    for (k, v) in saved {
+                        if k != "based_on" {
+                            patch.insert(k.clone(), v.clone());
+                        }
+                    }
+                }
+                patch.insert("theme".into(), json!(format!("custom:{name}")));
+            } else {
+                return; // the transient "unsaved" entry
+            }
+            drop(cfg);
+            a.patch(Value::Object(patch));
+        });
+    }
+    {
+        // save current look as a named custom theme (stock names protected)
+        let a = Rc::clone(&app);
+        app.ui.on_save_theme(move |name| {
+            let name = name.trim().to_string();
+            if name.is_empty() || theme::NAMES.contains(&name.as_str()) {
+                a.toast("error", "Pick a name that isn't a built-in theme");
+                return;
+            }
+            let cfg = a.cfg.borrow();
+            let mut snapshot = Map::new();
+            snapshot.insert("based_on".into(), json!(theme::base_name(&cfg)));
+            for (k, d) in theme::override_defaults() {
+                let v = &cfg[k];
+                snapshot.insert(k.to_string(), if v.is_null() { d } else { v.clone() });
+            }
+            let mut all = cfg["custom_themes"].clone();
+            if !all.is_object() {
+                all = json!({});
+            }
+            all[&name] = Value::Object(snapshot);
+            drop(cfg);
+            let mut patch = Map::new();
+            patch.insert("custom_themes".into(), all);
+            patch.insert("theme".into(), json!(format!("custom:{name}")));
+            a.patch(Value::Object(patch));
+        });
+    }
+    {
+        // delete the selected custom theme, fall back to its base
+        let a = Rc::clone(&app);
+        app.ui.on_delete_theme(move || {
+            let cfg = a.cfg.borrow();
+            let theme_str = cfg["theme"].as_str().unwrap_or("").to_string();
+            let Some(name) = theme_str.strip_prefix("custom:") else {
+                return;
+            };
+            let base = theme::base_name(&cfg);
+            let mut all = cfg["custom_themes"].clone();
+            if let Some(o) = all.as_object_mut() {
+                o.remove(name);
+            }
+            drop(cfg);
+            let mut patch = Map::new();
+            for (k, d) in theme::override_defaults() {
+                patch.insert(k.to_string(), d);
+            }
+            patch.insert("custom_themes".into(), all);
+            patch.insert("theme".into(), json!(base));
+            a.patch(Value::Object(patch));
         });
     }
 

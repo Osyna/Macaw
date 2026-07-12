@@ -83,6 +83,8 @@ class Config:
     # Per-model tunables: {model_id: {param_key: value}}
     model_params: dict = field(default_factory=dict)
     model_languages: dict = field(default_factory=dict)  # {model_id: lang code}
+    # Saved indicator themes: {name: {based_on: str, <override fields...>}}
+    custom_themes: dict = field(default_factory=dict)
     openai_api_key: str = ""  # for cloud models; falls back to $OPENAI_API_KEY
     # Network (advanced): route downloads + cloud calls through a proxy, and
     # optionally skip SSL verification (e.g. behind a corporate MITM proxy).
@@ -138,6 +140,7 @@ class Config:
                 model=data.get("model") or "",
                 model_params=data.get("model_params") or {},
                 model_languages=data.get("model_languages") or {},
+                custom_themes=data.get("custom_themes") or {},
                 openai_api_key=data.get("openai_api_key") or "",
                 proxy=data.get("proxy") or "",
                 ssl_verify=bool(data.get("ssl_verify", True)),
@@ -168,6 +171,14 @@ class Config:
             ).rstrip()
         else:
             langs = "model_languages: {}"
+        if self.custom_themes:
+            themes = yaml.safe_dump(
+                {"custom_themes": self.custom_themes},
+                default_flow_style=False,
+                sort_keys=True,
+            ).rstrip()
+        else:
+            themes = "custom_themes: {}"
         return (
             "# macaw configuration\n"
             "# Edit by hand, via the Settings window, or `macaw --config edit`.\n"
@@ -267,5 +278,5 @@ class Config:
             "  # whether the GitHub-star nudge has been shown\n"
             "\n"
             "# ── Per-model tunables (set from the Model Manager) ──────\n"
-            f"{params}\n{langs}\n"
+            f"{params}\n{langs}\n{themes}\n"
         )

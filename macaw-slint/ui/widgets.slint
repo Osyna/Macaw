@@ -132,14 +132,17 @@ export component Select inherits Rectangle {
     background: Theme.pal.control;
     border-width: 1px;
     border-color: Theme.pal.border;
+    clip: true;
 
     Text {
         x: 10px;
+        width: parent.width - 34px; // keep clear of the ▾ arrow
         text: root.current >= 0 && root.current < root.options.length ? root.options[root.current] : "";
         color: Theme.pal.fg;
         font-size: 13px;
         vertical-alignment: center;
         height: 100%;
+        overflow: elide;
     }
     Text {
         x: parent.width - 20px;

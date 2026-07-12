@@ -4,6 +4,13 @@ Notable changes to Macaw. Older releases live on the [releases page](https://git
 
 ## Unreleased
 
+- **Custom themes.** Editing any indicator property flips the selector to
+  "● custom (unsaved)" with a save row: name it and it lands in
+  `custom_themes` (config), appears in the selector, and can be Updated or
+  Deleted. Built-in themes are never overwritten (their names are reserved);
+  picking a built-in resets all overrides to pristine.
+- Fixed dropdown text overflowing its box (long microphone names now elide).
+
 - **Horizontal layouts.** Settings is two-column (audio/system left, the
   full appearance editor right); the Model manager is master-detail like the
   original PyQt app — compact list with status dots on the left, one big

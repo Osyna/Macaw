@@ -345,3 +345,63 @@ pub fn corners(theme: &ThemeDef, cfg: &Value) -> [f32; 4] {
     let c = theme.corners;
     [c[0] as f32, c[1] as f32, c[2] as f32, c[3] as f32]
 }
+
+// ── custom themes ────────────────────────────────────────────────────
+// A custom theme = a stock base + the indicator override fields, saved
+// under config.custom_themes[name]. Stock themes are never overwritten.
+
+/// Every config field that participates in an indicator theme, with its
+/// pristine default. Editing any of these makes the current look "custom".
+pub fn override_defaults() -> Vec<(&'static str, Value)> {
+    use serde_json::json;
+    vec![
+        ("overlay_bg", json!("")),
+        ("overlay_opacity", json!(0.94)),
+        ("eq_colors", json!([])),
+        ("accent_color", json!("")),
+        ("border_color", json!("")),
+        ("border_width", json!(0)),
+        ("corner_radius", json!(-1)),
+        ("corners", json!([])),
+        ("corner_link", json!(true)),
+        ("bar_spacing", json!(-1)),
+        ("bar_width", json!(-1)),
+        ("bar_radius", json!(0)),
+        ("bar_fade", json!(true)),
+        ("bar_count", json!(24)),
+        ("transcribe_anim", json!("waves")),
+        ("anim_speed", json!(1.0)),
+        ("trans_link", json!(true)),
+        ("trans_colors", json!([])),
+        ("done_color", json!("")),
+        ("error_color", json!("")),
+    ]
+}
+
+/// The stock theme the current look is based on. `theme` is either a stock
+/// name or "custom:<name>" whose entry carries `based_on`.
+pub fn base_name(cfg: &Value) -> String {
+    let theme = cfg["theme"].as_str().unwrap_or("macaw");
+    if let Some(name) = theme.strip_prefix("custom:") {
+        return cfg["custom_themes"][name]["based_on"]
+            .as_str()
+            .unwrap_or("macaw")
+            .to_string();
+    }
+    theme.to_string()
+}
+
+/// True when any indicator override differs from its pristine default —
+/// numeric comparisons are fuzzy (YAML round-trips ints/floats loosely).
+pub fn is_dirty(cfg: &Value) -> bool {
+    override_defaults().iter().any(|(key, def)| {
+        let v = &cfg[*key];
+        if v.is_null() {
+            return false;
+        }
+        match (v.as_f64(), def.as_f64()) {
+            (Some(a), Some(b)) => (a - b).abs() > 1e-6,
+            _ => v != def,
+        }
+    })
+}
