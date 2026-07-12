@@ -307,7 +307,11 @@ export component OverlayPill inherits Rectangle {
         // the disk behind the check — defaults to the pill color (invisible)
         Rectangle {
             property <length> full: min(root.height * 0.74, 44px);
+            // animate the DIAMETER: x/y/width/height all derive from it, so
+            // the disk stays centered while it grows (animating width/height
+            // alone left x/y at their final values — top-left-anchored pop)
             property <length> d: !done-root.pop || done-root.in-anim ? self.full : self.full * 0.3;
+            animate d { duration: 320ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
             x: (root.width - self.d) / 2;
             y: (root.height - self.d) / 2;
             width: self.d;
@@ -315,8 +319,6 @@ export component OverlayPill inherits Rectangle {
             border-radius: self.d / 2;
             background: root.ring-color;
             opacity: root.done-anim == "none" ? 1.0 : (done-root.in-anim ? 1.0 : 0);
-            animate width { duration: 320ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
-            animate height { duration: 320ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
             animate opacity { duration: 260ms; easing: ease-out; }
         }
         Text {
