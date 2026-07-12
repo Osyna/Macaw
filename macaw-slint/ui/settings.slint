@@ -2,14 +2,11 @@
 // Rust turns it into a `config.set {patch}` RPC. The engine's `config` event
 // echoes back and re-fills `cfg`, so the UI never holds its own truth.
 //
-// Layout is two-column (audio/system left, appearance right). The appearance
-// editor is STATE-SCOPED: the preview chips select Recording / Transcribing /
-// Done / Error, and the controls below swap to that state's options.
+// Appearance/theming lives in its own tab (appearance.slint) — this view is
+// audio, hotkey, cloud and system only, as two columns of cards.
 
-import { Theme, Look, Tip } from "theme.slint";
-import { Btn, Toggle, SliderX, Select, Field, SectionTitle } from "widgets.slint";
-import { OverlayPill } from "pill.slint";
-import { ColorField, GradientEditor } from "picker.slint";
+import { Theme } from "theme.slint";
+import { Btn, Toggle, SliderX, Select, Field, Row, Card } from "widgets.slint";
 
 export struct Cfg {
     language: string,
@@ -43,7 +40,9 @@ export struct Cfg {
     bar-radius: float,
     bar-fade: bool,
     bar-count: float,
+    record-anim: string,
     transcribe-anim: string,
+    done-anim: string,
     anim-speed: float,
     trans-link: bool,
     done-color: string,
@@ -64,61 +63,6 @@ export struct Cfg {
     autostart: bool,
 }
 
-component Row inherits HorizontalLayout {
-    in property <string> label;
-    in property <string> hint: "";
-    spacing: 12px;
-    height: 34px;
-    preferred-height: 34px;
-    lbl := Rectangle {
-        width: 150px;
-        Text {
-            x: 0;
-            width: parent.width;
-            text: root.label;
-            color: ta.has-hover && root.hint != "" ? Theme.pal.accent : Theme.pal.fg;
-            font-size: 13px;
-            vertical-alignment: center;
-            height: 100%;
-            overflow: elide;
-        }
-        // subtle dotted-ish underline while hovered (hint available)
-        if ta.has-hover && root.hint != "": Rectangle {
-            y: parent.height / 2 + 9px;
-            height: 1px;
-            width: min(parent.width, 140px);
-            background: Theme.pal.muted;
-        }
-        ta := TouchArea {
-            enabled: root.hint != "";
-            changed has-hover => {
-                if (self.has-hover) {
-                    Tip.text = root.hint;
-                    Tip.x = lbl.absolute-position.x;
-                    Tip.y = lbl.absolute-position.y + lbl.height + 2px;
-                } else if (Tip.text == root.hint) {
-                    Tip.text = "";
-                }
-            }
-        }
-    }
-    @children
-}
-
-component Card inherits Rectangle {
-    in property <string> title;
-    border-radius: Theme.radius;
-    background: Theme.pal.surface;
-    border-width: 1px;
-    border-color: Theme.pal.border;
-    VerticalLayout {
-        padding: 18px;
-        spacing: 6px;
-        SectionTitle { text: root.title; }
-        @children
-    }
-}
-
 export component SettingsView inherits Flickable {
     in property <Cfg> cfg;
     in property <[string]> devices;      // labels; [0] = "System default"
@@ -132,35 +76,6 @@ export component SettingsView inherits Flickable {
     callback capture-hotkey();
     callback set-autostart(bool);
     callback set-api-key(string);
-    callback eq-set(int, color);
-    callback eq-add();
-    callback eq-remove(int);
-    callback trans-set(int, color);
-    callback trans-add();
-    callback trans-remove(int);
-    callback set-corner(int, float);   // corner index (tl,tr,br,bl), px
-    callback pillbg-picked(color);
-    callback pillbg-clear();
-    callback done-picked(color);
-    callback done-clear();
-    callback error-picked(color);
-    callback error-clear();
-    callback pin-overlay(bool);
-    callback state-picked(string);
-    in-out property <bool> pin-indicator: false;
-    callback accent-picked(color);
-    callback accent-clear();
-    callback border-picked(color);
-    callback border-clear();
-
-    callback theme-picked(int);
-    callback save-theme(string);
-    callback delete-theme();
-    in property <[string]> theme-names;
-    in-out property <int> theme-current: 0;
-    in-out property <string> preview-mode: "eq";
-
-    property <[string]> positions: ["bottom_center", "bottom_left", "bottom_right", "top_center", "top_left", "top_right", "custom"];
 
     viewport-height: cols.preferred-height;
 
@@ -169,9 +84,9 @@ export component SettingsView inherits Flickable {
         padding: 16px;
         spacing: 14px;
 
-        // ── left column: audio / hotkey / cloud / system ─────────────
+        // ── left column: audio / hotkey ──────────────────────────────
         VerticalLayout {
-            width: (root.width - 46px) * 0.42;
+            width: (root.width - 46px) * 0.5;
             alignment: start;
             spacing: 14px;
 
@@ -253,6 +168,13 @@ export component SettingsView inherits Flickable {
                     Btn { text: "Capture"; enabled: !root.capturing-hotkey; clicked => { root.capture-hotkey(); } }
                 }
             }
+        }
+
+        // ── right column: cloud / system ─────────────────────────────
+        VerticalLayout {
+            width: (root.width - 46px) * 0.5;
+            alignment: start;
+            spacing: 14px;
 
             Card {
                 title: "CLOUD & NETWORK";
@@ -282,7 +204,7 @@ export component SettingsView inherits Flickable {
                 title: "SYSTEM";
                 Row {
                     label: "App theme";
-                    hint: "This window's chrome. The recording indicator has its own themes.";
+                    hint: "This window's chrome. The recording indicator is themed in Appearance.";
                     Select {
                         options: ["dark (terminal)", "light"];
                         current: cfg.app-theme == "light" ? 1 : 0;
@@ -293,326 +215,6 @@ export component SettingsView inherits Flickable {
                     label: "Start on login";
                     hint: "Adds an autostart entry so Macaw launches with your session.";
                     Toggle { checked: cfg.autostart; toggled(v) => { root.set-autostart(v); } }
-                }
-            }
-        }
-
-        // ── right column: appearance (state-scoped) ──────────────────
-        VerticalLayout {
-            width: (root.width - 46px) * 0.58;
-            alignment: start;
-            spacing: 14px;
-
-            Card {
-                title: "APPEARANCE";
-
-                // live preview
-                Rectangle {
-                    height: max(Look.pv-h + 32px, 90px);
-                    border-radius: Theme.radius;
-                    background: @linear-gradient(135deg, #3B4252 0%, #2E3440 50%, #242933 100%);
-                    clip: true;
-                    OverlayPill {
-                        x: (parent.width - self.width) / 2;
-                        y: (parent.height - self.height) / 2;
-                        width: min(Look.pv-w, parent.width - 24px);
-                        height: Look.pv-h;
-                        mode: root.preview-mode;
-                        anim: Look.anim;
-                        anim-speed: Look.anim-speed;
-                        heard: Look.heard;
-                        levels: Look.levels;
-                        loader-colors: Look.loader-colors;
-                        error-text: "No model selected";
-                        pill-bg: Look.pill-bg;
-                        pill-opacity: Look.pill-opacity;
-                        idle-color: Look.idle-color;
-                        eq-colors: Look.eq-colors;
-                        ok-color: Look.ok-color;
-                        danger-color: Look.danger-color;
-                        r-tl: Look.r-tl;
-                        r-tr: Look.r-tr;
-                        r-br: Look.r-br;
-                        r-bl: Look.r-bl;
-                        pill-border-width: Look.pill-border-width;
-                        pill-border-color: Look.pill-border-color;
-                        bar-width: Look.bar-width;
-                        bar-spacing: Look.bar-spacing;
-                        bar-radius: Look.bar-radius;
-                        bar-fade: Look.bar-fade;
-                    }
-                }
-                // state selector chips — they scope the controls below
-                HorizontalLayout {
-                    spacing: 8px;
-                    alignment: start;
-                    height: 30px;
-                    for m in ["eq", "loader", "done", "error"]: Rectangle {
-                        width: t.preferred-width + 20px;
-                        border-radius: Theme.radius;
-                        background: root.preview-mode == m ? Theme.pal.accent : Theme.pal.control;
-                        border-width: 1px;
-                        border-color: root.preview-mode == m ? transparent : Theme.pal.border;
-                        t := Text {
-                            text: m == "eq" ? "Recording" : m == "loader" ? "Transcribing" : m == "done" ? "Done" : "Error";
-                            color: root.preview-mode == m ? Theme.pal.accent-fg : Theme.pal.fg;
-                            font-size: 12px;
-                            font-weight: 600;
-                        }
-                        TouchArea {
-                            clicked => {
-                                root.preview-mode = m;
-                                root.state-picked(m);
-                            }
-                            mouse-cursor: MouseCursor.pointer;
-                        }
-                    }
-                }
-                Row {
-                    label: "Show indicator on screen";
-                    hint: "Pins the real indicator on screen so you can see every edit live.";
-                    Toggle {
-                        checked: root.pin-indicator;
-                        toggled(v) => {
-                            root.pin-indicator = v;
-                            root.pin-overlay(v);
-                        }
-                    }
-                }
-
-                SectionTitle { text: "PILL"; }
-                Row {
-                    label: "Indicator theme";
-                    hint: "Color preset for the pill. Any edit becomes an unsaved custom theme you can save.";
-                    Select {
-                        options: root.theme-names;
-                        current <=> root.theme-current;
-                        changed(i) => { root.theme-picked(i); }
-                    }
-                }
-                if cfg.theme-dirty || cfg.theme-is-custom: Row {
-                    label: cfg.theme-is-custom ? "Custom theme" : "Save theme as";
-                    tname := Field {
-                        text: cfg.theme-custom-name;
-                        placeholder: "my-theme";
-                    }
-                    Btn {
-                        text: cfg.theme-is-custom ? "Update" : "Save";
-                        primary: true;
-                        clicked => { root.save-theme(tname.text); }
-                    }
-                    if cfg.theme-is-custom: Btn {
-                        text: "Delete";
-                        danger: true;
-                        clicked => { root.delete-theme(); }
-                    }
-                }
-                Row {
-                    label: "Position";
-                    hint: "Where the pill sits on screen. \"custom\" unlocks exact X/Y coordinates.";
-                    Select {
-                        options: root.positions;
-                        current: cfg.window-position == "bottom_left" ? 1
-                            : cfg.window-position == "bottom_right" ? 2
-                            : cfg.window-position == "top_center" ? 3
-                            : cfg.window-position == "top_left" ? 4
-                            : cfg.window-position == "top_right" ? 5
-                            : cfg.window-position == "custom" ? 6 : 0;
-                        changed(i) => { root.set-str("window_position", root.positions[i]); }
-                    }
-                }
-                if cfg.window-position == "custom": Row {
-                    label: "Custom X / Y";
-                    hint: "Pixel offsets from the screen's top-left corner.";
-                    Field { text: cfg.overlay-x; placeholder: "0"; submitted(v) => { root.set-str("overlay_x", v); } }
-                    Field { text: cfg.overlay-y; placeholder: "0"; submitted(v) => { root.set-str("overlay_y", v); } }
-                }
-                Row {
-                    label: "Size (W × H)";
-                    hint: "Pill width and height in pixels.";
-                    SliderX { value: cfg.overlay-width; minimum: 140; maximum: 480; step: 2; changed(v) => { root.set-num("overlay_width", v); } }
-                    SliderX { value: cfg.overlay-height; minimum: 36; maximum: 120; step: 2; changed(v) => { root.set-num("overlay_height", v); } }
-                    Text { text: "\{Math.round(cfg.overlay-width)}×\{Math.round(cfg.overlay-height)}"; color: Theme.pal.muted; font-size: 12px; vertical-alignment: center; }
-                }
-                Row {
-                    label: "Opacity";
-                    hint: "Pill background transparency (bars stay fully visible).";
-                    SliderX {
-                        value: cfg.overlay-opacity;
-                        minimum: 0.5;
-                        maximum: 1.0;
-                        step: 0.02;
-                        changed(v) => { root.set-num("overlay_opacity", v); }
-                    }
-                }
-                Row {
-                    label: "Link corners";
-                    hint: "One radius for all four corners — unlink to shape each corner separately.";
-                    Toggle { checked: cfg.corner-link; toggled(v) => { root.set-bool("corner_link", v); } }
-                    if cfg.corner-link: SliderX {
-                        value: cfg.corner-radius;
-                        minimum: -1;
-                        maximum: 40;
-                        step: 1;
-                        changed(v) => { root.set-num("corner_radius", v); }
-                    }
-                    if cfg.corner-link: Text {
-                        text: cfg.corner-radius < 0 ? "theme" : "\{Math.round(cfg.corner-radius)}px";
-                        color: Theme.pal.muted;
-                        font-size: 12px;
-                        vertical-alignment: center;
-                    }
-                }
-                if !cfg.corner-link: Row {
-                    label: "Top corners (L/R)";
-                    hint: "Top-left and top-right corner radius, in pixels.";
-                    SliderX { value: cfg.c-tl; minimum: 0; maximum: 40; step: 1; changed(v) => { root.set-corner(0, v); } }
-                    SliderX { value: cfg.c-tr; minimum: 0; maximum: 40; step: 1; changed(v) => { root.set-corner(1, v); } }
-                }
-                if !cfg.corner-link: Row {
-                    label: "Bottom corners (L/R)";
-                    hint: "Bottom-left and bottom-right corner radius, in pixels.";
-                    SliderX { value: cfg.c-bl; minimum: 0; maximum: 40; step: 1; changed(v) => { root.set-corner(3, v); } }
-                    SliderX { value: cfg.c-br; minimum: 0; maximum: 40; step: 1; changed(v) => { root.set-corner(2, v); } }
-                }
-                Row {
-                    label: "Background";
-                    hint: "Pill background and accent color overrides. \"theme\" follows the preset.";
-                    ColorField {
-                        value: cfg.overlay-bg-value;
-                        cleared: cfg.overlay-bg == "";
-                        picked(c) => { root.pillbg-picked(c); }
-                        clear => { root.pillbg-clear(); }
-                    }
-                    Text { text: "Accent"; color: Theme.pal.fg; font-size: 13px; vertical-alignment: center; }
-                    ColorField {
-                        value: cfg.accent-value;
-                        cleared: cfg.accent-color == "";
-                        picked(c) => { root.accent-picked(c); }
-                        clear => { root.accent-clear(); }
-                    }
-                }
-                Row {
-                    label: "Border / width";
-                    hint: "Outline drawn around the pill; width 0 hides it.";
-                    ColorField {
-                        value: cfg.border-value;
-                        cleared: cfg.border-color == "";
-                        picked(c) => { root.border-picked(c); }
-                        clear => { root.border-clear(); }
-                    }
-                    SliderX { value: cfg.border-width; minimum: 0; maximum: 6; step: 1; changed(v) => { root.set-num("border_width", v); } }
-                }
-
-                // ── per-state sections ────────────────────────────────
-                if root.preview-mode == "eq": VerticalLayout {
-                    spacing: 6px;
-                    SectionTitle { text: "RECORDING — BARS"; }
-                    Row {
-                        label: "Bar count";
-                    hint: "How many equalizer bars the pill renders.";
-                        SliderX { value: cfg.bar-count; minimum: 8; maximum: 48; step: 1; changed(v) => { root.set-num("bar_count", v); } }
-                        Text { text: "\{Math.round(cfg.bar-count)}"; color: Theme.pal.muted; font-size: 12px; vertical-alignment: center; }
-                    }
-                    Row {
-                        label: "Width / gap";
-                    hint: "Bar thickness and spacing in pixels; -1 sizes them automatically.";
-                        SliderX { value: cfg.bar-width; minimum: -1; maximum: 16; step: 1; changed(v) => { root.set-num("bar_width", v); } }
-                        SliderX { value: cfg.bar-spacing; minimum: -1; maximum: 16; step: 1; changed(v) => { root.set-num("bar_spacing", v); } }
-                    }
-                    Row {
-                        label: "Bar rounding";
-                    hint: "Rounds the bar caps.";
-                        SliderX { value: cfg.bar-radius; minimum: 0; maximum: 16; step: 1; changed(v) => { root.set-num("bar_radius", v); } }
-                    }
-                    Row {
-                        label: "Quiet bars fade";
-                    hint: "Quiet bars turn translucent instead of staying solid.";
-                        Toggle { checked: cfg.bar-fade; toggled(v) => { root.set-bool("bar_fade", v); } }
-                    }
-                    SectionTitle { text: "RECORDING — GRADIENT"; }
-                    GradientEditor {
-                        stops: Look.eq-colors;
-                        stop-picked(i, c) => { root.eq-set(i, c); }
-                        stop-removed(i) => { root.eq-remove(i); }
-                        stop-added => { root.eq-add(); }
-                    }
-                }
-
-                if root.preview-mode == "loader": VerticalLayout {
-                    spacing: 6px;
-                    SectionTitle { text: "TRANSCRIBING"; }
-                    Row {
-                        label: "Animation";
-                    hint: "The pattern shown while your speech is transcribed.";
-                        Select {
-                            options: ["waves (classic)", "sweep", "pulse", "dots"];
-                            current: cfg.transcribe-anim == "sweep" ? 1
-                                : cfg.transcribe-anim == "pulse" ? 2
-                                : cfg.transcribe-anim == "dots" ? 3 : 0;
-                            changed(i) => {
-                                root.set-str("transcribe_anim",
-                                    i == 1 ? "sweep" : i == 2 ? "pulse" : i == 3 ? "dots" : "waves");
-                            }
-                        }
-                    }
-                    Row {
-                        label: "Speed";
-                    hint: "Transcribing animation speed multiplier.";
-                        SliderX {
-                            value: cfg.anim-speed;
-                            minimum: 0.25;
-                            maximum: 3.0;
-                            step: 0.25;
-                            changed(v) => { root.set-num("anim_speed", v); }
-                        }
-                        Text { text: "\{cfg.anim-speed}×"; color: Theme.pal.muted; font-size: 12px; vertical-alignment: center; }
-                    }
-                    Row {
-                        label: "Use recording colors";
-                    hint: "Transcribing reuses the recording gradient. Unlink to give it its own colors.";
-                        Toggle { checked: cfg.trans-link; toggled(v) => { root.set-bool("trans_link", v); } }
-                    }
-                    if !cfg.trans-link: VerticalLayout {
-                        spacing: 6px;
-                        SectionTitle { text: "TRANSCRIBING — GRADIENT"; }
-                        GradientEditor {
-                            stops: Look.loader-colors;
-                            stop-picked(i, c) => { root.trans-set(i, c); }
-                            stop-removed(i) => { root.trans-remove(i); }
-                            stop-added => { root.trans-add(); }
-                        }
-                    }
-                }
-
-                if root.preview-mode == "done": VerticalLayout {
-                    spacing: 6px;
-                    SectionTitle { text: "DONE"; }
-                    Row {
-                        label: "Check color";
-                    hint: "Color of the ✓ shown when text is delivered.";
-                        ColorField {
-                            value: cfg.done-value;
-                            cleared: cfg.done-color == "";
-                            picked(c) => { root.done-picked(c); }
-                            clear => { root.done-clear(); }
-                        }
-                    }
-                }
-
-                if root.preview-mode == "error": VerticalLayout {
-                    spacing: 6px;
-                    SectionTitle { text: "ERROR"; }
-                    Row {
-                        label: "Flash color";
-                    hint: "Background flash color when something goes wrong.";
-                        ColorField {
-                            value: cfg.error-value;
-                            cleared: cfg.error-color == "";
-                            picked(c) => { root.error-picked(c); }
-                            clear => { root.error-clear(); }
-                        }
-                    }
                 }
             }
         }

@@ -73,10 +73,12 @@ class Config:
     bar_fade: bool = True  # quiet bars fade out (False = solid)
     bar_count: int = 24  # number of equaliser bars (8-48)
     overlay_bg: str = ""  # overlay pill background, hex (blank = theme)
-    transcribe_anim: str = "waves"  # transcribing loader: waves|sweep|pulse|dots
+    record_anim: str = "bars"  # recording animation: bars|mirror|dots|orb
+    transcribe_anim: str = "waves"  # transcribing loader: waves|sweep|pulse|dots|scan|cascade|shimmer
     anim_speed: float = 1.0  # transcribing animation speed multiplier (0.25-3)
     trans_link: bool = True  # transcribing uses the recording (eq) colors
     trans_colors: list = field(default_factory=list)  # own stops when unlinked
+    done_anim: str = "pop"  # done entrance: pop|flash|rise|none
     done_color: str = ""  # done check-mark colour, hex (blank = theme)
     error_color: str = ""  # error flash colour, hex (blank = theme)
     model: str = ""  # empty = nothing selected yet (pick one in the Model Manager)
@@ -131,10 +133,12 @@ class Config:
                 bar_fade=bool(data.get("bar_fade", True)),
                 bar_count=int(data.get("bar_count", 24)),
                 overlay_bg=data.get("overlay_bg") or "",
+                record_anim=data.get("record_anim") or "bars",
                 transcribe_anim=data.get("transcribe_anim") or "waves",
                 anim_speed=float(data.get("anim_speed", 1.0)),
                 trans_link=bool(data.get("trans_link", True)),
                 trans_colors=list(data.get("trans_colors") or []),
+                done_anim=data.get("done_anim") or "pop",
                 done_color=data.get("done_color") or "",
                 error_color=data.get("error_color") or "",
                 model=data.get("model") or "",
@@ -254,8 +258,12 @@ class Config:
             "  # number of equaliser bars (8-48)\n"
             f"overlay_bg: {_yv(self.overlay_bg)}"
             "  # overlay pill background colour, hex (blank = theme)\n"
+            f"record_anim: {_yv(self.record_anim)}"
+            "  # recording animation: bars | mirror | dots | orb\n"
             f"transcribe_anim: {_yv(self.transcribe_anim)}"
-            "  # transcribing animation: waves | sweep | pulse | dots\n"
+            "  # transcribing animation: waves | sweep | pulse | dots | scan | cascade | shimmer\n"
+            f"done_anim: {_yv(self.done_anim)}"
+            "  # done entrance animation: pop | flash | rise | none\n"
             f"anim_speed: {_yv(self.anim_speed)}"
             "  # transcribing animation speed multiplier (0.25-3)\n"
             f"trans_link: {_yv(self.trans_link)}"

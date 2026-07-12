@@ -4,6 +4,21 @@ Notable changes to Macaw. Older releases live on the [releases page](https://git
 
 ## Unreleased
 
+- **Appearance is its own tab.** The theming studio moved out of Settings
+  into a dedicated top-level section: an always-visible live preview with
+  state chips on the left (plus theme presets and save/update/delete), and
+  scrollable Position & Size / Shape & Colors / per-state sections on the
+  right. Settings keeps audio, hotkey, cloud and system.
+
+- **Animation galleries.** Animations are now picked from live tiles — every
+  tile is the real pill running that animation with your colors:
+  - Recording: `bars` (classic), `mirror`, `dots`, `orb` — all audio-reactive.
+  - Transcribing: `waves`, `sweep`, `pulse`, `dots` + new `scan`, `cascade`,
+    `shimmer`.
+  - Done: a new entrance animation — `pop` (default), `flash`, `rise`, `none`.
+  New config fields `record_anim` / `done_anim` join theme snapshots, so
+  custom themes capture them.
+
 - Settings window: fixed size (1180×760, not resizable), a ✕ close button in
   the header, and **hover hints** — rest the cursor on any setting label
   (Microphone, Position, …) for a subtle explanation of what it does.

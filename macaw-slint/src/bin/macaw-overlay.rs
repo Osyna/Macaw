@@ -208,7 +208,9 @@ impl Overlay {
         ui.set_bar_spacing(f("bar_spacing", -1.0));
         ui.set_bar_radius(f("bar_radius", 0.0));
         ui.set_bar_fade(v["bar_fade"].as_bool().unwrap_or(true));
+        ui.set_record_anim(v["record_anim"].as_str().unwrap_or("bars").into());
         ui.set_anim(v["anim"].as_str().unwrap_or("waves").into());
+        ui.set_done_anim(v["done_anim"].as_str().unwrap_or("pop").into());
         ui.set_anim_speed(f("anim_speed", 1.0));
         if let Some(stops) = v["loader"].as_array() {
             let lc: Vec<slint::Color> = stops

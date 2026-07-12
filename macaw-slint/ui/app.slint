@@ -1,9 +1,10 @@
-// Main window: header (brand, tabs, engine dot) over Settings/Models views,
-// with a transient toast stack in the corner.
+// Main window: header (brand, tabs, engine dot) over Settings/Appearance/
+// Models views, with a transient toast stack in the corner.
 
 import { Theme, Palette, Look, Tip } from "theme.slint";
 import { Btn, Badge } from "widgets.slint";
 import { SettingsView, Cfg } from "settings.slint";
+import { AppearanceView } from "appearance.slint";
 import { ModelsView, ModelRow, ParamRow } from "models.slint";
 import { OverlayWindow } from "overlay.slint";
 
@@ -45,7 +46,7 @@ export component MainWindow inherits Window {
     height: 760px;
     background: Theme.pal.bg;
 
-    in-out property <string> tab: "settings"; // settings | models
+    in-out property <string> tab: "settings"; // settings | appearance | models
     in property <bool> engine-connected: false;
     in property <string> engine-state: "idle";
     in property <string> active-model-label: "";
@@ -69,6 +70,8 @@ export component MainWindow inherits Window {
     callback set-corner(int, float);
     callback pillbg-picked(color);
     callback pillbg-clear();
+    in-out property <bool> pin-indicator: false;
+    in-out property <string> preview-mode: "eq";
     callback pin-overlay(bool);
     callback state-picked(string);
     callback accent-picked(color);
@@ -143,6 +146,12 @@ export component MainWindow inherits Window {
                 }
                 TabBtn {
                     y: 12px;
+                    text: "Appearance";
+                    active: root.tab == "appearance";
+                    clicked => { root.tab = "appearance"; }
+                }
+                TabBtn {
+                    y: 12px;
                     text: "Models";
                     active: root.tab == "models";
                     clicked => { root.tab = "models"; }
@@ -192,6 +201,14 @@ export component MainWindow inherits Window {
             capture-hotkey => { root.capture-hotkey(); }
             set-autostart(v) => { root.set-autostart(v); }
             set-api-key(v) => { root.set-api-key(v); }
+        }
+        if root.tab == "appearance": AppearanceView {
+            cfg: root.cfg;
+            pin-indicator <=> root.pin-indicator;
+            preview-mode <=> root.preview-mode;
+            set-str(k, v) => { root.set-str(k, v); }
+            set-num(k, v) => { root.set-num(k, v); }
+            set-bool(k, v) => { root.set-bool(k, v); }
             eq-set(i, c) => { root.eq-set(i, c); }
             eq-add => { root.eq-add(); }
             eq-remove(i) => { root.eq-remove(i); }

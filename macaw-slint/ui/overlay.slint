@@ -7,7 +7,9 @@ import { OverlayPill } from "pill.slint";
 
 export component OverlayWindow inherits Window {
     in property <string> mode <=> pill.mode;
+    in property <string> record-anim <=> pill.record-anim;
     in property <string> anim <=> pill.anim;
+    in property <string> done-anim <=> pill.done-anim;
     in property <float> anim-speed <=> pill.anim-speed;
     in property <[color]> loader-colors <=> pill.loader-colors;
     in property <[float]> levels <=> pill.levels;

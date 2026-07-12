@@ -369,10 +369,12 @@ pub fn override_defaults() -> Vec<(&'static str, Value)> {
         ("bar_radius", json!(0)),
         ("bar_fade", json!(true)),
         ("bar_count", json!(24)),
+        ("record_anim", json!("bars")),
         ("transcribe_anim", json!("waves")),
         ("anim_speed", json!(1.0)),
         ("trans_link", json!(true)),
         ("trans_colors", json!([])),
+        ("done_anim", json!("pop")),
         ("done_color", json!("")),
         ("error_color", json!("")),
     ]

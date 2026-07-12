@@ -191,6 +191,8 @@ impl App {
             .as_str()
             .unwrap_or("waves")
             .to_string();
+        let record_anim = cfg["record_anim"].as_str().unwrap_or("bars").to_string();
+        let done_anim = cfg["done_anim"].as_str().unwrap_or("pop").to_string();
         let pill_bg = cfg["overlay_bg"]
             .as_str()
             .and_then(theme::parse_hex)
@@ -233,7 +235,9 @@ impl App {
         o.set_ok_color(done_color);
         o.set_danger_color(error_color);
         o.set_eq_colors(ModelRc::from(Rc::clone(&self.eq)));
+        o.set_record_anim(SharedString::from(record_anim.as_str()));
         o.set_anim(SharedString::from(anim.as_str()));
+        o.set_done_anim(SharedString::from(done_anim.as_str()));
         o.set_anim_speed(anim_speed);
         o.set_loader_colors(ModelRc::from(Rc::clone(&self.trans)));
         o.set_r_tl(c[0]);
@@ -254,7 +258,9 @@ impl App {
         look.set_ok_color(done_color);
         look.set_danger_color(error_color);
         look.set_eq_colors(ModelRc::from(Rc::clone(&self.eq)));
+        look.set_record_anim(SharedString::from(record_anim.as_str()));
         look.set_anim(SharedString::from(anim.as_str()));
+        look.set_done_anim(SharedString::from(done_anim.as_str()));
         look.set_anim_speed(anim_speed);
         look.set_loader_colors(ModelRc::from(Rc::clone(&self.trans)));
         look.set_r_tl(c[0]);
@@ -286,7 +292,9 @@ impl App {
             "r_tl": c[0], "r_tr": c[1], "r_br": c[2], "r_bl": c[3],
             "bar_width": bar_w, "bar_spacing": bar_s, "bar_radius": bar_radius,
             "bar_fade": bar_fade,
+            "record_anim": record_anim,
             "anim": anim,
+            "done_anim": done_anim,
             "anim_speed": anim_speed,
             "bar_count": count,
             "eq": eq_hex,
@@ -353,7 +361,17 @@ impl App {
             bar_radius: f("bar_radius", 0.0),
             bar_fade: b("bar_fade", true),
             bar_count: f("bar_count", 24.0),
+            record_anim: if s("record_anim").is_empty() {
+                "bars".into()
+            } else {
+                s("record_anim")
+            },
             transcribe_anim: s("transcribe_anim"),
+            done_anim: if s("done_anim").is_empty() {
+                "pop".into()
+            } else {
+                s("done_anim")
+            },
             anim_speed: f("anim_speed", 1.0),
             trans_link: b("trans_link", true),
             done_color: s("done_color"),
@@ -841,7 +859,7 @@ impl App {
     }
 
     fn present(&self, tab: &str) {
-        if tab == "settings" || tab == "models" {
+        if tab == "settings" || tab == "models" || tab == "appearance" {
             self.ui.set_tab(tab.into());
         }
         let _ = self.ui.show();

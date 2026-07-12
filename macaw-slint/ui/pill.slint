@@ -11,7 +11,9 @@
 
 export component OverlayPill inherits Rectangle {
     in property <string> mode: "eq"; // eq | loader | done | error
-    in property <string> anim: "waves"; // loader: waves | sweep | pulse | dots
+    in property <string> record-anim: "bars"; // eq: bars | mirror | dots | orb
+    in property <string> anim: "waves"; // loader: waves | sweep | pulse | dots | scan | cascade | shimmer
+    in property <string> done-anim: "pop"; // done entrance: pop | flash | rise | none
     in property <float> anim-speed: 1.0;
     in property <[float]> levels;
     in property <float> heard: 0; // 0..1 — idle→lit color blend (eq mode)
@@ -98,15 +100,19 @@ export component OverlayPill inherits Rectangle {
     animate background { duration: 160ms; }
     clip: true;
 
-    // ── equalizer: bottom-anchored bars, real fade ───────────────────
-    if root.mode == "eq": Rectangle {
+    // ── recording: audio-reactive, selectable ────────────────────────
+    // bars (classic): bottom-anchored, real fade
+    if root.mode == "eq" && (root.record-anim == "bars" || root.record-anim == "mirror"): Rectangle {
         property <length> vpad: max(8px, root.height * 0.18);
         property <length> maxh: root.height - 2 * self.vpad;
+        property <bool> mirror: root.record-anim == "mirror";
         for lvl[i] in root.levels: Rectangle {
             property <float> frac: root.n > 1 ? i / (root.n - 1) : 0;
             x: root.start + i * root.pitch;
             width: root.bw;
-            y: root.height - parent.vpad - self.height;
+            y: parent.mirror
+                ? (root.height - self.height) / 2
+                : root.height - parent.vpad - self.height;
             height: max(2px, min(1.0, lvl) * parent.maxh);
             border-radius: root.br;
             background: root.idle-color
@@ -114,16 +120,59 @@ export component OverlayPill inherits Rectangle {
                 .with-alpha(root.bar-fade ? (100 + 155 * min(1.0, lvl)) / 255 : 1.0);
         }
     }
+    // dots: one dot per bar, size + glow follow the level
+    if root.mode == "eq" && root.record-anim == "dots": Rectangle {
+        for lvl[i] in root.levels: Rectangle {
+            property <float> frac: root.n > 1 ? i / (root.n - 1) : 0;
+            property <length> d: 3px + min(1.0, lvl) * min(root.pitch - 1px, root.height * 0.24);
+            x: root.start + i * root.pitch + (root.bw - self.d) / 2;
+            y: (root.height - self.d) / 2;
+            width: self.d;
+            height: self.d;
+            border-radius: self.d / 2;
+            background: root.idle-color
+                .mix(root.pal(self.frac), 1 - root.heard)
+                .with-alpha(root.bar-fade ? (100 + 155 * min(1.0, lvl)) / 255 : 1.0);
+        }
+    }
+    // orb: one breathing sphere driven by the smoothed energy
+    if root.mode == "eq" && root.record-anim == "orb": Rectangle {
+        property <length> d: root.height * (0.28 + 0.5 * root.heard);
+        x: (root.width - self.d) / 2;
+        y: (root.height - self.d) / 2;
+        width: self.d;
+        height: self.d;
+        border-radius: self.d / 2;
+        background: root.idle-color.mix(root.pal(0.5), 1 - root.heard);
+        // halo ring
+        Rectangle {
+            x: -6px;
+            y: -6px;
+            width: parent.width + 12px;
+            height: parent.height + 12px;
+            border-radius: self.width / 2;
+            border-width: 2px;
+            border-color: root.pal(0.5).with-alpha(0.25 + 0.45 * root.heard);
+        }
+    }
 
     // ── transcribing: selectable loader ──────────────────────────────
-    // waves (classic): two traveling sines, bars centered
-    if root.mode == "loader" && root.anim != "sweep" && root.anim != "dots": Rectangle {
+    // bar-based loaders: waves | pulse | cascade | shimmer
+    if root.mode == "loader" && (root.anim == "waves" || root.anim == "pulse"
+        || root.anim == "cascade" || root.anim == "shimmer"): Rectangle {
         property <length> maxh: root.height * 0.42;
         for lvl[i] in root.levels: Rectangle {
             property <float> fx: root.n > 1 ? i / (root.n - 1) : 0;
             property <float> amp: root.anim == "pulse"
                 // breathing: whole row swells together, slight center bias
                 ? clamp((0.5 + 0.5 * sin(root.t * 0.6 * 1rad)) * (0.55 + 0.45 * (1 - abs(2 * self.fx - 1))), 0, 1)
+                // cascade: a sharp pulse train travels bar to bar
+                : root.anim == "cascade"
+                ? Math.pow(max(0.02, sin((root.t * 0.8 - self.fx * 6.3) * 1rad)), 3)
+                // shimmer: phase-scrambled twinkle, no visible direction
+                : root.anim == "shimmer"
+                ? clamp(0.5 + 0.5 * sin((root.t * 1.6 + 40 * sin(i * 12.9898 * 1rad)) * 1rad)
+                        * sin((root.t * 0.9 + 40 * sin(i * 78.233 * 1rad)) * 1rad) * 2, 0, 1)
                 // waves (classic): max(w1, 0.6*w2)
                 : max(0.5 + 0.5 * sin((root.t - self.fx * 5) * 1rad),
                       0.6 * (0.5 + 0.5 * sin((root.t * 0.7 - self.fx * 8) * 1rad)));
@@ -145,6 +194,16 @@ export component OverlayPill inherits Rectangle {
         border-radius: 2px;
         background: root.lpal(0.5);
     }
+    // scan: capsule ping-pongs edge to edge, trailing tint
+    if root.mode == "loader" && root.anim == "scan": Rectangle {
+        property <float> ph: abs(Math.mod(root.t / 4.8 * 0.9, 2.0) - 1.0);
+        x: root.hpad + (parent.width - 2 * root.hpad - 46px) * self.ph;
+        y: parent.height / 2 - 2px;
+        width: 46px;
+        height: 4px;
+        border-radius: 2px;
+        background: root.lpal(self.ph);
+    }
     // dots: three bouncing dots
     if root.mode == "loader" && root.anim == "dots": Rectangle {
         for i in 3: Rectangle {
@@ -158,16 +217,48 @@ export component OverlayPill inherits Rectangle {
         }
     }
 
-    // ── done: check mark ─────────────────────────────────────────────
-    if root.mode == "done": Text {
-        text: "✓";
-        color: root.ok-color;
-        font-size: 20px;
-        font-weight: 800;
-        horizontal-alignment: center;
-        vertical-alignment: center;
-        width: 100%;
-        height: 100%;
+    // ── done: check mark with a selectable entrance ──────────────────
+    if root.mode == "done": done-root := Rectangle {
+        property <bool> in-anim: false;
+        init => { self.in-anim = true; }
+        // flash: ok-tinted wash fades away
+        if root.done-anim == "flash": Rectangle {
+            width: 100%;
+            height: 100%;
+            background: root.ok-color;
+            opacity: done-root.in-anim ? 0 : 0.55;
+            animate opacity { duration: 550ms; easing: ease-out; }
+        }
+        // rise: the bar row surges up once in the ok color
+        if root.done-anim == "rise": Rectangle {
+            property <length> vpad: max(8px, root.height * 0.18);
+            for lvl[i] in root.levels: Rectangle {
+                property <float> fx: root.n > 1 ? i / (root.n - 1) : 0;
+                x: root.start + i * root.pitch;
+                width: root.bw;
+                y: root.height - parent.vpad - self.height;
+                height: done-root.in-anim ? max(3px, (0.25 + 0.75 * (1 - abs(2 * self.fx - 1))) * (root.height - 2 * parent.vpad)) : 3px;
+                border-radius: root.br;
+                background: root.ok-color;
+                opacity: done-root.in-anim ? 0 : 0.9;
+                animate height { duration: 300ms; easing: ease-out; }
+                animate opacity { duration: 700ms; easing: ease-in; }
+            }
+        }
+        Text {
+            text: "✓";
+            color: root.done-anim == "flash" && !parent.in-anim ? root.pill-bg : root.ok-color;
+            font-size: root.done-anim == "pop" ? (parent.in-anim ? 20px : 4px)
+                : 20px;
+            opacity: root.done-anim == "none" ? 1.0 : (parent.in-anim ? 1.0 : 0);
+            font-weight: 800;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+            width: 100%;
+            height: 100%;
+            animate font-size { duration: 320ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
+            animate opacity { duration: 260ms; easing: ease-out; }
+        }
     }
 
     // ── error: reason ────────────────────────────────────────────────

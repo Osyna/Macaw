@@ -1,0 +1,508 @@
+// Appearance studio — its own top-level tab. Left rail: an always-visible
+// live preview with state chips (Recording / Transcribing / Done / Error),
+// pin-to-screen, and the theme picker. Right: scrollable sections scoped to
+// the selected state, with live animation galleries (every tile is a real
+// OverlayPill running that animation) instead of dropdowns.
+//
+// Every control writes one config field through a typed callback; the
+// engine's `config` echo re-fills `cfg`, so the UI never holds its own truth.
+
+import { Theme, Look, Tip } from "theme.slint";
+import { Btn, Toggle, SliderX, Select, Field, SectionTitle, Row, Card } from "widgets.slint";
+import { OverlayPill } from "pill.slint";
+import { ColorField, GradientEditor } from "picker.slint";
+import { Cfg } from "settings.slint";
+
+// One selectable animation preview: a real pill running the animation.
+component AnimTile inherits Rectangle {
+    in property <string> label;
+    in property <bool> active;
+    in property <string> tile-mode;   // eq | loader | done
+    in property <string> tile-anim;   // record-anim / anim / done-anim value
+    callback chosen();
+
+    height: 64px;
+    border-radius: Theme.radius;
+    background: ta.has-hover ? Theme.pal.control : Theme.pal.bg;
+    border-width: root.active ? 2px : 1px;
+    border-color: root.active ? Theme.pal.accent : Theme.pal.border;
+
+    VerticalLayout {
+        padding: 6px;
+        spacing: 3px;
+        Rectangle {
+            clip: true;
+            OverlayPill {
+                x: (parent.width - self.width) / 2;
+                width: min(parent.width, 150px);
+                height: parent.height;
+                mode: root.tile-mode;
+                record-anim: root.tile-mode == "eq" ? root.tile-anim : "bars";
+                anim: root.tile-mode == "loader" ? root.tile-anim : "waves";
+                done-anim: root.tile-mode == "done" ? root.tile-anim : "pop";
+                anim-speed: Look.anim-speed;
+                heard: root.tile-mode == "eq" ? max(Look.heard, 0.35) : Look.heard;
+                levels: Look.levels;
+                loader-colors: Look.loader-colors;
+                pill-bg: Look.pill-bg;
+                pill-opacity: 1.0;
+                idle-color: Look.idle-color;
+                eq-colors: Look.eq-colors;
+                ok-color: Look.ok-color;
+                danger-color: Look.danger-color;
+                r-tl: 8px;
+                r-tr: 8px;
+                r-br: 8px;
+                r-bl: 8px;
+                bar-fade: Look.bar-fade;
+            }
+        }
+        Text {
+            text: root.label;
+            color: root.active ? Theme.pal.accent : Theme.pal.muted;
+            font-size: 11px;
+            font-weight: root.active ? 700 : 500;
+            horizontal-alignment: center;
+        }
+    }
+    ta := TouchArea {
+        clicked => { root.chosen(); }
+        mouse-cursor: MouseCursor.pointer;
+    }
+}
+
+// Wrapping gallery: 3 tiles per row, computed height.
+component AnimGallery inherits Rectangle {
+    in property <[{label: string, id: string}]> items;
+    in property <string> current;
+    in property <string> tile-mode;
+    callback chosen(string);
+
+    property <int> cols: 3;
+    property <length> gap: 8px;
+    property <length> tile-w: (self.width - (self.cols - 1) * self.gap) / self.cols;
+    height: ceil(items.length / self.cols) * (64px + self.gap) - self.gap;
+
+    for it[i] in root.items: AnimTile {
+        x: Math.mod(i, root.cols) * (root.tile-w + root.gap);
+        y: floor(i / root.cols) * (64px + root.gap);
+        width: root.tile-w;
+        label: it.label;
+        active: root.current == it.id;
+        tile-mode: root.tile-mode;
+        tile-anim: it.id;
+        chosen => { root.chosen(it.id); }
+    }
+}
+
+export component AppearanceView inherits Rectangle {
+    in property <Cfg> cfg;
+    in-out property <string> preview-mode: "eq";
+    in-out property <bool> pin-indicator: false;
+    in property <[string]> theme-names;
+    in-out property <int> theme-current: 0;
+
+    callback set-str(string, string);
+    callback set-num(string, float);
+    callback set-bool(string, bool);
+    callback eq-set(int, color);
+    callback eq-add();
+    callback eq-remove(int);
+    callback trans-set(int, color);
+    callback trans-add();
+    callback trans-remove(int);
+    callback set-corner(int, float);
+    callback pillbg-picked(color);
+    callback pillbg-clear();
+    callback done-picked(color);
+    callback done-clear();
+    callback error-picked(color);
+    callback error-clear();
+    callback pin-overlay(bool);
+    callback state-picked(string);
+    callback accent-picked(color);
+    callback accent-clear();
+    callback border-picked(color);
+    callback border-clear();
+    callback theme-picked(int);
+    callback save-theme(string);
+    callback delete-theme();
+
+    property <[string]> positions: ["bottom_center", "bottom_left", "bottom_right", "top_center", "top_left", "top_right", "custom"];
+    property <[string]> position-labels: ["Bottom center", "Bottom left", "Bottom right", "Top center", "Top left", "Top right", "Custom (X/Y)"];
+
+    HorizontalLayout {
+        padding: 16px;
+        spacing: 14px;
+
+        // ── left rail: live preview + state + theme ──────────────────
+        VerticalLayout {
+            width: 372px;
+            alignment: start;
+            spacing: 14px;
+
+            Card {
+                title: "LIVE PREVIEW";
+                Rectangle {
+                    height: 150px;
+                    border-radius: Theme.radius;
+                    background: @linear-gradient(135deg, #3B4252 0%, #2E3440 50%, #242933 100%);
+                    clip: true;
+                    OverlayPill {
+                        x: (parent.width - self.width) / 2;
+                        y: (parent.height - self.height) / 2;
+                        width: min(Look.pv-w, parent.width - 24px);
+                        height: min(Look.pv-h, parent.height - 16px);
+                        mode: root.preview-mode;
+                        record-anim: Look.record-anim;
+                        anim: Look.anim;
+                        done-anim: Look.done-anim;
+                        anim-speed: Look.anim-speed;
+                        heard: Look.heard;
+                        levels: Look.levels;
+                        loader-colors: Look.loader-colors;
+                        error-text: "Something went wrong";
+                        pill-bg: Look.pill-bg;
+                        pill-opacity: Look.pill-opacity;
+                        idle-color: Look.idle-color;
+                        eq-colors: Look.eq-colors;
+                        ok-color: Look.ok-color;
+                        danger-color: Look.danger-color;
+                        r-tl: Look.r-tl;
+                        r-tr: Look.r-tr;
+                        r-br: Look.r-br;
+                        r-bl: Look.r-bl;
+                        pill-border-width: Look.pill-border-width;
+                        pill-border-color: Look.pill-border-color;
+                        bar-width: Look.bar-width;
+                        bar-spacing: Look.bar-spacing;
+                        bar-radius: Look.bar-radius;
+                        bar-fade: Look.bar-fade;
+                    }
+                }
+                // state chips: scope the editor AND the preview
+                HorizontalLayout {
+                    spacing: 6px;
+                    alignment: start;
+                    height: 34px;
+                    for m in ["eq", "loader", "done", "error"]: Rectangle {
+                        width: t.preferred-width + 18px;
+                        height: 28px;
+                        border-radius: Theme.radius;
+                        background: root.preview-mode == m ? Theme.pal.accent : Theme.pal.control;
+                        border-width: 1px;
+                        border-color: root.preview-mode == m ? transparent : Theme.pal.border;
+                        t := Text {
+                            text: m == "eq" ? "Recording" : m == "loader" ? "Transcribing" : m == "done" ? "Done" : "Error";
+                            color: root.preview-mode == m ? Theme.pal.accent-fg : Theme.pal.fg;
+                            font-size: 12px;
+                            font-weight: 600;
+                        }
+                        TouchArea {
+                            clicked => {
+                                root.preview-mode = m;
+                                root.state-picked(m);
+                            }
+                            mouse-cursor: MouseCursor.pointer;
+                        }
+                    }
+                }
+                Row {
+                    label: "Show on screen";
+                    hint: "Pins the real indicator on your desktop so every edit is visible live, exactly where it will appear.";
+                    Toggle {
+                        checked: root.pin-indicator;
+                        toggled(v) => {
+                            root.pin-indicator = v;
+                            root.pin-overlay(v);
+                        }
+                    }
+                }
+            }
+
+            Card {
+                title: "THEME";
+                Row {
+                    label: "Preset";
+                    hint: "Color preset for the pill. Any edit becomes an unsaved custom theme you can save.";
+                    Select {
+                        options: root.theme-names;
+                        current <=> root.theme-current;
+                        changed(i) => { root.theme-picked(i); }
+                    }
+                }
+                if cfg.theme-dirty || cfg.theme-is-custom: VerticalLayout {
+                    spacing: 6px;
+                    tname := Field {
+                        text: cfg.theme-custom-name;
+                        placeholder: "my-theme";
+                    }
+                    HorizontalLayout {
+                        spacing: 8px;
+                        alignment: end;
+                        if cfg.theme-is-custom: Btn {
+                            text: "Delete";
+                            danger: true;
+                            clicked => { root.delete-theme(); }
+                        }
+                        Btn {
+                            text: cfg.theme-is-custom ? "Update" : "Save";
+                            primary: true;
+                            clicked => { root.save-theme(tname.text); }
+                        }
+                    }
+                }
+            }
+        }
+
+        // ── right: scrollable editor, scoped to the selected state ────
+        flick := Flickable {
+            // explicit share: Slint propagates children's max-width upward,
+            // so a stretch factor alone never fills the row (same fix as the
+            // settings columns)
+            width: root.width - 372px - 46px;
+            viewport-height: right-col.preferred-height;
+            right-col := VerticalLayout {
+                width: flick.width;
+                alignment: start;
+                spacing: 14px;
+
+                Card {
+                    title: "POSITION & SIZE";
+                    Row {
+                        label: "Position";
+                        hint: "Where the pill sits on screen. Custom unlocks exact X/Y coordinates.";
+                        Select {
+                            options: root.position-labels;
+                            current: cfg.window-position == "bottom_left" ? 1
+                                : cfg.window-position == "bottom_right" ? 2
+                                : cfg.window-position == "top_center" ? 3
+                                : cfg.window-position == "top_left" ? 4
+                                : cfg.window-position == "top_right" ? 5
+                                : cfg.window-position == "custom" ? 6 : 0;
+                            changed(i) => { root.set-str("window_position", root.positions[i]); }
+                        }
+                    }
+                    if cfg.window-position == "custom": Row {
+                        label: "Custom X / Y";
+                        hint: "Pixel offsets from the screen's top-left corner.";
+                        Field { text: cfg.overlay-x; placeholder: "0"; submitted(v) => { root.set-str("overlay_x", v); } }
+                        Field { text: cfg.overlay-y; placeholder: "0"; submitted(v) => { root.set-str("overlay_y", v); } }
+                    }
+                    Row {
+                        label: "Width";
+                        hint: "Pill width in pixels.";
+                        SliderX { value: cfg.overlay-width; minimum: 140; maximum: 480; step: 2; changed(v) => { root.set-num("overlay_width", v); } }
+                        Text { text: "\{Math.round(cfg.overlay-width)}px"; color: Theme.pal.muted; font-size: 12px; vertical-alignment: center; }
+                    }
+                    Row {
+                        label: "Height";
+                        hint: "Pill height in pixels.";
+                        SliderX { value: cfg.overlay-height; minimum: 36; maximum: 120; step: 2; changed(v) => { root.set-num("overlay_height", v); } }
+                        Text { text: "\{Math.round(cfg.overlay-height)}px"; color: Theme.pal.muted; font-size: 12px; vertical-alignment: center; }
+                    }
+                    Row {
+                        label: "Opacity";
+                        hint: "Pill background transparency (bars stay fully visible).";
+                        SliderX { value: cfg.overlay-opacity; minimum: 0.5; maximum: 1.0; step: 0.02; changed(v) => { root.set-num("overlay_opacity", v); } }
+                        Text { text: "\{Math.round(cfg.overlay-opacity * 100)}%"; color: Theme.pal.muted; font-size: 12px; vertical-alignment: center; }
+                    }
+                }
+
+                Card {
+                    title: "SHAPE & COLORS";
+                    Row {
+                        label: "Link corners";
+                        hint: "One radius for all four corners — unlink to shape each corner separately.";
+                        Toggle { checked: cfg.corner-link; toggled(v) => { root.set-bool("corner_link", v); } }
+                        if cfg.corner-link: SliderX {
+                            value: cfg.corner-radius;
+                            minimum: -1;
+                            maximum: 40;
+                            step: 1;
+                            changed(v) => { root.set-num("corner_radius", v); }
+                        }
+                        if cfg.corner-link: Text {
+                            text: cfg.corner-radius < 0 ? "theme" : "\{Math.round(cfg.corner-radius)}px";
+                            color: Theme.pal.muted;
+                            font-size: 12px;
+                            vertical-alignment: center;
+                        }
+                    }
+                    if !cfg.corner-link: Row {
+                        label: "Top corners (L/R)";
+                        hint: "Top-left and top-right corner radius, in pixels.";
+                        SliderX { value: cfg.c-tl; minimum: 0; maximum: 40; step: 1; changed(v) => { root.set-corner(0, v); } }
+                        SliderX { value: cfg.c-tr; minimum: 0; maximum: 40; step: 1; changed(v) => { root.set-corner(1, v); } }
+                    }
+                    if !cfg.corner-link: Row {
+                        label: "Bottom corners (L/R)";
+                        hint: "Bottom-left and bottom-right corner radius, in pixels.";
+                        SliderX { value: cfg.c-bl; minimum: 0; maximum: 40; step: 1; changed(v) => { root.set-corner(3, v); } }
+                        SliderX { value: cfg.c-br; minimum: 0; maximum: 40; step: 1; changed(v) => { root.set-corner(2, v); } }
+                    }
+                    Row {
+                        label: "Background";
+                        hint: "Pill background color override. Theme dot restores the preset.";
+                        ColorField {
+                            value: cfg.overlay-bg-value;
+                            cleared: cfg.overlay-bg == "";
+                            picked(c) => { root.pillbg-picked(c); }
+                            clear => { root.pillbg-clear(); }
+                        }
+                        Text { text: "Accent"; color: Theme.pal.fg; font-size: 13px; vertical-alignment: center; }
+                        ColorField {
+                            value: cfg.accent-value;
+                            cleared: cfg.accent-color == "";
+                            picked(c) => { root.accent-picked(c); }
+                            clear => { root.accent-clear(); }
+                        }
+                    }
+                    Row {
+                        label: "Border / width";
+                        hint: "Outline drawn around the pill; width 0 hides it.";
+                        ColorField {
+                            value: cfg.border-value;
+                            cleared: cfg.border-color == "";
+                            picked(c) => { root.border-picked(c); }
+                            clear => { root.border-clear(); }
+                        }
+                        SliderX { value: cfg.border-width; minimum: 0; maximum: 6; step: 1; changed(v) => { root.set-num("border_width", v); } }
+                    }
+                }
+
+                // ── RECORDING ─────────────────────────────────────────
+                if root.preview-mode == "eq": Card {
+                    title: "RECORDING — ANIMATION";
+                    AnimGallery {
+                        items: [
+                            { label: "Bars (classic)", id: "bars" },
+                            { label: "Mirror", id: "mirror" },
+                            { label: "Dots", id: "dots" },
+                            { label: "Orb", id: "orb" },
+                        ];
+                        current: cfg.record-anim;
+                        tile-mode: "eq";
+                        chosen(id) => { root.set-str("record_anim", id); }
+                    }
+                    Row {
+                        label: "Bar count";
+                        hint: "How many bars (or dots) the pill renders.";
+                        SliderX { value: cfg.bar-count; minimum: 8; maximum: 48; step: 1; changed(v) => { root.set-num("bar_count", v); } }
+                        Text { text: "\{Math.round(cfg.bar-count)}"; color: Theme.pal.muted; font-size: 12px; vertical-alignment: center; }
+                    }
+                    Row {
+                        label: "Width / gap";
+                        hint: "Bar thickness and spacing in pixels; -1 sizes them automatically.";
+                        SliderX { value: cfg.bar-width; minimum: -1; maximum: 16; step: 1; changed(v) => { root.set-num("bar_width", v); } }
+                        SliderX { value: cfg.bar-spacing; minimum: -1; maximum: 16; step: 1; changed(v) => { root.set-num("bar_spacing", v); } }
+                    }
+                    Row {
+                        label: "Bar rounding";
+                        hint: "Rounds the bar caps.";
+                        SliderX { value: cfg.bar-radius; minimum: 0; maximum: 16; step: 1; changed(v) => { root.set-num("bar_radius", v); } }
+                    }
+                    Row {
+                        label: "Quiet bars fade";
+                        hint: "Quiet bars turn translucent instead of staying solid.";
+                        Toggle { checked: cfg.bar-fade; toggled(v) => { root.set-bool("bar_fade", v); } }
+                    }
+                    SectionTitle { text: "GRADIENT"; }
+                    GradientEditor {
+                        stops: Look.eq-colors;
+                        stop-picked(i, c) => { root.eq-set(i, c); }
+                        stop-removed(i) => { root.eq-remove(i); }
+                        stop-added => { root.eq-add(); }
+                    }
+                }
+
+                // ── TRANSCRIBING ──────────────────────────────────────
+                if root.preview-mode == "loader": Card {
+                    title: "TRANSCRIBING — ANIMATION";
+                    AnimGallery {
+                        items: [
+                            { label: "Waves (classic)", id: "waves" },
+                            { label: "Sweep", id: "sweep" },
+                            { label: "Pulse", id: "pulse" },
+                            { label: "Dots", id: "dots" },
+                            { label: "Scan", id: "scan" },
+                            { label: "Cascade", id: "cascade" },
+                            { label: "Shimmer", id: "shimmer" },
+                        ];
+                        current: cfg.transcribe-anim;
+                        tile-mode: "loader";
+                        chosen(id) => { root.set-str("transcribe_anim", id); }
+                    }
+                    Row {
+                        label: "Speed";
+                        hint: "Animation speed multiplier.";
+                        SliderX { value: cfg.anim-speed; minimum: 0.25; maximum: 3.0; step: 0.25; changed(v) => { root.set-num("anim_speed", v); } }
+                        Text { text: "\{cfg.anim-speed}×"; color: Theme.pal.muted; font-size: 12px; vertical-alignment: center; }
+                    }
+                    Row {
+                        label: "Use recording colors";
+                        hint: "Transcribing reuses the recording gradient. Unlink to give it its own colors.";
+                        Toggle { checked: cfg.trans-link; toggled(v) => { root.set-bool("trans_link", v); } }
+                    }
+                    if !cfg.trans-link: VerticalLayout {
+                        spacing: 6px;
+                        SectionTitle { text: "GRADIENT"; }
+                        GradientEditor {
+                            stops: Look.loader-colors;
+                            stop-picked(i, c) => { root.trans-set(i, c); }
+                            stop-removed(i) => { root.trans-remove(i); }
+                            stop-added => { root.trans-add(); }
+                        }
+                    }
+                }
+
+                // ── DONE ──────────────────────────────────────────────
+                if root.preview-mode == "done": Card {
+                    title: "DONE — ANIMATION";
+                    AnimGallery {
+                        items: [
+                            { label: "Pop", id: "pop" },
+                            { label: "Flash", id: "flash" },
+                            { label: "Rise", id: "rise" },
+                            { label: "None", id: "none" },
+                        ];
+                        current: cfg.done-anim;
+                        tile-mode: "done";
+                        chosen(id) => { root.set-str("done_anim", id); }
+                    }
+                    Row {
+                        label: "Check color";
+                        hint: "Color of the ✓ shown when text is delivered.";
+                        ColorField {
+                            value: cfg.done-value;
+                            cleared: cfg.done-color == "";
+                            picked(c) => { root.done-picked(c); }
+                            clear => { root.done-clear(); }
+                        }
+                    }
+                    Text {
+                        text: "Tip: switch to another state chip and back to replay the entrance.";
+                        color: Theme.pal.muted;
+                        font-size: 11px;
+                        wrap: word-wrap;
+                    }
+                }
+
+                // ── ERROR ─────────────────────────────────────────────
+                if root.preview-mode == "error": Card {
+                    title: "ERROR";
+                    Row {
+                        label: "Flash color";
+                        hint: "Background flash color when something goes wrong.";
+                        ColorField {
+                            value: cfg.error-value;
+                            cleared: cfg.error-color == "";
+                            picked(c) => { root.error-picked(c); }
+                            clear => { root.error-clear(); }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

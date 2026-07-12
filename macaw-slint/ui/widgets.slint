@@ -1,7 +1,49 @@
 // Hand-rolled controls — no std-widgets: smaller binary, one visual language,
 // every color from Theme.pal so the whole app re-skins live.
 
-import { Theme } from "theme.slint";
+import { Theme, Tip } from "theme.slint";
+
+// Labeled settings row: hover shows the hint through the global Tip overlay.
+export component Row inherits HorizontalLayout {
+    in property <string> label;
+    in property <string> hint: "";
+    spacing: 12px;
+    height: 34px;
+    preferred-height: 34px;
+    lbl := Rectangle {
+        width: 150px;
+        Text {
+            x: 0;
+            width: parent.width;
+            text: root.label;
+            color: ta.has-hover && root.hint != "" ? Theme.pal.accent : Theme.pal.fg;
+            font-size: 13px;
+            vertical-alignment: center;
+            height: 100%;
+            overflow: elide;
+        }
+        // subtle dotted-ish underline while hovered (hint available)
+        if ta.has-hover && root.hint != "": Rectangle {
+            y: parent.height / 2 + 9px;
+            height: 1px;
+            width: min(parent.width, 140px);
+            background: Theme.pal.muted;
+        }
+        ta := TouchArea {
+            enabled: root.hint != "";
+            changed has-hover => {
+                if (self.has-hover) {
+                    Tip.text = root.hint;
+                    Tip.x = lbl.absolute-position.x;
+                    Tip.y = lbl.absolute-position.y + lbl.height + 2px;
+                } else if (Tip.text == root.hint) {
+                    Tip.text = "";
+                }
+            }
+        }
+    }
+    @children
+}
 
 export component Btn inherits Rectangle {
     in property <string> text;
@@ -275,4 +317,18 @@ export component SectionTitle inherits Text {
     font-size: 11px;
     font-weight: 700;
     letter-spacing: 1px;
+}
+
+export component Card inherits Rectangle {
+    in property <string> title;
+    border-radius: Theme.radius;
+    background: Theme.pal.surface;
+    border-width: 1px;
+    border-color: Theme.pal.border;
+    VerticalLayout {
+        padding: 18px;
+        spacing: 6px;
+        SectionTitle { text: root.title; }
+        @children
+    }
 }
