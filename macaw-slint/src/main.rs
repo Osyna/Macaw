@@ -327,6 +327,7 @@ impl App {
             output_mode: s("output_mode"),
             device_label: SharedString::new(),
             silence_timeout: f("silence_timeout", 3.0),
+            level_gain: f("level_gain", 1.0),
             sound_enabled: b("sound_enabled", true),
             streaming: b("streaming", false),
             punctuation_hints: b("punctuation_hints", true),
@@ -1070,6 +1071,7 @@ fn main() {
         filter: Cell::new(0),
     });
     APP.with(|a| *a.borrow_mut() = Some(Rc::clone(&app)));
+    app.ui.set_app_version(env!("CARGO_PKG_VERSION").into());
     let names: Vec<SharedString> = theme::NAMES
         .iter()
         .map(|n| SharedString::from(*n))

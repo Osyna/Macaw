@@ -62,6 +62,8 @@ export component MainWindow inherits Window {
     changed tab => { root.tab-changed(self.tab); }
     callback tab-changed(string);
     in property <float> mic-level: 0;
+    in-out property <bool> show-about: false;
+    in property <string> app-version: "";
     callback restart-engine();
     callback reload-model();
     in property <bool> engine-connected: false;
@@ -149,12 +151,28 @@ export component MainWindow inherits Window {
                 x: 20px;
                 width: parent.width - 40px;
                 spacing: 10px;
-                Text {
-                    text: "Macaw";
-                    color: Theme.pal.accent;
-                    font-size: 20px;
-                    font-weight: 800;
-                    vertical-alignment: center;
+                brand := Rectangle {
+                    width: brand-row.preferred-width;
+                    brand-row := HorizontalLayout {
+                        spacing: 8px;
+                        Image {
+                            source: @image-url("assets/parrot.png");
+                            width: 30px;
+                            height: 30px;
+                            y: parent.height / 2 - 15px;
+                        }
+                        Text {
+                            text: "Macaw";
+                            color: Theme.pal.accent;
+                            font-size: 20px;
+                            font-weight: 800;
+                            vertical-alignment: center;
+                        }
+                    }
+                    TouchArea {
+                        clicked => { root.show-about = true; }
+                        mouse-cursor: MouseCursor.pointer;
+                    }
                 }
                 Rectangle { width: 12px; }
                 TabBtn {
@@ -336,6 +354,87 @@ export component MainWindow inherits Window {
             color: Theme.pal.fg;
             font-size: 12px;
             wrap: word-wrap;
+        }
+    }
+
+    // ── about: parrot-click overlay, stacks above everything ────────
+    if root.show-about: Rectangle {
+        width: 100%;
+        height: 100%;
+        background: #000000B0;
+        TouchArea { // backdrop click closes
+            clicked => { root.show-about = false; }
+        }
+        Rectangle {
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            width: 380px;
+            height: about-col.preferred-height + 56px;
+            border-radius: Theme.radius;
+            background: Theme.pal.surface;
+            border-width: 1px;
+            border-color: Theme.pal.border;
+            TouchArea { } // swallow clicks inside the card
+            about-col := VerticalLayout {
+                x: 28px;
+                y: 28px;
+                width: parent.width - 56px;
+                spacing: 10px;
+                alignment: start;
+                HorizontalLayout {
+                    alignment: center;
+                    Image {
+                        source: @image-url("assets/parrot.png");
+                        width: 72px;
+                        height: 72px;
+                    }
+                }
+                Text {
+                    text: "Macaw";
+                    color: Theme.pal.accent;
+                    font-size: 22px;
+                    font-weight: 800;
+                    horizontal-alignment: center;
+                }
+                Text {
+                    text: "v" + root.app-version;
+                    color: Theme.pal.muted;
+                    font-size: 12px;
+                    horizontal-alignment: center;
+                }
+                Text {
+                    text: "Fast local speech-to-text for Linux.\nWhisper, Parakeet, Voxtral & friends — one hotkey away.";
+                    color: Theme.pal.fg;
+                    font-size: 12px;
+                    horizontal-alignment: center;
+                    wrap: word-wrap;
+                }
+                Rectangle { height: 6px; }
+                HorizontalLayout {
+                    spacing: 8px;
+                    alignment: center;
+                    Btn {
+                        text: "GitHub ↗";
+                        clicked => { root.open-url("https://github.com/Osyna/Macaw"); }
+                    }
+                    Btn {
+                        text: "Releases ↗";
+                        clicked => { root.open-url("https://github.com/Osyna/Macaw/releases/latest"); }
+                    }
+                    Btn {
+                        text: "osyna.com ↗";
+                        clicked => { root.open-url("https://osyna.com"); }
+                    }
+                }
+                HorizontalLayout {
+                    alignment: center;
+                    Btn {
+                        text: "Close";
+                        primary: true;
+                        clicked => { root.show-about = false; }
+                    }
+                }
+            }
         }
     }
 }
