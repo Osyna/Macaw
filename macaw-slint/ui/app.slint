@@ -59,6 +59,11 @@ export component MainWindow inherits Window {
     background: Theme.pal.bg;
 
     in-out property <string> tab: "models"; // models | appearance | settings
+    changed tab => { root.tab-changed(self.tab); }
+    callback tab-changed(string);
+    in property <float> mic-level: 0;
+    callback restart-engine();
+    callback reload-model();
     in property <bool> engine-connected: false;
     in property <string> engine-state: "idle";
     in property <string> active-model-label: "";
@@ -154,7 +159,7 @@ export component MainWindow inherits Window {
                 Rectangle { width: 12px; }
                 TabBtn {
                     y: 12px;
-                    icon: "⬢";
+                    icon: "◆";
                     text: "Models";
                     active: root.tab == "models";
                     clicked => { root.tab = "models"; }
@@ -218,6 +223,11 @@ export component MainWindow inherits Window {
             capture-hotkey => { root.capture-hotkey(); }
             set-autostart(v) => { root.set-autostart(v); }
             set-api-key(v) => { root.set-api-key(v); }
+            mic-level: root.mic-level;
+            engine-connected: root.engine-connected;
+            engine-state: root.engine-state;
+            restart-engine => { root.restart-engine(); }
+            reload-model => { root.reload-model(); }
         }
         if root.tab == "appearance": AppearanceView {
             cfg: root.cfg;

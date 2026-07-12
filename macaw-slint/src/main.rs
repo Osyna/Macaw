@@ -120,6 +120,8 @@ struct App {
     client: ws::Client,
     msg_tx: Sender<Msg>,
     engine: RefCell<engine::Engine>,
+    token: String,       // engine auth token — reused when the engine is restarted
+    mic_mon: Cell<bool>, // idle mic meter active (Settings tab visible)
     tray: Option<tray::TrayHandle>,
     cfg: RefCell<Value>,
     devices: RefCell<Vec<(Option<i64>, String)>>, // (device_index, label)
@@ -794,6 +796,9 @@ impl App {
         match ev {
             ws::Event::Connected => {
                 self.ui.set_engine_connected(true);
+                // (re)sync the idle mic meter — fresh engines start without it
+                self.mic_mon.set(false);
+                self.sync_mic_monitor();
                 let tx = self.msg_tx.clone();
                 self.client.call(
                     "config.get",
@@ -843,6 +848,7 @@ impl App {
             }
             ws::Event::Level { rms } => {
                 self.rms.set(rms);
+                self.ui.set_mic_level(rms);
                 self.ls_send(json!({"cmd": "level", "rms": rms}));
             }
             ws::Event::Config { config } => {
@@ -902,11 +908,35 @@ impl App {
             self.ui.set_tab(tab.into());
         }
         let _ = self.ui.show();
+        self.sync_mic_monitor();
         // re-maps lose the Wayland app_id (winit), so the class rule can
         // miss — enforce float + fixed size once the surface is up
         slint::Timer::single_shot(std::time::Duration::from_millis(400), || {
             hypr::enforce_main_geometry();
         });
+    }
+
+    /// The idle mic meter runs exactly while the Settings tab is on screen.
+    fn sync_mic_monitor(&self) {
+        let on = self.ui.get_tab() == "settings" && self.ui.window().is_visible();
+        if on != self.mic_mon.get() {
+            self.mic_mon.set(on);
+            self.client.call("mic.monitor", json!({ "on": on }), None);
+            if !on {
+                self.ui.set_mic_level(0.0);
+            }
+        }
+    }
+
+    /// Kill the engine process and start a fresh one (same token/port; the
+    /// ws client reconnects on its own). The big hammer for a hung backend.
+    fn restart_engine(&self) {
+        self.toast("info", "Restarting engine…");
+        self.ui.set_engine_connected(false);
+        self.mic_mon.set(false);
+        let mut eng = self.engine.borrow_mut();
+        eng.kill();
+        *eng = engine::Engine::spawn(&self.token, WS_PORT);
     }
 
     fn on_cmd(self: &Rc<Self>, cmd: single::Cmd) {
@@ -1000,7 +1030,7 @@ fn main() {
     let eng = engine::Engine::spawn(&tok, WS_PORT);
     let (msg_tx, msg_rx) = channel::<Msg>();
     let (ev_tx, ev_rx) = channel::<ws::Event>();
-    let client = ws::spawn(WS_PORT, tok, ev_tx);
+    let client = ws::spawn(WS_PORT, tok.clone(), ev_tx);
 
     let toasts = Rc::new(VecModel::from(Vec::<Toast>::new()));
     ui.set_toasts(ModelRc::from(Rc::clone(&toasts)));
@@ -1017,6 +1047,8 @@ fn main() {
         client,
         msg_tx: msg_tx.clone(),
         engine: RefCell::new(eng),
+        token: tok,
+        mic_mon: Cell::new(false),
         cfg: RefCell::new(Value::Null),
         devices: RefCell::new(vec![(None, "System default".into())]),
         models_raw: RefCell::new(vec![]),
@@ -1394,11 +1426,12 @@ fn main() {
         });
     }
 
-    // Tray app: closing the main window hides it.
+    // Tray app: closing the main window hides it (and stops the mic meter).
     {
         let a = Rc::clone(&app);
         app.ui.window().on_close_requested(move || {
             let _ = a.ui.hide();
+            a.sync_mic_monitor();
             slint::CloseRequestResponse::HideWindow
         });
     }
@@ -1406,6 +1439,22 @@ fn main() {
         let a = Rc::clone(&app);
         app.ui.on_close_window(move || {
             let _ = a.ui.hide();
+            a.sync_mic_monitor();
+        });
+    }
+    {
+        let a = Rc::clone(&app);
+        app.ui.on_tab_changed(move |_| a.sync_mic_monitor());
+    }
+    {
+        let a = Rc::clone(&app);
+        app.ui.on_restart_engine(move || a.restart_engine());
+    }
+    {
+        let a = Rc::clone(&app);
+        app.ui.on_reload_model(move || {
+            a.toast("info", "Reloading model…");
+            a.client.call("model.reload", json!({}), None);
         });
     }
 

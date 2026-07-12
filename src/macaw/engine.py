@@ -258,6 +258,7 @@ class Engine:
         self._monitor_task: asyncio.Task | None = None  # 30 Hz level + silence
         self._stream_task: asyncio.Task | None = None  # 1 Hz streaming tick
         self._error_reset: asyncio.Task | None = None  # transient error -> idle
+        self._mic_task: asyncio.Task | None = None  # idle mic meter (Settings)
 
         self._op: dict | None = None  # one long op at a time: load/install/download
         self._hotkey = None
@@ -422,6 +423,24 @@ class Engine:
             self.set_state("error", error)
         self.emit("models", {})
 
+    def _model_reload(self) -> dict:
+        """Tear the backend down (isolated worker included — terminate, then
+        kill) and load the active model again from scratch."""
+        if self.is_recording:
+            self.cancel_recording()
+        if self._op is not None and self._op.get("kind") == "load":
+            # a load is in flight: mark it cancelled so the reload wins
+            self._load_cancelled = True
+        self.transcriber.unload_model()
+        self._model_loaded = False
+        logger.info("Model reload requested (%s)", self.transcriber.model_size)
+        if self.transcriber.is_ready():
+            self._load_model_async()
+        else:
+            self.set_state("error", "not downloaded")
+        self.emit("models", {})
+        return {"ok": True}
+
     def _op_finished(self, job) -> None:  # called from job threads
         loop = self.loop
 
@@ -503,6 +522,38 @@ class Engine:
                     self.stop_recording()
                     return
             await asyncio.sleep(1 / 30)
+
+    # -- idle mic meter (Settings "is my microphone working?") ----------
+
+    def _mic_monitor_set(self, params: dict) -> dict:
+        on = bool(params.get("on"))
+        if on == (self._mic_task is not None):
+            return {"on": on}
+        if on:
+            self._mic_task = asyncio.ensure_future(self._mic_monitor())
+        else:
+            task, self._mic_task = self._mic_task, None
+            if task is not None:
+                task.cancel()
+            if not self.is_recording:
+                self.capture.stop()
+        return {"on": on}
+
+    async def _mic_monitor(self) -> None:
+        """~30 Hz level events while idle. Recording's own monitor takes over
+        seamlessly (this loop goes quiet while `is_recording`), and the
+        capture stream is restarted after a recording or device switch."""
+        try:
+            while True:
+                if not self.is_recording:
+                    if not self.capture.running:
+                        self.capture.start()
+                    raw = self.capture.current_energy
+                    vis = (math.log10(raw) + 4) / 3.0 if raw > 1e-10 else 0.0
+                    self.emit("level", {"rms": min(1.0, max(0.0, vis))})
+                await asyncio.sleep(1 / 30)
+        except asyncio.CancelledError:
+            pass
 
     def _stop_tasks(self) -> None:
         if self._monitor_task is not None:
@@ -688,6 +739,7 @@ class Engine:
         self.transcriber.punctuation_hints = cfg.punctuation_hints
         self.transcriber.model_params = cfg.model_params.get(cfg.model, {})
         if cfg.device_index != old.device_index and not self.is_recording:
+            self.capture.stop()  # the mic meter may hold the old stream open
             self.capture = AudioCapture(device=cfg.device_index)
         if (cfg.proxy, cfg.ssl_verify) != (old.proxy, old.ssl_verify):
             net.apply(cfg.proxy, cfg.ssl_verify)
@@ -861,6 +913,10 @@ class Engine:
         if method == "record.toggle":
             self.toggle()
             return {"state": self.state}
+        if method == "mic.monitor":
+            return self._mic_monitor_set(params)
+        if method == "model.reload":
+            return self._model_reload()
         if method == "record.stop":
             self.stop_recording()
             return {"state": self.state}

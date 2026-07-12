@@ -78,6 +78,11 @@ export component SettingsView inherits ScrollArea {
     callback capture-hotkey();
     callback set-autostart(bool);
     callback set-api-key(string);
+    in property <float> mic-level: 0;    // live input level (Settings-visible)
+    in property <bool> engine-connected: false;
+    in property <string> engine-state: "idle";
+    callback restart-engine();
+    callback reload-model();
 
     viewport-height: cols.preferred-height;
 
@@ -101,6 +106,31 @@ export component SettingsView inherits ScrollArea {
                         options: root.devices;
                         current <=> root.device-current;
                         changed(i) => { root.pick-device(i); }
+                    }
+                }
+                Row {
+                    label: "Input level";
+                    hint: "Live microphone check — speak and the bar should move. Silent? Pick another device above.";
+                    Rectangle {
+                        horizontal-stretch: 1;
+                        Rectangle { // track
+                            y: parent.height / 2 - 4px;
+                            width: parent.width;
+                            height: 8px;
+                            border-radius: 4px;
+                            background: Theme.pal.control;
+                            clip: true;
+                            Rectangle { // fill
+                                x: 0;
+                                y: 0;
+                                width: parent.width * clamp(root.mic-level, 0, 1);
+                                height: parent.height;
+                                border-radius: 4px;
+                                background: root.mic-level > 0.45 ? Theme.pal.ok
+                                    : root.mic-level > 0.02 ? Theme.pal.accent : Theme.pal.muted;
+                                animate width { duration: 60ms; }
+                            }
+                        }
                     }
                 }
                 Row {
@@ -199,6 +229,54 @@ export component SettingsView inherits ScrollArea {
                     label: "Verify SSL";
                     hint: "Disable only behind a corporate TLS-intercepting proxy.";
                     Toggle { checked: cfg.ssl-verify; toggled(v) => { root.set-bool("ssl_verify", v); } }
+                }
+            }
+
+            Card {
+                title: "ENGINE";
+                Row {
+                    label: "Status";
+                    hint: "The speech backend runs as its own process; models load inside it.";
+                    Rectangle { // status dot
+                        width: 8px;
+                        Rectangle {
+                            y: parent.height / 2 - 4px;
+                            width: 8px;
+                            height: 8px;
+                            border-radius: 4px;
+                            background: !root.engine-connected ? Theme.pal.danger
+                                : root.engine-state == "error" ? Theme.pal.danger : Theme.pal.ok;
+                        }
+                    }
+                    Text {
+                        text: !root.engine-connected ? "not connected"
+                            : root.engine-state == "idle" ? "running"
+                            : root.engine-state;
+                        color: Theme.pal.muted;
+                        font-size: 13px;
+                        vertical-alignment: center;
+                        horizontal-stretch: 1;
+                    }
+                }
+                Row {
+                    label: "Reload model";
+                    hint: "Unloads the speech model — its worker process is terminated, force-killed if stuck — and loads it again clean. Try this first if transcription hangs.";
+                    Rectangle { horizontal-stretch: 1; }
+                    Btn {
+                        text: "Reload";
+                        enabled: root.engine-connected;
+                        clicked => { root.reload-model(); }
+                    }
+                }
+                Row {
+                    label: "Restart engine";
+                    hint: "Kills the whole backend process and starts a fresh one — model, audio, everything reloads. The heavy hammer when nothing else helps.";
+                    Rectangle { horizontal-stretch: 1; }
+                    Btn {
+                        text: "Force restart";
+                        danger: true;
+                        clicked => { root.restart-engine(); }
+                    }
                 }
             }
 

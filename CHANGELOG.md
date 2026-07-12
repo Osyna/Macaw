@@ -4,6 +4,13 @@ Notable changes to Macaw. Older releases live on the [releases page](https://git
 
 ## Unreleased
 
+- Settings: a live **input level meter** under the microphone picker — it
+  runs only while the Settings tab is on screen (speak and the bar moves;
+  silent means check your device). New **ENGINE card**: backend status,
+  **Reload model** (terminates the model worker — force-killed if stuck —
+  and loads it clean) and **Force restart** (kills the whole backend
+  process and starts fresh; the UI reconnects automatically).
+
 - Header: tabs reordered — **⬢ Models first** (and the landing tab),
   ◐ Appearance next, ⚙ Settings right-aligned; each tab has an icon.
 
