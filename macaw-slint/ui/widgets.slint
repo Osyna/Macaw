@@ -332,3 +332,54 @@ export component Card inherits Rectangle {
         @children
     }
 }
+
+// Flickable with a visible scrollbar — the "you can scroll" indicator.
+// Thumb tracks viewport-y, drags, and only appears when content overflows.
+export component ScrollArea inherits Rectangle {
+    in-out property <length> viewport-height <=> flick.viewport-height;
+    in-out property <length> viewport-y <=> flick.viewport-y;
+
+    property <bool> scrollable: flick.viewport-height > self.height + 1px;
+    property <length> track-h: self.height - 8px;
+    property <length> thumb-h: max(28px, self.track-h * self.height / max(1px, flick.viewport-height));
+    property <float> progress: flick.viewport-height > self.height
+        ? -flick.viewport-y / (flick.viewport-height - self.height) : 0;
+
+    flick := Flickable {
+        width: 100%;
+        height: 100%;
+        @children
+    }
+
+    if root.scrollable: Rectangle {
+        x: parent.width - 8px;
+        y: 4px;
+        width: 5px;
+        height: root.track-h;
+        border-radius: 2.5px;
+        background: Theme.pal.border.with-alpha(0.35);
+        thumb := Rectangle {
+            x: 0;
+            y: root.progress * (root.track-h - root.thumb-h);
+            width: 5px;
+            height: root.thumb-h;
+            border-radius: 2.5px;
+            background: bar-ta.has-hover || bar-ta.pressed ? Theme.pal.accent : Theme.pal.muted;
+        }
+        bar-ta := TouchArea {
+            moved => {
+                if (self.pressed) {
+                    flick.viewport-y = -clamp(
+                        (self.mouse-y - root.thumb-h / 2) / max(1px, root.track-h - root.thumb-h),
+                        0, 1) * (flick.viewport-height - root.height);
+                }
+            }
+            clicked => {
+                flick.viewport-y = -clamp(
+                    (self.mouse-y - root.thumb-h / 2) / max(1px, root.track-h - root.thumb-h),
+                    0, 1) * (flick.viewport-height - root.height);
+            }
+            mouse-cursor: MouseCursor.pointer;
+        }
+    }
+}

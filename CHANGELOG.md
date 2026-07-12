@@ -12,12 +12,19 @@ Notable changes to Macaw. Older releases live on the [releases page](https://git
 
 - **Animation galleries.** Animations are now picked from live tiles — every
   tile is the real pill running that animation with your colors:
-  - Recording: `bars` (classic), `mirror`, `dots`, `orb` — all audio-reactive.
+  - Recording: `bars` (classic), `mirror`, `dots`, `orb`, `wave`
+    (oscilloscope), `blocks` (segmented VU), `ripple` (energy rings),
+    `meter` (level bar) — all audio-reactive.
   - Transcribing: `waves`, `sweep`, `pulse`, `dots` + new `scan`, `cascade`,
-    `shimmer`.
-  - Done: a new entrance animation — `pop` (default), `flash`, `rise`, `none`.
+    `shimmer`, `orbit`, `typewriter`, `bounce`, `heartbeat`.
+  - Done: a new entrance animation — `pop` (default), `flash`, `rise`,
+    `none` — and gallery tiles replay it on a loop so you can compare.
   New config fields `record_anim` / `done_anim` join theme snapshots, so
   custom themes capture them.
+
+- **Visible scrollbars.** Every scrollable pane (Settings, Appearance's
+  editor column, the model list and dossier) now shows a slim scrollbar —
+  draggable, appears only when content overflows.
 
 - Settings window: fixed size (1180×760, not resizable), a ✕ close button in
   the header, and **hover hints** — rest the cursor on any setting label

@@ -6,7 +6,7 @@
 // audio, hotkey, cloud and system only, as two columns of cards.
 
 import { Theme } from "theme.slint";
-import { Btn, Toggle, SliderX, Select, Field, Row, Card } from "widgets.slint";
+import { Btn, Toggle, SliderX, Select, Field, Row, Card, ScrollArea } from "widgets.slint";
 
 export struct Cfg {
     language: string,
@@ -63,7 +63,7 @@ export struct Cfg {
     autostart: bool,
 }
 
-export component SettingsView inherits Flickable {
+export component SettingsView inherits ScrollArea {
     in property <Cfg> cfg;
     in property <[string]> devices;      // labels; [0] = "System default"
     in-out property <int> device-current: 0;

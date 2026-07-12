@@ -14,6 +14,7 @@ export component OverlayPill inherits Rectangle {
     in property <string> record-anim: "bars"; // eq: bars | mirror | dots | orb
     in property <string> anim: "waves"; // loader: waves | sweep | pulse | dots | scan | cascade | shimmer
     in property <string> done-anim: "pop"; // done entrance: pop | flash | rise | none
+    in property <bool> demo-loop: false; // gallery tiles: replay entrances on a timer
     in property <float> anim-speed: 1.0;
     in property <[float]> levels;
     in property <float> heard: 0; // 0..1 — idle→lit color blend (eq mode)
@@ -155,17 +156,106 @@ export component OverlayPill inherits Rectangle {
             border-color: root.pal(0.5).with-alpha(0.25 + 0.45 * root.heard);
         }
     }
+    // wave: oscilloscope — bars ride a traveling sine, swing scales with level
+    if root.mode == "eq" && root.record-anim == "wave": Rectangle {
+        for lvl[i] in root.levels: Rectangle {
+            property <float> frac: root.n > 1 ? i / (root.n - 1) : 0;
+            x: root.start + i * root.pitch;
+            width: root.bw;
+            height: max(3px, root.height * 0.10 + min(1.0, lvl) * root.height * 0.14);
+            y: (root.height - self.height) / 2
+                + sin((root.t * 1.5 - i * 0.6) * 1rad) * root.height * 0.26 * min(1.0, lvl);
+            border-radius: root.br;
+            background: root.idle-color
+                .mix(root.pal(self.frac), 1 - root.heard)
+                .with-alpha(root.bar-fade ? (100 + 155 * min(1.0, lvl)) / 255 : 1.0);
+        }
+    }
+    // blocks: segmented VU columns — discrete cells light with the level
+    if root.mode == "eq" && root.record-anim == "blocks": blocks-root := Rectangle {
+        property <length> vpad: max(8px, root.height * 0.18);
+        property <length> maxh: root.height - 2 * self.vpad;
+        property <length> cell: (self.maxh - 4 * 2px) / 5;
+        for lvl[i] in root.levels: Rectangle {
+            property <float> frac: root.n > 1 ? i / (root.n - 1) : 0;
+            property <float> lv: min(1.0, lvl);
+            x: root.start + i * root.pitch;
+            y: parent.vpad;
+            width: root.bw;
+            height: parent.maxh;
+            for s in 5: Rectangle {
+                x: 0;
+                y: parent.height - (s + 1) * blocks-root.cell - s * 2px;
+                width: parent.width;
+                height: blocks-root.cell;
+                border-radius: min(root.br, self.height / 2);
+                background: root.idle-color
+                    .mix(root.pal(parent.frac), 1 - root.heard)
+                    .with-alpha(parent.lv * 5 > s ? 1.0 : 0.12);
+            }
+        }
+    }
+    // ripple: rings expand from the center, intensity follows the energy
+    if root.mode == "eq" && root.record-anim == "ripple": Rectangle {
+        // resting core
+        Rectangle {
+            property <length> d: root.height * 0.16;
+            x: (root.width - self.d) / 2;
+            y: (root.height - self.d) / 2;
+            width: self.d;
+            height: self.d;
+            border-radius: self.d / 2;
+            background: root.idle-color.mix(root.pal(0.5), 1 - root.heard);
+        }
+        for r in 3: Rectangle {
+            property <float> ph: Math.mod(root.t * 0.22 + r / 3.0, 1.0);
+            property <length> d: self.ph * min(root.width * 0.55, root.height * 1.8);
+            x: (root.width - self.d) / 2;
+            y: (root.height - self.d) / 2;
+            width: self.d;
+            height: self.d;
+            border-radius: self.d / 2;
+            border-width: 2px;
+            border-color: root.pal(self.ph).with-alpha((1 - self.ph) * (0.2 + 0.8 * root.heard));
+        }
+    }
+    // meter: one horizontal level bar, VU style
+    if root.mode == "eq" && root.record-anim == "meter": Rectangle {
+        property <length> mh: max(6px, root.height * 0.22);
+        Rectangle { // track
+            x: root.hpad;
+            y: (root.height - parent.mh) / 2;
+            width: root.width - 2 * root.hpad;
+            height: parent.mh;
+            border-radius: self.height / 2;
+            background: root.idle-color.with-alpha(0.18);
+            Rectangle { // fill
+                x: 0;
+                y: 0;
+                width: parent.width * clamp(root.heard, 0.02, 1.0);
+                height: parent.height;
+                border-radius: self.height / 2;
+                background: root.pal(root.heard);
+            }
+        }
+    }
 
     // ── transcribing: selectable loader ──────────────────────────────
-    // bar-based loaders: waves | pulse | cascade | shimmer
+    // bar-based loaders: waves | pulse | cascade | shimmer | heartbeat
     if root.mode == "loader" && (root.anim == "waves" || root.anim == "pulse"
-        || root.anim == "cascade" || root.anim == "shimmer"): Rectangle {
+        || root.anim == "cascade" || root.anim == "shimmer" || root.anim == "heartbeat"): Rectangle {
         property <length> maxh: root.height * 0.42;
         for lvl[i] in root.levels: Rectangle {
             property <float> fx: root.n > 1 ? i / (root.n - 1) : 0;
+            property <float> hb: Math.mod(root.t * 0.22, 1.0);
             property <float> amp: root.anim == "pulse"
                 // breathing: whole row swells together, slight center bias
                 ? clamp((0.5 + 0.5 * sin(root.t * 0.6 * 1rad)) * (0.55 + 0.45 * (1 - abs(2 * self.fx - 1))), 0, 1)
+                // heartbeat: lub-dub — two sharp spikes, then rest
+                : root.anim == "heartbeat"
+                ? clamp((Math.pow(max(0.0, sin(self.hb * 360deg)), 24)
+                        + 0.6 * Math.pow(max(0.0, sin((self.hb - 0.14) * 360deg)), 24))
+                        * (0.35 + 0.65 * (1 - abs(2 * self.fx - 1))), 0.04, 1)
                 // cascade: a sharp pulse train travels bar to bar
                 : root.anim == "cascade"
                 ? Math.pow(max(0.02, sin((root.t * 0.8 - self.fx * 6.3) * 1rad)), 3)
@@ -216,11 +306,53 @@ export component OverlayPill inherits Rectangle {
             background: root.lpal(i / 2.0).with-alpha(0.45 + 0.55 * self.ph);
         }
     }
+    // orbit: two dots circle each other
+    if root.mode == "loader" && root.anim == "orbit": Rectangle {
+        for i in 2: Rectangle {
+            property <angle> ang: root.t * 0.5 * 1rad + i * 180deg;
+            x: parent.width / 2 + cos(self.ang) * min(parent.width * 0.28, 56px) - 4px;
+            y: parent.height / 2 + sin(self.ang) * parent.height * 0.2 - 4px;
+            width: 8px;
+            height: 8px;
+            border-radius: 4px;
+            background: root.lpal(i == 0 ? 0.15 : 0.85);
+        }
+    }
+    // typewriter: bars print left to right, then the line resets
+    if root.mode == "loader" && root.anim == "typewriter": Rectangle {
+        property <float> fill: Math.mod(root.t * 0.14, 1.18);
+        for lvl[i] in root.levels: Rectangle {
+            property <float> fx: root.n > 1 ? i / (root.n - 1) : 0;
+            x: root.start + i * root.pitch;
+            width: root.bw;
+            height: root.height * 0.24;
+            y: (root.height - self.height) / 2;
+            border-radius: root.br;
+            background: root.lpal(self.fx)
+                .with-alpha(self.fx <= parent.fill ? 1.0 : 0.12);
+        }
+    }
+    // bounce: one ball crosses while bouncing
+    if root.mode == "loader" && root.anim == "bounce": Rectangle {
+        property <float> px: abs(Math.mod(root.t / 4.8 * 0.7, 2.0) - 1.0);
+        x: root.hpad + (parent.width - 2 * root.hpad - 10px) * self.px;
+        y: parent.height * 0.62 - abs(sin(root.t * 1.6 * 1rad)) * parent.height * 0.32 - 5px;
+        width: 10px;
+        height: 10px;
+        border-radius: 5px;
+        background: root.lpal(self.px);
+    }
 
     // ── done: check mark with a selectable entrance ──────────────────
     if root.mode == "done": done-root := Rectangle {
-        property <bool> in-anim: false;
-        init => { self.in-anim = true; }
+        // demo-loop (gallery tiles): the entrance replays on a timer instead
+        // of firing once at instantiation
+        property <bool> in-anim: root.demo-loop && Math.mod(animation-tick() / 1s, 2.2) > 0.5;
+        init => {
+            if (!root.demo-loop) {
+                self.in-anim = true;
+            }
+        }
         // flash: ok-tinted wash fades away
         if root.done-anim == "flash": Rectangle {
             width: 100%;

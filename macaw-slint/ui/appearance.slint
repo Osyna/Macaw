@@ -8,7 +8,7 @@
 // engine's `config` echo re-fills `cfg`, so the UI never holds its own truth.
 
 import { Theme, Look, Tip } from "theme.slint";
-import { Btn, Toggle, SliderX, Select, Field, SectionTitle, Row, Card } from "widgets.slint";
+import { Btn, Toggle, SliderX, Select, Field, SectionTitle, Row, Card, ScrollArea } from "widgets.slint";
 import { OverlayPill } from "pill.slint";
 import { ColorField, GradientEditor } from "picker.slint";
 import { Cfg } from "settings.slint";
@@ -40,6 +40,7 @@ component AnimTile inherits Rectangle {
                 record-anim: root.tile-mode == "eq" ? root.tile-anim : "bars";
                 anim: root.tile-mode == "loader" ? root.tile-anim : "waves";
                 done-anim: root.tile-mode == "done" ? root.tile-anim : "pop";
+                demo-loop: root.tile-mode == "done";
                 anim-speed: Look.anim-speed;
                 heard: root.tile-mode == "eq" ? max(Look.heard, 0.35) : Look.heard;
                 levels: Look.levels;
@@ -256,7 +257,7 @@ export component AppearanceView inherits Rectangle {
         }
 
         // ── right: scrollable editor, scoped to the selected state ────
-        flick := Flickable {
+        flick := ScrollArea {
             // explicit share: Slint propagates children's max-width upward,
             // so a stretch factor alone never fills the row (same fix as the
             // settings columns)
@@ -380,6 +381,10 @@ export component AppearanceView inherits Rectangle {
                             { label: "Mirror", id: "mirror" },
                             { label: "Dots", id: "dots" },
                             { label: "Orb", id: "orb" },
+                            { label: "Wave", id: "wave" },
+                            { label: "Blocks (VU)", id: "blocks" },
+                            { label: "Ripple", id: "ripple" },
+                            { label: "Meter", id: "meter" },
                         ];
                         current: cfg.record-anim;
                         tile-mode: "eq";
@@ -428,6 +433,10 @@ export component AppearanceView inherits Rectangle {
                             { label: "Scan", id: "scan" },
                             { label: "Cascade", id: "cascade" },
                             { label: "Shimmer", id: "shimmer" },
+                            { label: "Orbit", id: "orbit" },
+                            { label: "Typewriter", id: "typewriter" },
+                            { label: "Bounce", id: "bounce" },
+                            { label: "Heartbeat", id: "heartbeat" },
                         ];
                         current: cfg.transcribe-anim;
                         tile-mode: "loader";
