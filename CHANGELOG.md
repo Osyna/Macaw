@@ -4,6 +4,14 @@ Notable changes to Macaw. Older releases live on the [releases page](https://git
 
 ## Unreleased
 
+- Fixed the gradient tail glitch: sampling at the far end returned the
+  second-to-last color (clamped-index endpoint bug) — bars and the editor
+  strip now land exactly on the last stop, and the editor strip renders the
+  real interpolated gradient instead of flat blocks.
+- **"Show indicator on screen" toggle** in Appearance: pins the real overlay
+  (animated) while you edit — move it with the position controls, resize it,
+  recolor it, all live on the actual layer surface.
+
 - **Theme engine v2** — the pill renderer is now a faithful port of the
   original canvas overlay: real continuous quiet-bar fade (alpha follows the
   level, no threshold), smooth gradient interpolation along the bars, and

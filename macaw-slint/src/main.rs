@@ -100,6 +100,7 @@ struct App {
     ls: RefCell<Option<ls::LsOverlay>>,
     level_timer: slint::Timer,
     recording: Cell<bool>,
+    pinned: Cell<bool>, // "show indicator" live-edit toggle in Settings
 }
 
 impl App {
@@ -480,6 +481,11 @@ impl App {
         self.levels.set_vec(bars);
         self.overlay.set_heard(heard);
         self.ui.global::<Look>().set_heard(heard);
+        // pinned live-edit: the layer-shell process animates from rms — feed
+        // it the synthetic wave so the on-screen indicator moves while idle
+        if self.pinned.get() && !self.recording.get() {
+            self.ls_send(json!({"cmd": "level", "rms": rms}));
+        }
     }
 
     // ── message handling (UI thread) ────────────────────────────────
@@ -560,6 +566,7 @@ impl App {
                         self.ls_send(json!({"cmd": "error", "text": detail}));
                         self.show_overlay("error");
                     }
+                    _ if self.pinned.get() => self.show_overlay("eq"), // live-edit pin
                     _ => self.hide_overlay(), // idle / loading / detail-less error
                 }
             }
@@ -735,6 +742,7 @@ fn main() {
         ls: RefCell::new(ls::LsOverlay::spawn()),
         level_timer: slint::Timer::default(),
         recording: Cell::new(false),
+        pinned: Cell::new(false),
     });
     APP.with(|a| *a.borrow_mut() = Some(Rc::clone(&app)));
     let names: Vec<SharedString> = theme::NAMES
@@ -874,6 +882,17 @@ fn main() {
         let a = Rc::clone(&app);
         app.ui
             .on_pillbg_clear(move || a.patch(kv("overlay_bg", json!(""))));
+    }
+    {
+        let a = Rc::clone(&app);
+        app.ui.on_pin_overlay(move |on| {
+            a.pinned.set(on);
+            if on {
+                a.show_overlay("eq");
+            } else if !a.recording.get() {
+                a.hide_overlay();
+            }
+        });
     }
     app.ui.on_set_autostart(set_autostart);
     {

@@ -68,6 +68,7 @@ export component MainWindow inherits Window {
     callback set-corner(int, float);
     callback pillbg-picked(color);
     callback pillbg-clear();
+    callback pin-overlay(bool);
     callback accent-picked(color);
     callback accent-clear();
     callback border-picked(color);
@@ -161,6 +162,7 @@ export component MainWindow inherits Window {
             set-corner(i, v) => { root.set-corner(i, v); }
             pillbg-picked(c) => { root.pillbg-picked(c); }
             pillbg-clear => { root.pillbg-clear(); }
+            pin-overlay(v) => { root.pin-overlay(v); }
             accent-picked(c) => { root.accent-picked(c); }
             accent-clear => { root.accent-clear(); }
             border-picked(c) => { root.border-picked(c); }

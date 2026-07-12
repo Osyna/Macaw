@@ -49,6 +49,15 @@ export component OverlayPill inherits Rectangle {
     property <length> br: min(max(0px, bar-radius), bw / 2);
 
     // smooth palette sampling (overlay.ts paletteAt)
+    // clamped segment index + intra-segment position (t is measured from the
+    // CLAMPED index so frac=1 lands exactly on the last stop — using mod()
+    // here glitched the tail to the second-to-last color)
+    pure function pal-i(frac: float) -> int {
+        return min(eq-colors.length - 2, floor(clamp(frac, 0, 1) * (eq-colors.length - 1)));
+    }
+    pure function pal-t(frac: float) -> float {
+        return clamp(clamp(frac, 0, 1) * (eq-colors.length - 1) - pal-i(frac), 0, 1);
+    }
     pure function pal(frac: float) -> color {
         if (eq-colors.length == 0) {
             return idle-color;
@@ -56,9 +65,7 @@ export component OverlayPill inherits Rectangle {
         if (eq-colors.length == 1) {
             return eq-colors[0];
         }
-        return eq-colors[min(eq-colors.length - 2, floor(clamp(frac, 0, 1) * (eq-colors.length - 1)))]
-            .mix(eq-colors[min(eq-colors.length - 1, floor(clamp(frac, 0, 1) * (eq-colors.length - 1)) + 1)],
-                 1 - Math.mod(clamp(frac, 0, 1) * (eq-colors.length - 1), 1.0));
+        return eq-colors[pal-i(frac)].mix(eq-colors[pal-i(frac) + 1], 1 - pal-t(frac));
     }
 
     property <float> t: animation-tick() / 1s * 4.8; // old loader: 4.8 rad/s

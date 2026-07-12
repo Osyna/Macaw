@@ -180,13 +180,30 @@ export component GradientEditor inherits VerticalLayout {
 
     spacing: 8px;
 
-    Rectangle { // live gradient strip preview
+    // same interpolation as the pill renderer (clamped-index endpoint)
+    pure function pal-i(frac: float) -> int {
+        return min(stops.length - 2, floor(clamp(frac, 0, 1) * (stops.length - 1)));
+    }
+    pure function pal(frac: float) -> color {
+        if (stops.length == 0) {
+            return transparent;
+        }
+        if (stops.length == 1) {
+            return stops[0];
+        }
+        return stops[pal-i(frac)].mix(
+            stops[pal-i(frac) + 1],
+            1 - clamp(clamp(frac, 0, 1) * (stops.length - 1) - pal-i(frac), 0, 1));
+    }
+
+    Rectangle { // live gradient strip: 48 interpolated slices
         height: 16px;
         border-radius: 8px;
         border-width: 1px;
         border-color: Theme.pal.border;
+        clip: true;
         HorizontalLayout {
-            for c[i] in root.stops: Rectangle { background: c; }
+            for i in 48: Rectangle { background: root.pal(i / 47.0); }
         }
     }
     HorizontalLayout {

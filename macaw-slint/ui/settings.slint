@@ -98,6 +98,8 @@ export component SettingsView inherits Flickable {
     callback set-corner(int, float);   // corner index (tl,tr,br,bl), px
     callback pillbg-picked(color);
     callback pillbg-clear();
+    callback pin-overlay(bool);
+    in-out property <bool> pin-indicator: false;
     callback accent-picked(color);
     callback accent-clear();
     callback border-picked(color);
@@ -244,6 +246,23 @@ export component SettingsView inherits Flickable {
                     }
                 }
             }
+            Row {
+                label: "Show indicator on screen";
+                Toggle {
+                    checked: root.pin-indicator;
+                    toggled(v) => {
+                        root.pin-indicator = v;
+                        root.pin-overlay(v);
+                    }
+                }
+                Text {
+                    text: "live-edit the real overlay — position, size, colors";
+                    color: Theme.pal.muted;
+                    font-size: 12px;
+                    vertical-alignment: center;
+                }
+            }
+
 
             Row {
                 label: "Theme";
