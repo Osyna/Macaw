@@ -176,6 +176,12 @@ export component GradientEditor inherits VerticalLayout {
     callback stop-removed(int);
     callback stop-added();
 
+    // The popup lives at the editor root, NOT inside the for-loop: picking a
+    // color patches the config, the echo rebuilds `stops`, and rebuilt
+    // for-items would take an embedded popup down with them (the
+    // close-after-one-click bug). Here it survives model churn.
+    in-out property <int> editing: 0;
+
     spacing: 8px;
 
     // same interpolation as the pill renderer (clamped-index endpoint)
@@ -204,7 +210,7 @@ export component GradientEditor inherits VerticalLayout {
             for i in 48: Rectangle { background: root.pal(i / 47.0); }
         }
     }
-    HorizontalLayout {
+    swrow := HorizontalLayout {
         spacing: 8px;
         alignment: start;
         for c[i] in root.stops: Rectangle {
@@ -216,7 +222,8 @@ export component GradientEditor inherits VerticalLayout {
             border-color: Theme.pal.border;
             TouchArea {
                 clicked => {
-                    spop.show();
+                    root.editing = i;
+                    epop.show();
                 }
                 mouse-cursor: MouseCursor.pointer;
             }
@@ -241,27 +248,6 @@ export component GradientEditor inherits VerticalLayout {
                     mouse-cursor: MouseCursor.pointer;
                 }
             }
-            spop := PopupWindow {
-                x: 0;
-                y: parent.height + 4px;
-                width: 240px;
-                close-policy: close-on-click-outside;
-                Rectangle {
-                    background: Theme.pal.surface;
-                    border-radius: Theme.radius;
-                    border-width: 1px;
-                    border-color: Theme.pal.border;
-                    
-                    
-                    VerticalLayout {
-                        padding: 12px;
-                        inner := HsvPanel {
-                            seed: c;
-                            picked(nc) => { root.stop-picked(i, nc); }
-                        }
-                    }
-                }
-            }
         }
         if root.stops.length < 6: Rectangle { // add stop
             width: 44px;
@@ -282,6 +268,26 @@ export component GradientEditor inherits VerticalLayout {
             TouchArea {
                 clicked => { root.stop-added(); }
                 mouse-cursor: MouseCursor.pointer;
+            }
+        }
+    }
+
+    epop := PopupWindow {
+        x: min(root.editing * 52px, root.width - 240px);
+        y: swrow.y + swrow.height + 4px;
+        width: 240px;
+        close-policy: close-on-click-outside;
+        Rectangle {
+            background: Theme.pal.surface;
+            border-radius: Theme.radius;
+            border-width: 1px;
+            border-color: Theme.pal.border;
+            VerticalLayout {
+                padding: 12px;
+                HsvPanel {
+                    seed: root.editing < root.stops.length ? root.stops[root.editing] : #808080;
+                    picked(nc) => { root.stop-picked(root.editing, nc); }
+                }
             }
         }
     }

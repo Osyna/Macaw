@@ -84,6 +84,22 @@ fn hex(c: slint::Color) -> String {
     format!("#{:02X}{:02X}{:02X}", c.red(), c.green(), c.blue())
 }
 
+/// Update a color model in place when the length matches — wholesale
+/// `set_vec` re-instantiates every `for`-item, which tears down any popup
+/// (color picker) living near them mid-edit.
+fn set_colors(model: &Rc<VecModel<slint::Color>>, new: Vec<slint::Color>) {
+    use slint::Model;
+    if model.row_count() == new.len() {
+        for (i, c) in new.into_iter().enumerate() {
+            if model.row_data(i) != Some(c) {
+                model.set_row_data(i, c);
+            }
+        }
+    } else {
+        model.set_vec(new);
+    }
+}
+
 /// App-internal additions to the engine event stream: RPC results are routed
 /// through the same pump so every UI mutation happens in one place.
 enum Msg {
@@ -155,7 +171,7 @@ impl App {
 
         // overlay look: theme + config overrides, resolved once, pushed to
         // both the real overlay window and the settings preview (Look global)
-        self.eq.set_vec(theme::eq_colors(t, &cfg));
+        set_colors(&self.eq, theme::eq_colors(t, &cfg));
         let c = theme::corners(t, &cfg);
         let bw = cfg["border_width"].as_i64().unwrap_or(0) as f32;
         let border_color = if bw > 0.0 {
@@ -199,7 +215,7 @@ impl App {
         } else {
             own
         };
-        self.trans.set_vec(trans);
+        set_colors(&self.trans, trans);
         let done_color = cfg["done_color"]
             .as_str()
             .and_then(theme::parse_hex)
@@ -1411,10 +1427,16 @@ fn main() {
     if flag.as_deref() == Some("--models") {
         app.ui.set_tab("models".into());
     }
+    // Rules must exist BEFORE the window maps (they only apply at map time);
+    // the post-show dispatch fixes a window that mapped tiled anyway (rule
+    // rejected / compositor restarted mid-session).
+    hypr::install_main_rules();
     if flag.as_deref() != Some("--trigger") {
         let _ = app.ui.show();
     }
-    hypr::install_main_rules(); // float at fixed size — never tiled
+    slint::Timer::single_shot(std::time::Duration::from_millis(600), || {
+        hypr::enforce_main_geometry();
+    });
 
     slint::run_event_loop_until_quit().expect("event loop");
     APP.with(|a| a.borrow_mut().take());

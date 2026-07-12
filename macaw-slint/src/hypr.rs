@@ -176,3 +176,14 @@ pub fn install_main_rules() {
         ]);
     }
 }
+
+/// Post-map fixup: if the settings window mapped tiled anyway (rule missed
+/// its map, compositor restart, …), float it and restore its exact size.
+pub fn enforce_main_geometry() {
+    // no centerwindow: it acts on the ACTIVE window, not a selector
+    hyprctl(&[
+        "--batch",
+        "dispatch setfloating class:^(macaw)$ ; \
+         dispatch resizewindowpixel exact 1180 760,class:^(macaw)$",
+    ]);
+}
