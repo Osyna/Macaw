@@ -27,6 +27,8 @@ use serde_json::{json, Map, Value};
 use slint::{ComponentHandle, Model, ModelRc, SharedString, VecModel};
 
 const WS_PORT: u16 = 47540;
+/// Gallery tiles render this fixed downsample instead of the full bar_count.
+const DEMO_BARS: usize = 12;
 use bars::BarAnim;
 
 /// Per-model spoken-language choices (parity with the old manager).
@@ -125,6 +127,7 @@ struct App {
     op: RefCell<Option<(String, String, String, f32)>>, // op, key, msg, pct(-1 = indet)
     toasts: Rc<VecModel<Toast>>,
     levels: Rc<VecModel<f32>>,
+    demo: Rc<VecModel<f32>>, // fixed 12-bar downsample for gallery tiles
     eq: Rc<VecModel<slint::Color>>,
     trans: Rc<VecModel<slint::Color>>, // resolved transcribing stops
     anim: RefCell<BarAnim>,
@@ -228,51 +231,38 @@ impl App {
             .unwrap_or(theme::rgb(t.danger));
         let anim_speed = cfg["anim_speed"].as_f64().unwrap_or(1.0).clamp(0.25, 3.0) as f32;
 
+        // the winit-fallback overlay and the settings preview (Look global)
+        // receive the exact same resolved look — one list, applied to both
         let o = &self.overlay;
-        o.set_pill_bg(pill_bg);
-        o.set_pill_opacity(opacity);
-        o.set_idle_color(theme::rgb(t.eq_idle));
-        o.set_ok_color(done_color);
-        o.set_danger_color(error_color);
-        o.set_eq_colors(ModelRc::from(Rc::clone(&self.eq)));
-        o.set_record_anim(SharedString::from(record_anim.as_str()));
-        o.set_anim(SharedString::from(anim.as_str()));
-        o.set_done_anim(SharedString::from(done_anim.as_str()));
-        o.set_anim_speed(anim_speed);
-        o.set_loader_colors(ModelRc::from(Rc::clone(&self.trans)));
-        o.set_r_tl(c[0]);
-        o.set_r_tr(c[1]);
-        o.set_r_br(c[2]);
-        o.set_r_bl(c[3]);
-        o.set_pill_border_width(bw);
-        o.set_pill_border_color(border_color);
-        o.set_bar_width(bar_w);
-        o.set_bar_spacing(bar_s);
-        o.set_bar_radius(bar_radius);
-        o.set_bar_fade(bar_fade);
-
         let look = self.ui.global::<Look>();
-        look.set_pill_bg(pill_bg);
-        look.set_pill_opacity(opacity);
-        look.set_idle_color(theme::rgb(t.eq_idle));
-        look.set_ok_color(done_color);
-        look.set_danger_color(error_color);
-        look.set_eq_colors(ModelRc::from(Rc::clone(&self.eq)));
-        look.set_record_anim(SharedString::from(record_anim.as_str()));
-        look.set_anim(SharedString::from(anim.as_str()));
-        look.set_done_anim(SharedString::from(done_anim.as_str()));
-        look.set_anim_speed(anim_speed);
-        look.set_loader_colors(ModelRc::from(Rc::clone(&self.trans)));
-        look.set_r_tl(c[0]);
-        look.set_r_tr(c[1]);
-        look.set_r_br(c[2]);
-        look.set_r_bl(c[3]);
-        look.set_pill_border_width(bw);
-        look.set_pill_border_color(border_color);
-        look.set_bar_width(bar_w);
-        look.set_bar_spacing(bar_s);
-        look.set_bar_radius(bar_radius);
-        look.set_bar_fade(bar_fade);
+        macro_rules! push {
+            ($($setter:ident($v:expr);)*) => {
+                $( let v = $v; o.$setter(v.clone()); look.$setter(v); )*
+            };
+        }
+        push! {
+            set_pill_bg(pill_bg);
+            set_pill_opacity(opacity);
+            set_idle_color(theme::rgb(t.eq_idle));
+            set_ok_color(done_color);
+            set_danger_color(error_color);
+            set_eq_colors(ModelRc::from(Rc::clone(&self.eq)));
+            set_record_anim(SharedString::from(record_anim.as_str()));
+            set_anim(SharedString::from(anim.as_str()));
+            set_done_anim(SharedString::from(done_anim.as_str()));
+            set_anim_speed(anim_speed);
+            set_loader_colors(ModelRc::from(Rc::clone(&self.trans)));
+            set_r_tl(c[0]);
+            set_r_tr(c[1]);
+            set_r_br(c[2]);
+            set_r_bl(c[3]);
+            set_pill_border_width(bw);
+            set_pill_border_color(border_color);
+            set_bar_width(bar_w);
+            set_bar_spacing(bar_s);
+            set_bar_radius(bar_radius);
+            set_bar_fade(bar_fade);
+        }
         look.set_pv_w(cfg["overlay_width"].as_f64().unwrap_or(210.0) as f32);
         look.set_pv_h(cfg["overlay_height"].as_f64().unwrap_or(52.0) as f32);
         look.set_levels(ModelRc::from(Rc::clone(&self.levels)));
@@ -323,6 +313,7 @@ impl App {
             })
             .unwrap_or_default();
         let t = theme::by_name(&theme::base_name(&cfg));
+        let corners = theme::corners(t, &cfg);
         self.ui.set_cfg(Cfg {
             language: s("language"),
             output_mode: s("output_mode"),
@@ -352,10 +343,10 @@ impl App {
             overlay_y: SharedString::from(cfg["overlay_y"].as_i64().unwrap_or(0).to_string()),
             corner_radius: f("corner_radius", -1.0),
             corner_link: b("corner_link", true),
-            c_tl: theme::corners(t, &cfg)[0],
-            c_tr: theme::corners(t, &cfg)[1],
-            c_br: theme::corners(t, &cfg)[2],
-            c_bl: theme::corners(t, &cfg)[3],
+            c_tl: corners[0],
+            c_tr: corners[1],
+            c_br: corners[2],
+            c_bl: corners[3],
             bar_spacing: f("bar_spacing", -1.0),
             bar_width: f("bar_width", -1.0),
             bar_radius: f("bar_radius", 0.0),
@@ -682,7 +673,18 @@ impl App {
     }
 
     fn tick_bars(&self) {
-        let rms = if self.recording.get() {
+        use slint::Model;
+        let recording = self.recording.get();
+        let pinned = self.pinned.get();
+        // Who renders these levels? The settings window (preview + galleries)
+        // and the winit-fallback overlay. The layer-shell process animates its
+        // own bars from raw rms — pinned-idle only needs the level cmd below.
+        let ui_visible = self.ui.window().is_visible() || self.overlay.window().is_visible();
+        let pinned_idle = pinned && !recording;
+        if !ui_visible && !pinned_idle {
+            return; // tray-idle: no model churn, no wakeup work
+        }
+        let rms = if recording {
             self.rms.get()
         } else {
             // settings-preview wave: nothing live to visualize
@@ -692,17 +694,35 @@ impl App {
                 .unwrap_or(0) as f32;
             (0.55 + 0.4 * (t * 0.0033).sin()).clamp(0.0, 1.0)
         };
-        let (bars, heard) = {
-            let mut anim = self.anim.borrow_mut();
-            let (b, h) = anim.step(rms);
-            (b.to_vec(), h)
-        };
-        self.levels.set_vec(bars);
-        self.overlay.set_heard(heard);
-        self.ui.global::<Look>().set_heard(heard);
-        // pinned live-edit: the layer-shell process animates from rms — feed
-        // it the synthetic wave so the on-screen indicator moves while idle
-        if self.pinned.get() && !self.recording.get() {
+        let mut anim = self.anim.borrow_mut();
+        let (bars, heard) = anim.step(rms);
+        if ui_visible {
+            // in place: set_vec resets the model, re-instantiating every bar
+            // element per tick — set_row_data only dirties height bindings
+            if self.levels.row_count() == bars.len() {
+                for (i, v) in bars.iter().enumerate() {
+                    if self.levels.row_data(i) != Some(*v) {
+                        self.levels.set_row_data(i, *v);
+                    }
+                }
+            } else {
+                self.levels.set_vec(bars.to_vec());
+            }
+            // gallery tiles run on a fixed 12-bar downsample — 8+ live pills
+            // at full bar_count would animate hundreds of extra rectangles
+            let n = bars.len().max(1);
+            for i in 0..DEMO_BARS {
+                let v = bars[i * n / DEMO_BARS];
+                if self.demo.row_data(i) != Some(v) {
+                    self.demo.set_row_data(i, v);
+                }
+            }
+            self.overlay.set_heard(heard);
+            self.ui.global::<Look>().set_heard(heard);
+        }
+        // pinned live-edit: feed the layer-shell process the synthetic wave
+        // so the on-screen indicator moves while idle
+        if pinned_idle {
             self.ls_send(json!({"cmd": "level", "rms": rms}));
         }
     }
@@ -863,6 +883,11 @@ impl App {
             self.ui.set_tab(tab.into());
         }
         let _ = self.ui.show();
+        // re-maps lose the Wayland app_id (winit), so the class rule can
+        // miss — enforce float + fixed size once the surface is up
+        slint::Timer::single_shot(std::time::Duration::from_millis(400), || {
+            hypr::enforce_main_geometry();
+        });
     }
 
     fn on_cmd(self: &Rc<Self>, cmd: single::Cmd) {
@@ -927,18 +952,23 @@ fn main() {
         return;
     }
 
-    // Per-window Wayland app_id via creation order: 0 = main, 1 = overlay.
-    let counter = Cell::new(0u32);
+    // Per-window Wayland app_id, keyed on the window TITLE — hide()+show()
+    // re-creates winit windows, so a creation-order counter drifts (a
+    // re-shown main window inherited the overlay app_id: class lost,
+    // float rules missed, window tiled).
     slint::BackendSelector::new()
         .backend_name("winit".into())
         .with_winit_window_attributes_hook(move |attrs| {
             use slint::winit_030::winit::platform::wayland::WindowAttributesExtWayland;
-            let i = counter.get();
-            counter.set(i + 1);
             // Size hints come from the fixed .slint window size — adding
             // min/max here too raced Slint's own hints and could kill the
             // surface (min > max protocol error) before first map.
-            let app_id = if i == 0 { "macaw" } else { hypr::OVERLAY_TITLE };
+            let overlay = attrs.title == hypr::OVERLAY_TITLE;
+            let app_id = if overlay {
+                hypr::OVERLAY_TITLE
+            } else {
+                "macaw"
+            };
             attrs.with_name(app_id, "")
         })
         .select()
@@ -957,6 +987,9 @@ fn main() {
     ui.set_toasts(ModelRc::from(Rc::clone(&toasts)));
     let levels = Rc::new(VecModel::from(vec![0.0f32; 24]));
     overlay.set_levels(ModelRc::from(Rc::clone(&levels)));
+    let demo = Rc::new(VecModel::from(vec![0.0f32; DEMO_BARS]));
+    ui.global::<Look>()
+        .set_demo_levels(ModelRc::from(Rc::clone(&demo)));
 
     let app = Rc::new(App {
         tray: tray::spawn(cmd_tx),
@@ -971,6 +1004,7 @@ fn main() {
         op: RefCell::new(None),
         toasts,
         levels,
+        demo,
         eq: Rc::new(VecModel::from(Vec::<slint::Color>::new())),
         trans: Rc::new(VecModel::from(Vec::<slint::Color>::new())),
         anim: RefCell::new(BarAnim::new(24)),
@@ -1046,56 +1080,55 @@ fn main() {
             a.client.call("hotkey.capture_start", json!({}), None);
         });
     }
-    {
-        // gradient/color editors: mutate cfg, patch — the engine's config
-        // echo re-resolves the look everywhere
-        let a = Rc::clone(&app);
-        app.ui.on_eq_set(move |i, c| {
-            let mut stops: Vec<String> = a.eq.iter().map(hex).collect();
-            if let Some(s) = stops.get_mut(i as usize) {
-                *s = hex(c);
-            }
-            a.patch(kv("eq_colors", json!(stops)));
-        });
+    // gradient/color editors: mutate cfg, patch — the engine's config echo
+    // re-resolves the look everywhere. One macro per repeating shape.
+    macro_rules! wire_color {
+        ($pick:ident, $clear:ident, $key:literal) => {{
+            let a = Rc::clone(&app);
+            app.ui.$pick(move |c| a.patch(kv($key, json!(hex(c)))));
+            let a = Rc::clone(&app);
+            app.ui.$clear(move || a.patch(kv($key, json!(""))));
+        }};
     }
-    {
-        let a = Rc::clone(&app);
-        app.ui.on_eq_add(move || {
-            let mut stops: Vec<String> = a.eq.iter().map(hex).collect();
-            stops.push(stops.last().cloned().unwrap_or_else(|| "#E5322B".into()));
-            a.patch(kv("eq_colors", json!(stops)));
-        });
+    macro_rules! wire_stops {
+        ($set:ident, $add:ident, $remove:ident, $model:ident, $key:literal) => {{
+            let a = Rc::clone(&app);
+            app.ui.$set(move |i, c| {
+                let mut stops: Vec<String> = a.$model.iter().map(hex).collect();
+                if let Some(s) = stops.get_mut(i as usize) {
+                    *s = hex(c);
+                }
+                a.patch(kv($key, json!(stops)));
+            });
+            let a = Rc::clone(&app);
+            app.ui.$add(move || {
+                let mut stops: Vec<String> = a.$model.iter().map(hex).collect();
+                stops.push(stops.last().cloned().unwrap_or_else(|| "#E5322B".into()));
+                a.patch(kv($key, json!(stops)));
+            });
+            let a = Rc::clone(&app);
+            app.ui.$remove(move |i| {
+                let mut stops: Vec<String> = a.$model.iter().map(hex).collect();
+                if (i as usize) < stops.len() && stops.len() > 1 {
+                    stops.remove(i as usize);
+                }
+                a.patch(kv($key, json!(stops)));
+            });
+        }};
     }
-    {
-        let a = Rc::clone(&app);
-        app.ui.on_eq_remove(move |i| {
-            let mut stops: Vec<String> = a.eq.iter().map(hex).collect();
-            if (i as usize) < stops.len() && stops.len() > 1 {
-                stops.remove(i as usize);
-            }
-            a.patch(kv("eq_colors", json!(stops)));
-        });
-    }
-    {
-        let a = Rc::clone(&app);
-        app.ui
-            .on_accent_picked(move |c| a.patch(kv("accent_color", json!(hex(c)))));
-    }
-    {
-        let a = Rc::clone(&app);
-        app.ui
-            .on_accent_clear(move || a.patch(kv("accent_color", json!(""))));
-    }
-    {
-        let a = Rc::clone(&app);
-        app.ui
-            .on_border_picked(move |c| a.patch(kv("border_color", json!(hex(c)))));
-    }
-    {
-        let a = Rc::clone(&app);
-        app.ui
-            .on_border_clear(move || a.patch(kv("border_color", json!(""))));
-    }
+    wire_stops!(on_eq_set, on_eq_add, on_eq_remove, eq, "eq_colors");
+    wire_stops!(
+        on_trans_set,
+        on_trans_add,
+        on_trans_remove,
+        trans,
+        "trans_colors"
+    );
+    wire_color!(on_accent_picked, on_accent_clear, "accent_color");
+    wire_color!(on_border_picked, on_border_clear, "border_color");
+    wire_color!(on_pillbg_picked, on_pillbg_clear, "overlay_bg");
+    wire_color!(on_done_picked, on_done_clear, "done_color");
+    wire_color!(on_error_picked, on_error_clear, "error_color");
     {
         // per-corner radii: patch the full 4-list (tl,tr,br,bl)
         let a = Rc::clone(&app);
@@ -1114,16 +1147,6 @@ fn main() {
             let list: Vec<i64> = cc.iter().map(|c| *c as i64).collect();
             a.patch(json!({ "corners": list, "corner_link": false }));
         });
-    }
-    {
-        let a = Rc::clone(&app);
-        app.ui
-            .on_pillbg_picked(move |c| a.patch(kv("overlay_bg", json!(hex(c)))));
-    }
-    {
-        let a = Rc::clone(&app);
-        app.ui
-            .on_pillbg_clear(move || a.patch(kv("overlay_bg", json!(""))));
     }
     {
         let a = Rc::clone(&app);
@@ -1203,55 +1226,6 @@ fn main() {
             *a.expanded.borrow_mut() = id.to_string();
             a.render_models();
         });
-    }
-    {
-        // transcribing gradient (own stops; editor shown only when unlinked)
-        let a = Rc::clone(&app);
-        app.ui.on_trans_set(move |i, c| {
-            let mut stops: Vec<String> = a.trans.iter().map(hex).collect();
-            if let Some(s) = stops.get_mut(i as usize) {
-                *s = hex(c);
-            }
-            a.patch(kv("trans_colors", json!(stops)));
-        });
-    }
-    {
-        let a = Rc::clone(&app);
-        app.ui.on_trans_add(move || {
-            let mut stops: Vec<String> = a.trans.iter().map(hex).collect();
-            stops.push(stops.last().cloned().unwrap_or_else(|| "#E5322B".into()));
-            a.patch(kv("trans_colors", json!(stops)));
-        });
-    }
-    {
-        let a = Rc::clone(&app);
-        app.ui.on_trans_remove(move |i| {
-            let mut stops: Vec<String> = a.trans.iter().map(hex).collect();
-            if (i as usize) < stops.len() && stops.len() > 1 {
-                stops.remove(i as usize);
-            }
-            a.patch(kv("trans_colors", json!(stops)));
-        });
-    }
-    {
-        let a = Rc::clone(&app);
-        app.ui
-            .on_done_picked(move |c| a.patch(kv("done_color", json!(hex(c)))));
-    }
-    {
-        let a = Rc::clone(&app);
-        app.ui
-            .on_done_clear(move || a.patch(kv("done_color", json!(""))));
-    }
-    {
-        let a = Rc::clone(&app);
-        app.ui
-            .on_error_picked(move |c| a.patch(kv("error_color", json!(hex(c)))));
-    }
-    {
-        let a = Rc::clone(&app);
-        app.ui
-            .on_error_clear(move || a.patch(kv("error_color", json!(""))));
     }
     app.ui.on_open_url(|url| {
         let _ = std::process::Command::new("xdg-open")

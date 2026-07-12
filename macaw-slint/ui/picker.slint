@@ -2,7 +2,7 @@
 // gradient (color-stop list) editor. Pure .slint — hsv()/to-hsv() builtins
 // do the math; Rust only receives final colors.
 
-import { Theme } from "theme.slint";
+import { Theme, Grad } from "theme.slint";
 import { Btn } from "widgets.slint";
 
 // ── HSV picker panel ─────────────────────────────────────────────────
@@ -184,20 +184,9 @@ export component GradientEditor inherits VerticalLayout {
 
     spacing: 8px;
 
-    // same interpolation as the pill renderer (clamped-index endpoint)
-    pure function pal-i(frac: float) -> int {
-        return min(stops.length - 2, floor(clamp(frac, 0, 1) * (stops.length - 1)));
-    }
+    // same interpolation as the pill renderer — shared Grad global
     pure function pal(frac: float) -> color {
-        if (stops.length == 0) {
-            return transparent;
-        }
-        if (stops.length == 1) {
-            return stops[0];
-        }
-        return stops[pal-i(frac)].mix(
-            stops[pal-i(frac) + 1],
-            1 - clamp(clamp(frac, 0, 1) * (stops.length - 1) - pal-i(frac), 0, 1));
+        return stops.length == 0 ? transparent : Grad.at(stops, frac);
     }
 
     Rectangle { // live gradient strip: 48 interpolated slices

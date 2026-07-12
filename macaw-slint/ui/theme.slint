@@ -42,6 +42,23 @@ export global Theme {
     in-out property <bool> repaint-flip: false;
 }
 
+// Shared gradient sampling: clamped segment index + intra-segment position
+// (t measured from the CLAMPED index so frac=1 lands exactly on the last
+// stop). One implementation for the pill, the editors and the previews.
+export global Grad {
+    pure function idx(stops: [color], frac: float) -> int {
+        return min(stops.length - 2, floor(clamp(frac, 0, 1) * (stops.length - 1)));
+    }
+    public pure function at(stops: [color], frac: float) -> color {
+        if (stops.length == 1) {
+            return stops[0];
+        }
+        return stops[idx(stops, frac)].mix(
+            stops[idx(stops, frac) + 1],
+            1 - clamp(clamp(frac, 0, 1) * (stops.length - 1) - idx(stops, frac), 0, 1));
+    }
+}
+
 // Resolved overlay look (theme + config overrides merged by Rust) shared by
 // the settings live preview and the theming editors. The real overlay window
 // is a separate component tree and receives the same values as properties.
@@ -71,6 +88,7 @@ export global Look {
     in-out property <length> pv-w: 210px;
     in-out property <length> pv-h: 52px;
     in-out property <[float]> levels;
+    in-out property <[float]> demo-levels; // fixed 12-bar wave for gallery tiles
 }
 
 // Hover hint for setting labels: rows publish their hint text + anchor here;

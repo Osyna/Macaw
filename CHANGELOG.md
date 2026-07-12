@@ -4,6 +4,18 @@ Notable changes to Macaw. Older releases live on the [releases page](https://git
 
 ## Unreleased
 
+- **Lighter and faster.** The 30 Hz preview animation now stops entirely
+  when nothing shows it (0% CPU hidden in the tray, was constant background
+  work), level bars update in place instead of rebuilding the bar row every
+  tick, and the animation galleries run on a fixed 12-bar preview instead of
+  animating the full bar count per tile. One shared gradient sampler
+  (`Grad`) replaces three duplicated implementations.
+
+- Fixed: reopening the window from the tray left it tiled with dead space
+  and no fixed size (the compositor class is lost on re-map) — float/size
+  rules are now also keyed on the window title and re-enforced on every
+  show.
+
 - **Appearance is its own tab.** The theming studio moved out of Settings
   into a dedicated top-level section: an always-visible live preview with
   state chips on the left (plus theme presets and save/update/delete), and

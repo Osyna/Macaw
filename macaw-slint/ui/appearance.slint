@@ -43,7 +43,7 @@ component AnimTile inherits Rectangle {
                 demo-loop: root.tile-mode == "done";
                 anim-speed: Look.anim-speed;
                 heard: root.tile-mode == "eq" ? max(Look.heard, 0.35) : Look.heard;
-                levels: Look.levels;
+                levels: Look.demo-levels;
                 loader-colors: Look.loader-colors;
                 pill-bg: Look.pill-bg;
                 pill-opacity: 1.0;

@@ -73,7 +73,9 @@ class Config:
     bar_fade: bool = True  # quiet bars fade out (False = solid)
     bar_count: int = 24  # number of equaliser bars (8-48)
     overlay_bg: str = ""  # overlay pill background, hex (blank = theme)
-    record_anim: str = "bars"  # recording: bars|mirror|dots|orb|wave|blocks|ripple|meter
+    record_anim: str = (
+        "bars"  # recording: bars|mirror|dots|orb|wave|blocks|ripple|meter
+    )
     transcribe_anim: str = "waves"  # transcribing: waves|sweep|pulse|dots|scan|cascade|shimmer|orbit|typewriter|bounce|heartbeat
     anim_speed: float = 1.0  # transcribing animation speed multiplier (0.25-3)
     trans_link: bool = True  # transcribing uses the recording (eq) colors

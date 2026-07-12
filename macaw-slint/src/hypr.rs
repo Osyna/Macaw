@@ -161,18 +161,30 @@ pub fn move_mapped(x: i32, y: i32) {
 /// Runtime keyword rules apply after config rules, so this wins over any
 /// stale user rule for the class.
 pub fn install_main_rules() {
-    let rule = "float on, size 1180 760, center on, match:class ^(macaw)$";
+    // Two rules: class for the normal boot map, TITLE for re-maps — winit
+    // drops the Wayland app_id when a hidden window is shown again (class
+    // comes back empty), but the title survives.
     let Some(sig) = signature() else { return };
-    let out = Command::new("hyprctl")
-        .env("HYPRLAND_INSTANCE_SIGNATURE", &sig)
-        .args(["keyword", "windowrule", rule])
-        .output();
-    let ok = out.map(|o| o.stdout.starts_with(b"ok")).unwrap_or(false);
+    let ok = ["match:class ^(macaw)$", "match:title ^(Macaw)$"]
+        .iter()
+        .all(|sel| {
+            Command::new("hyprctl")
+                .env("HYPRLAND_INSTANCE_SIGNATURE", &sig)
+                .args([
+                    "keyword",
+                    "windowrule",
+                    &format!("float on, size 1180 760, center on, {sel}"),
+                ])
+                .output()
+                .map(|o| o.stdout.starts_with(b"ok"))
+                .unwrap_or(false)
+        });
     if !ok {
         // legacy syntax
         hyprctl(&[
             "--batch",
-            "keyword windowrulev2 float,class:^(macaw)$ ; keyword windowrulev2 size 1180 760,class:^(macaw)$ ; keyword windowrulev2 center,class:^(macaw)$",
+            "keyword windowrulev2 float,class:^(macaw)$ ; keyword windowrulev2 size 1180 760,class:^(macaw)$ ; keyword windowrulev2 center,class:^(macaw)$ ; \
+             keyword windowrulev2 float,title:^(Macaw)$ ; keyword windowrulev2 size 1180 760,title:^(Macaw)$ ; keyword windowrulev2 center,title:^(Macaw)$",
         ]);
     }
 }
@@ -180,10 +192,13 @@ pub fn install_main_rules() {
 /// Post-map fixup: if the settings window mapped tiled anyway (rule missed
 /// its map, compositor restart, …), float it and restore its exact size.
 pub fn enforce_main_geometry() {
-    // no centerwindow: it acts on the ACTIVE window, not a selector
+    // no centerwindow: it acts on the ACTIVE window, not a selector.
+    // title selector: re-mapped windows lose their class (see above).
     hyprctl(&[
         "--batch",
         "dispatch setfloating class:^(macaw)$ ; \
-         dispatch resizewindowpixel exact 1180 760,class:^(macaw)$",
+         dispatch resizewindowpixel exact 1180 760,class:^(macaw)$ ; \
+         dispatch setfloating title:^(Macaw)$ ; \
+         dispatch resizewindowpixel exact 1180 760,title:^(Macaw)$",
     ]);
 }
