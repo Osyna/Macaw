@@ -92,7 +92,7 @@ component FilterChip inherits Rectangle {
     callback clicked;
     width: t.preferred-width + 20px;
     height: 28px;
-    border-radius: 7px;
+    border-radius: Theme.radius;
     background: root.active ? Theme.pal.accent : Theme.pal.control;
     border-width: 1px;
     border-color: root.active ? transparent : Theme.pal.border;
@@ -127,7 +127,7 @@ component ModelCard inherits Rectangle {
     callback param-num(string, string, float);
     callback param-bool(string, string, bool);
 
-    border-radius: 12px;
+    border-radius: Theme.radius;
     background: Theme.pal.surface;
     border-width: m.active ? 2px : 1px;
     border-color: m.active ? Theme.pal.accent : Theme.pal.border;

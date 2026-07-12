@@ -126,22 +126,27 @@ impl App {
     fn apply_theme(&self) {
         let cfg = self.cfg.borrow();
         let name = cfg["theme"].as_str().unwrap_or("macaw").to_string();
-        let t = theme::by_name(&name);
-        self.ui.global::<Theme>().set_pal(Palette {
-            bg: theme::rgb(t.bg),
-            surface: theme::rgb(t.surface),
-            control: theme::rgb(t.control),
-            fg: theme::rgb(t.fg),
-            muted: theme::rgb(t.muted),
-            border: theme::rgb(t.border),
-            accent: cfg["accent_color"]
-                .as_str()
-                .and_then(theme::parse_hex)
-                .unwrap_or(theme::rgb(t.accent)),
-            accent_fg: theme::rgb(t.accent_fg),
-            ok: theme::rgb(t.ok),
-            warn: theme::rgb(t.warn),
-            danger: theme::rgb(t.danger),
+        let t = theme::by_name(&name); // INDICATOR look only
+                                       // app chrome: minimal terminal, dark (real black) or light
+        let ch = if cfg["app_theme"].as_str().unwrap_or("dark") == "light" {
+            &theme::CHROME_LIGHT
+        } else {
+            &theme::CHROME_DARK
+        };
+        let tg = self.ui.global::<Theme>();
+        tg.set_repaint_flip(!tg.get_repaint_flip());
+        tg.set_pal(Palette {
+            bg: theme::rgb(ch.bg),
+            surface: theme::rgb(ch.surface),
+            control: theme::rgb(ch.control),
+            fg: theme::rgb(ch.fg),
+            muted: theme::rgb(ch.muted),
+            border: theme::rgb(ch.border),
+            accent: theme::rgb(ch.accent),
+            accent_fg: theme::rgb(ch.accent_fg),
+            ok: theme::rgb(ch.ok),
+            warn: theme::rgb(ch.warn),
+            danger: theme::rgb(ch.danger),
             overlay_bg: theme::rgb(t.overlay_bg),
             eq_idle: theme::rgb(t.eq_idle),
         });
@@ -271,6 +276,7 @@ impl App {
             hotkey_enabled: b("hotkey_enabled", false),
             hotkey: s("hotkey"),
             theme: s("theme"),
+            app_theme: s("app_theme"),
             window_position: s("window_position"),
             overlay_opacity: f("overlay_opacity", 0.94),
             overlay_width: f("overlay_width", 210.0),

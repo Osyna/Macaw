@@ -31,7 +31,7 @@ export component HsvPanel inherits Rectangle {
         y: 0;
         width: 216px;
         height: 140px;
-        border-radius: 6px;
+        border-radius: Theme.radius;
         clip: true;
         background: @linear-gradient(90deg, white 0%, hsv(root.hue, 1, 1) 100%);
         Rectangle {
@@ -42,7 +42,7 @@ export component HsvPanel inherits Rectangle {
             y: parent.height * (1 - root.val) - 6px;
             width: 12px;
             height: 12px;
-            border-radius: 6px;
+            border-radius: Theme.radius;
             background: transparent;
             border-width: 2px;
             border-color: root.val > 0.6 ? black : white;
@@ -63,7 +63,7 @@ export component HsvPanel inherits Rectangle {
         y: sv.height + 8px;
         width: 216px;
         height: 14px;
-        border-radius: 7px;
+        border-radius: Theme.radius;
         background: @linear-gradient(90deg,
             hsv(0, 1, 1) 0%, hsv(60, 1, 1) 16.7%, hsv(120, 1, 1) 33.3%,
             hsv(180, 1, 1) 50%, hsv(240, 1, 1) 66.7%, hsv(300, 1, 1) 83.3%,
@@ -73,12 +73,10 @@ export component HsvPanel inherits Rectangle {
             y: 0;
             width: 14px;
             height: 14px;
-            border-radius: 7px;
+            border-radius: Theme.radius;
             background: hsv(root.hue, 1, 1);
             border-width: 2px;
             border-color: white;
-            drop-shadow-blur: 2px;
-            drop-shadow-color: #00000060;
         }
         TouchArea {
             moved => { parent.pick(self.mouse-x); }
@@ -97,7 +95,7 @@ export component HsvPanel inherits Rectangle {
         spacing: 8px;
         Rectangle {
             width: 18px;
-            border-radius: 4px;
+            border-radius: Theme.radius;
             background: hsv(root.hue, root.sat, root.val);
             border-width: 1px;
             border-color: Theme.pal.border;
@@ -120,7 +118,7 @@ export component ColorField inherits Rectangle {
 
     width: 64px;
     height: 28px;
-    border-radius: 7px;
+    border-radius: Theme.radius;
     background: root.cleared ? Theme.pal.control : root.value;
     border-width: 1px;
     border-color: Theme.pal.border;
@@ -147,11 +145,11 @@ export component ColorField inherits Rectangle {
         close-policy: close-on-click-outside;
         Rectangle {
             background: Theme.pal.surface;
-            border-radius: 10px;
+            border-radius: Theme.radius;
             border-width: 1px;
             border-color: Theme.pal.border;
-            drop-shadow-blur: 16px;
-            drop-shadow-color: #00000050;
+            
+            
             VerticalLayout {
                 padding: 12px;
                 spacing: 8px;
@@ -198,7 +196,7 @@ export component GradientEditor inherits VerticalLayout {
 
     Rectangle { // live gradient strip: 48 interpolated slices
         height: 16px;
-        border-radius: 8px;
+        border-radius: Theme.radius;
         border-width: 1px;
         border-color: Theme.pal.border;
         clip: true;
@@ -212,7 +210,7 @@ export component GradientEditor inherits VerticalLayout {
         for c[i] in root.stops: Rectangle {
             width: 44px;
             height: 28px;
-            border-radius: 7px;
+            border-radius: Theme.radius;
             background: c;
             border-width: 1px;
             border-color: Theme.pal.border;
@@ -227,7 +225,7 @@ export component GradientEditor inherits VerticalLayout {
                 y: -4px;
                 width: 16px;
                 height: 16px;
-                border-radius: 8px;
+                border-radius: Theme.radius;
                 background: Theme.pal.danger;
                 Text {
                     text: "×";
@@ -250,11 +248,11 @@ export component GradientEditor inherits VerticalLayout {
                 close-policy: close-on-click-outside;
                 Rectangle {
                     background: Theme.pal.surface;
-                    border-radius: 10px;
+                    border-radius: Theme.radius;
                     border-width: 1px;
                     border-color: Theme.pal.border;
-                    drop-shadow-blur: 16px;
-                    drop-shadow-color: #00000050;
+                    
+                    
                     VerticalLayout {
                         padding: 12px;
                         inner := HsvPanel {
@@ -268,7 +266,7 @@ export component GradientEditor inherits VerticalLayout {
         if root.stops.length < 6: Rectangle { // add stop
             width: 44px;
             height: 28px;
-            border-radius: 7px;
+            border-radius: Theme.radius;
             background: Theme.pal.control;
             border-width: 1px;
             border-color: Theme.pal.border;

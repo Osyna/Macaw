@@ -20,7 +20,7 @@ component TabBtn inherits Rectangle {
     callback clicked;
     width: t.preferred-width + 28px;
     height: 32px;
-    border-radius: 8px;
+    border-radius: Theme.radius;
     background: root.active ? Theme.pal.surface : (touch.has-hover ? Theme.pal.surface.with-alpha(0.5) : transparent);
     border-width: root.active ? 1px : 0px;
     border-color: Theme.pal.border;
@@ -38,6 +38,7 @@ component TabBtn inherits Rectangle {
 
 export component MainWindow inherits Window {
     title: "Macaw";
+    default-font-family: "monospace"; // terminal chrome; the pill keeps the UI font
     min-width: 760px;
     min-height: 520px;
     preferred-width: 920px;
@@ -96,6 +97,13 @@ export component MainWindow inherits Window {
 
     callback toggle-recording();
 
+    // full-window damage trigger (see Theme.repaint-flip)
+    Rectangle {
+        width: 100%;
+        height: 100%;
+        background: Theme.repaint-flip ? #00000000 : #FFFFFF00;
+    }
+
     VerticalLayout {
         // ── header ──────────────────────────────────────────────────
         Rectangle {
@@ -135,7 +143,7 @@ export component MainWindow inherits Window {
                     y: parent.height / 2 - 5px;
                     width: 10px;
                     height: 10px;
-                    border-radius: 5px;
+                    border-radius: Theme.radius;
                     background: !root.engine-connected ? Theme.pal.danger
                         : root.engine-state == "recording" ? Theme.pal.accent
                         : root.engine-state == "error" ? Theme.pal.danger
@@ -208,11 +216,9 @@ export component MainWindow inherits Window {
         spacing: 8px;
         for t in root.toasts: Rectangle {
             height: tt.preferred-height + 20px;
-            border-radius: 8px;
+            border-radius: Theme.radius;
             background: t.level == "error" ? Theme.pal.danger
                 : t.level == "success" ? Theme.pal.ok : Theme.pal.fg;
-            drop-shadow-blur: 12px;
-            drop-shadow-color: #00000050;
             tt := Text {
                 x: 12px;
                 y: 10px;

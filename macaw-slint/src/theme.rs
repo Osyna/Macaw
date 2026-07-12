@@ -99,6 +99,48 @@ pub const CATPPUCCIN: ThemeDef = ThemeDef {
     border_color: 0xCBA6F7,
 };
 
+// ── app chrome (settings/models window) ─────────────────────────────
+// The 10 themes above style the INDICATOR only. The app itself is a
+// minimal terminal-like chrome: monochrome, hard corners, real black.
+
+pub const CHROME_DARK: ThemeDef = ThemeDef {
+    bg: 0x000000,
+    surface: 0x050505,
+    control: 0x0D0D0D,
+    fg: 0xD8D8D8,
+    muted: 0x6E6E6E,
+    border: 0x222222,
+    accent: 0xE8E8E8, // inverted-video "highlight"
+    accent_fg: 0x000000,
+    ok: 0x3FB950,
+    warn: 0xD29922,
+    danger: 0xF85149,
+    overlay_bg: 0x000000, // unused for chrome
+    eq_idle: 0x222222,    // unused for chrome
+    eq_colors: [0, 0, 0, 0],
+    corners: [0, 0, 0, 0],
+    border_color: 0x222222,
+};
+
+pub const CHROME_LIGHT: ThemeDef = ThemeDef {
+    bg: 0xFFFFFF,
+    surface: 0xFFFFFF,
+    control: 0xF2F2F2,
+    fg: 0x141414,
+    muted: 0x6E6E6E,
+    border: 0xD0D0D0,
+    accent: 0x141414,
+    accent_fg: 0xFFFFFF,
+    ok: 0x1A7F37,
+    warn: 0x9A6700,
+    danger: 0xCF222E,
+    overlay_bg: 0xFFFFFF,
+    eq_idle: 0xD0D0D0,
+    eq_colors: [0, 0, 0, 0],
+    corners: [0, 0, 0, 0],
+    border_color: 0xD0D0D0,
+};
+
 pub const DRACULA: ThemeDef = ThemeDef {
     bg: 0x282A36,
     surface: 0x21222C,

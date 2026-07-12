@@ -4,6 +4,14 @@ Notable changes to Macaw. Older releases live on the [releases page](https://git
 
 ## Unreleased
 
+- **The 10 themes now style the indicator only.** The app window is a
+  minimal terminal-like chrome — monochrome, hard 0-radius corners, no
+  shadows, monospace — in Dark (real black) or Light, chosen under
+  System → App theme (`app_theme`, as in the old app).
+- Fixed stale header regions after theme switches (partial-repaint damage
+  gap in the software renderer — full-window damage is now forced on
+  palette swaps).
+
 - **Complete model manager**: search box + status filters (All / Ready /
   Installed / Cloud / Streaming), and every card expands into a full dossier —
   description, pros & cons, spec table (speed, languages, minimal &

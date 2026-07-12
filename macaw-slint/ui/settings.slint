@@ -18,6 +18,7 @@ export struct Cfg {
     hotkey-enabled: bool,
     hotkey: string,
     theme: string,
+    app-theme: string,
     window-position: string,
     overlay-opacity: float,
     overlay-width: float,
@@ -67,7 +68,7 @@ component Row inherits HorizontalLayout {
 
 component Card inherits Rectangle {
     in property <string> title;
-    border-radius: 12px;
+    border-radius: Theme.radius;
     background: Theme.pal.surface;
     border-width: 1px;
     border-color: Theme.pal.border;
@@ -193,7 +194,7 @@ export component SettingsView inherits Flickable {
             // ── live preview ────────────────────────────────────────
             Rectangle {
                 height: max(Look.pv-h + 32px, 90px);
-                border-radius: 10px;
+                border-radius: Theme.radius;
                 background: @linear-gradient(135deg, #3B4252 0%, #2E3440 50%, #242933 100%);
                 clip: true;
                 OverlayPill {
@@ -230,7 +231,7 @@ export component SettingsView inherits Flickable {
                 height: 30px;
                 for m in ["eq", "loader", "done", "error"]: Rectangle {
                     width: t.preferred-width + 20px;
-                    border-radius: 7px;
+                    border-radius: Theme.radius;
                     background: root.preview-mode == m ? Theme.pal.accent : Theme.pal.control;
                     border-width: 1px;
                     border-color: root.preview-mode == m ? transparent : Theme.pal.border;
@@ -265,7 +266,7 @@ export component SettingsView inherits Flickable {
 
 
             Row {
-                label: "Theme";
+                label: "Indicator theme";
                 Select {
                     options: root.theme-names;
                     current <=> root.theme-current;
@@ -436,6 +437,14 @@ export component SettingsView inherits Flickable {
 
         Card {
             title: "SYSTEM";
+            Row {
+                label: "App theme";
+                Select {
+                    options: ["dark (terminal)", "light"];
+                    current: cfg.app-theme == "light" ? 1 : 0;
+                    changed(i) => { root.set-str("app_theme", i == 1 ? "light" : "dark"); }
+                }
+            }
             Row {
                 label: "Start on login";
                 Toggle { checked: cfg.autostart; toggled(v) => { root.set-autostart(v); } }

@@ -35,7 +35,11 @@ export global Theme {
         overlay-bg: #171310,
         eq-idle: #E7D8C4,
     };
-    in-out property <length> radius: 10px;
+    in-out property <length> radius: 0px;
+    // toggled by Rust on every theme swap: a full-window rect bound to it
+    // (app.slint) forces whole-window damage — the partial software renderer
+    // otherwise leaves stale regions (header) after a mass palette change.
+    in-out property <bool> repaint-flip: false;
 }
 
 // Resolved overlay look (theme + config overrides merged by Rust) shared by
