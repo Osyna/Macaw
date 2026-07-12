@@ -26,7 +26,7 @@ prompt_yn() {
     fi
     local hint choice
     [[ "$default" == "y" ]] && hint="[Y/n]" || hint="[y/N]"
-    read -rp "$prompt $hint " choice </dev/tty
+    read -rp "$prompt $hint " choice </dev/tty || choice="$default"
     case "${choice:-$default}" in [yY]*) return 0 ;; *) return 1 ;; esac
 }
 
@@ -54,7 +54,7 @@ existing_install_menu() {
         return 0
     fi
     local choice
-    read -rp "Reinstall (r) / Uninstall (u) / Quit (q)? [r/u/q] " choice </dev/tty
+    read -rp "Reinstall (r) / Uninstall (u) / Quit (q)? [r/u/q] " choice </dev/tty || choice=r
     case "${choice:-r}" in
         [uU]*) uninstall; exit 0 ;;
         [qQ]*) exit 0 ;;
