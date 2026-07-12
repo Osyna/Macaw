@@ -99,11 +99,10 @@ class Transcriber:
             return ""
 
         logger.info("Transcribing (%s, %s)...", backend.model.id, self.language)
-        try:
-            text = backend.transcribe(audio, 16_000)
-        except Exception as exc:
-            logger.error("Transcription error: %s", exc)
-            return ""
+        # Backend failures propagate: the engine turns them into an overlay
+        # error flash + toast; swallowing them here made failures look like
+        # silence (nothing delivered, no feedback).
+        text = backend.transcribe(audio, 16_000)
         if text:
             logger.info(text)
         return text

@@ -1,6 +1,6 @@
 [project]
 name = "macaw"
-version = "0.4.2"
+version = "0.4.3"
 description = "Fast speech-to-text with system tray integration"
 readme = "README.md"
 license = "MIT"

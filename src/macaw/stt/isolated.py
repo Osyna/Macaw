@@ -151,33 +151,48 @@ class SubprocessBackend(Backend):
         if not py.exists():
             raise MissingDependency(f"{self.model.extra} backend is not installed")
         logger.info("Starting %s worker (%s)...", self.key, self.model.id)
-        self._proc = subprocess.Popen(
-            [
-                str(py),
-                _WORKER,
-                "--backend",
-                self.key,
-                "--model",
-                self.model.id,
-                "--language",
-                self.language,
-            ],
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
-            text=True,
-            bufsize=1,
-            env=_worker_env(),
-            # Windows: never pop a console window for the background worker.
-            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-        )
+        # Worker stderr goes to a temp file: a pipe would fill up (NeMo logs a
+        # lot) and DEVNULL made startup crashes undiagnosable.
+        self._stderr_path = tempfile.mkstemp(prefix="macaw-worker-", suffix=".log")[1]
+        stderr_f = open(self._stderr_path, "w")  # noqa: SIM115 — handed to Popen
+        try:
+            self._proc = subprocess.Popen(
+                [
+                    str(py),
+                    _WORKER,
+                    "--backend",
+                    self.key,
+                    "--model",
+                    self.model.id,
+                    "--language",
+                    self.language,
+                ],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=stderr_f,
+                text=True,
+                bufsize=1,
+                env=_worker_env(),
+                # Windows: never pop a console window for the background worker.
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            )
+        finally:
+            stderr_f.close()  # child holds its own copy of the fd
         status = self._read_message()
         if status.get("status") != "ready":
+            err = status.get("error", "unknown")
+            if err in ("unknown", "worker exited"):
+                err = f"{err}\n{self._stderr_tail()}"
             self.unload()
-            raise RuntimeError(
-                f"{self.key} worker failed to start: {status.get('error', 'unknown')}"
-            )
+            raise RuntimeError(f"{self.key} worker failed to start: {err}")
         logger.info("%s worker ready.", self.key)
+
+    def _stderr_tail(self, lines: int = 12) -> str:
+        try:
+            with open(self._stderr_path, errors="replace") as f:
+                return "".join(f.readlines()[-lines:]).strip() or "(no stderr)"
+        except OSError:
+            return "(stderr unavailable)"
 
     def transcribe(self, audio: np.ndarray, sample_rate: int = 16_000) -> str:
         self.load()

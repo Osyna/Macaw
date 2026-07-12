@@ -247,6 +247,7 @@ class Engine:
         self._load_thread: threading.Thread | None = None
         self._model_loaded = False  # True only after a model loads successfully
         self._load_cancelled = False
+        self._pending_model: str | None = None  # switch queued behind a cancel
 
         # streaming live-typing
         self._stream_buffer: list[np.ndarray] = []
@@ -361,6 +362,14 @@ class Engine:
     def _switch_model(self, model_name: str) -> None:
         """(Re)load a newly-selected model in the background."""
         self._model_loaded = False
+        if self._load_thread is not None and self._load_thread.is_alive():
+            # A load is in flight: cancel it quietly and queue this switch —
+            # _on_model_loaded picks it up. Killing the worker without the
+            # cancel flag would surface as a bogus "worker exited" error.
+            self._load_cancelled = True
+            self._pending_model = model_name
+            self.transcriber.unload_model()  # unblocks the in-flight load
+            return
         self.transcriber.unload_model()
         self.transcriber.model_size = model_name
         if self.transcriber.is_ready():
@@ -396,7 +405,11 @@ class Engine:
             self._model_loaded = False
             self.transcriber.unload_model()  # reap any worker that raced the cancel
             logger.info("Model load cancelled (%s)", self.transcriber.model_size)
-            self.set_state("idle")
+            pending, self._pending_model = self._pending_model, None
+            if pending is not None:
+                self._switch_model(pending)  # load thread is dead — safe to recurse
+            else:
+                self.set_state("idle")
             self.emit("models", {})
             return
         if ok:
@@ -527,9 +540,22 @@ class Engine:
         except Exception as exc:  # noqa: BLE001 — daemon-thread guard
             logger.error("Transcription failed: %s", exc, exc_info=True)
             self.toast("error", f"Transcription failed: {exc}")
+            self.set_state("error", detail="Transcription failed")
+            self._state_later(1.8, "error", "idle")
+            return
         finally:
-            if not self.is_recording and self.state != "idle":
+            if not self.is_recording and self.state not in ("idle", "error", "done"):
                 self.set_state("idle")
+
+    def _state_later(self, delay: float, from_state: str, to_state: str) -> None:
+        """Schedule a state transition (worker-thread safe); no-op if the
+        state changed again in the meantime."""
+
+        def flip() -> None:
+            if self.state == from_state:
+                self.set_state(to_state)
+
+        self.loop.call_soon_threadsafe(lambda: self.loop.call_later(delay, flip))
 
     def _process_audio_inner(self) -> None:
         chunks = self.capture.read()
@@ -571,6 +597,10 @@ class Engine:
             else:
                 self._deliver_text(text)
 
+            if self.cfg.output_mode != "type":
+                # Delivered to the clipboard: flash the ✓ on the overlay.
+                self.set_state("done")
+                self._state_later(1.2, "done", "idle")
             if self.cfg.sound_enabled:
                 sounds.play_done()
 
@@ -606,11 +636,15 @@ class Engine:
 
     def _stream_transcribe(self, audio: np.ndarray, sample_rate: int) -> None:
         """Worker thread: transcribe and live-type newly confirmed text."""
-        confirmed, full = self.transcriber.transcribe_streaming(
-            audio,
-            sample_rate=sample_rate,
-            prev_text=self._stream_prev_text,
-        )
+        try:
+            confirmed, full = self.transcriber.transcribe_streaming(
+                audio,
+                sample_rate=sample_rate,
+                prev_text=self._stream_prev_text,
+            )
+        except Exception as exc:  # noqa: BLE001 — mid-stream tick; final pass reports
+            logger.error("Streaming transcription error: %s", exc)
+            return
         self._stream_prev_text = full
         if confirmed and len(confirmed) > self._stream_confirmed_len:
             new_text = confirmed[self._stream_confirmed_len :]
@@ -970,6 +1004,17 @@ class Engine:
 
 
 def main(argv: list[str] | None = None) -> int:
+    if getattr(sys, "frozen", False) and sys.platform.startswith("linux"):
+        # PyInstaller points LD_LIBRARY_PATH at its bundled (older) libs.
+        # ld.so snapshotted that at exec, so dropping it from os.environ only
+        # affects CHILD processes — backend venv workers, uv installs, and
+        # system tools (wl-copy/ydotool/hyprctl) must NOT load the bundled
+        # libstdc++ (GLIBCXX version mismatch kills e.g. the NeMo worker).
+        orig = os.environ.pop("LD_LIBRARY_PATH_ORIG", None)
+        if orig:
+            os.environ["LD_LIBRARY_PATH"] = orig
+        else:
+            os.environ.pop("LD_LIBRARY_PATH", None)
     p = argparse.ArgumentParser(
         prog="macaw-engine",
         description="Macaw headless engine — WebSocket API for the UI.",

@@ -2,6 +2,19 @@
 
 Notable changes to Macaw. Older releases live on the [releases page](https://github.com/Osyna/Macaw/releases).
 
+## v0.4.3
+
+- **Fixed: sandboxed models (NeMo Parakeet & co.) crashed in packaged builds.**
+  The frozen engine leaked PyInstaller's bundled library path into child
+  processes, so backend workers loaded an old `libstdc++` and died
+  (`GLIBCXX_3.4.32 not found`). Children now get a clean environment — this
+  also protects `uv` installs and system tools (wl-copy, ydotool, hyprctl).
+- **The overlay now shows a ✓ when your text lands in the clipboard**, and
+  transcription failures flash the overlay red instead of ending silently.
+- Switching models mid-load no longer reports a bogus "worker exited" error;
+  the new choice loads right after the cancel.
+- Backend worker crashes now log their stderr tail — no more blind failures.
+
 ## v0.4.2
 
 - **Windows open on your current workspace.** Showing Settings/Models from the

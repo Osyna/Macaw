@@ -56,6 +56,24 @@ body {
   animation: overlay-flash 0.5s ease-in-out 3;
 }
 
+.pill.done .msg {
+  display: flex;
+  color: var(--ok, #2e9e6b);
+  font-size: 20px;
+  animation: overlay-pop 0.18s ease-out;
+}
+
+@keyframes overlay-pop {
+  from {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
 @keyframes overlay-flash {
   0%,
   100% {

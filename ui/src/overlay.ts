@@ -72,6 +72,7 @@ interface Look {
   barRadius: number;
   barFade: boolean;
   danger: string;
+  ok: string;
   fg: string;
   width: number;
   height: number;
@@ -155,6 +156,7 @@ function resolveLook(cfg: OverlayCfg): Look {
     barRadius: cfg.bar_radius ?? 0,
     barFade: cfg.bar_fade ?? true,
     danger: t.danger,
+    ok: t.ok,
     fg: t.fg,
     width: cfg.overlay_width ?? 210,
     height: cfg.overlay_height ?? 52,
@@ -216,6 +218,7 @@ export function initOverlay(engine: Engine): void {
     const [tl, tr, br, bl] = look.corners;
     s.setProperty("--pill-radius", `${tl}px ${tr}px ${br}px ${bl}px`);
     s.setProperty("--danger-bg", rgba(hexRgb(look.danger), a));
+    s.setProperty("--ok", look.ok);
     s.setProperty("--fg", look.fg);
     msg.style.fontSize = `${Math.max(11, Math.round(look.height * 0.3))}px`; // window.py:209
     if (!IS_TAURI) {
@@ -440,7 +443,7 @@ export function initOverlay(engine: Engine): void {
       clearTimeout(errTimer);
       errTimer = undefined;
     }
-    pill.classList.remove("error");
+    pill.classList.remove("error", "done");
     msg.textContent = "";
     if (state === "recording") {
       mode = "eq";
@@ -451,6 +454,14 @@ export function initOverlay(engine: Engine): void {
       stateT0 = performance.now();
       show();
       startLoop();
+    } else if (state === "done") {
+      // Delivered to the clipboard — brief ✓ (engine flips to idle after 1.2s).
+      mode = "off";
+      stopLoop();
+      ctx.clearRect(0, 0, cssW, cssH);
+      msg.textContent = "✓";
+      pill.classList.add("done");
+      show();
     } else if (state === "error") {
       mode = "error";
       stopLoop();
