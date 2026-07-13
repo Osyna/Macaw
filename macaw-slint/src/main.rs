@@ -142,7 +142,7 @@ struct App {
     preview_mode: RefCell<String>, // state chip selected in Appearance
     expanded: RefCell<String>,     // model id with the open dossier ("" = none)
     search: RefCell<String>,
-    filter: Cell<i32>, // -1 none / 0 For you / 1 Light / 2 Local / 3 Cloud / 4 Live
+    filter: Cell<i32>, // -1 none / 0 For you / 1 Light / 2 Cloud / 3 Live
 }
 
 impl App {
@@ -507,9 +507,8 @@ impl App {
                 match filter {
                     0 => m["fit_rank"].as_i64().unwrap_or(0) > 0,
                     1 => m["light"].as_bool().unwrap_or(false),
-                    2 => m["installed"].as_bool().unwrap_or(false),
-                    3 => m["cloud"].as_bool().unwrap_or(false),
-                    4 => m["streaming"].as_bool().unwrap_or(false),
+                    2 => m["cloud"].as_bool().unwrap_or(false),
+                    3 => m["streaming"].as_bool().unwrap_or(false),
                     _ => true, // -1 = no filter
                 }
             })

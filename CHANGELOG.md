@@ -12,7 +12,7 @@ Notable changes to Macaw. Older releases live on the [releases page](https://git
   exactly what the meter shows. Default matches the old behaviour.
 
 - **Filters, reworked.** "For you" leads; nothing is selected by default;
-  clicking a chip toggles it off again. "All" and "Ready" are gone, and a
+  clicking a chip toggles it off again. "All", "Ready" and "Local" are gone;
   new **☘ Light** (resource-friendly) filter finds the CPU-only models —
   every chip has an icon, and light models wear a dossier badge. The
   For-you ranking now reserves two slots for resource-friendly picks, so

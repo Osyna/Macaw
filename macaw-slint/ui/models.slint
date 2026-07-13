@@ -208,8 +208,7 @@ export component ModelsView inherits HorizontalLayout {
             HorizontalLayout {
                 spacing: 4px;
                 alignment: start;
-                // toggle filters: none selected by default, click again to clear
-                for f[i] in ["◈ For you", "☘ Light", "⌂ Local", "☁ Cloud", "∿ Live"]: FilterChip {
+                for f[i] in ["◈ For you", "☘ Light", "☁ Cloud", "∿ Live"]: FilterChip {
                     text: f;
                     active: root.filter-current == i;
                     clicked => {
