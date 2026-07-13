@@ -47,8 +47,13 @@ smithay-client-toolkit = { version = "0.20", default-features = false, features 
 wayland-client = "0.31.14"
 
 [target.'cfg(windows)'.dependencies]
+# femtovg (GL) on Windows: slint 1.17's software renderer panics there in
+# fontique system-font enumeration (systemfonts.rs:71 unwrap on None) — the
+# fontdb-based femtovg path is the mature one. Software stays on Linux for
+# the smaller RSS.
 slint = { version = "1.17", default-features = false, features = [
     "backend-winit",
+    "renderer-femtovg",
 ] }
 # Win32 notification-area icon + menu (the ksni equivalent).
 tray-icon = "0.21"

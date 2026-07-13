@@ -1121,6 +1121,20 @@ fn set_autostart(on: bool) {
 }
 
 fn main() {
+    // GUI subsystem on Windows: panics have no console to land in — persist
+    // them so "the app doesn't launch" is always diagnosable.
+    #[cfg(windows)]
+    if let Ok(base) = std::env::var("LOCALAPPDATA") {
+        let dir = std::path::PathBuf::from(base).join("Macaw");
+        let _ = std::fs::create_dir_all(&dir);
+        let path = dir.join("ui-crash.log");
+        std::panic::set_hook(Box::new(move |info| {
+            let _ = std::fs::write(
+                &path,
+                format!("{info}\n\n{}", std::backtrace::Backtrace::force_capture()),
+            );
+        }));
+    }
     let flag = std::env::args().skip(1).find(|a| a.starts_with("--"));
 
     // Single instance: forward argv and exit if an instance already runs.
@@ -1138,7 +1152,7 @@ fn main() {
     // re-shown main window inherited the overlay app_id: class lost,
     // float rules missed, window tiled). Windows has no app_id concept —
     // attributes pass through untouched there.
-    slint::BackendSelector::new()
+    let selector = slint::BackendSelector::new()
         .backend_name("winit".into())
         .with_winit_window_attributes_hook(move |attrs| {
             #[cfg(unix)]
@@ -1157,9 +1171,15 @@ fn main() {
             }
             #[cfg(not(unix))]
             attrs
-        })
-        .select()
-        .expect("select winit backend");
+        });
+    // Renderer pinned per platform: software on Linux (smaller RSS, no GL),
+    // femtovg on Windows — 1.17's software renderer panics in fontique
+    // system-font enumeration there (systemfonts.rs:71).
+    #[cfg(unix)]
+    let selector = selector.renderer_name("software".into());
+    #[cfg(windows)]
+    let selector = selector.renderer_name("femtovg".into());
+    selector.select().expect("select winit backend");
 
     let ui = MainWindow::new().expect("create main window"); // adapter #0
     let overlay = OverlayWindow::new().expect("create overlay"); // adapter #1
