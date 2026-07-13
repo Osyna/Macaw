@@ -80,7 +80,7 @@ Settings, a live microphone meter, and a full model manager in one tray window �
 
 ### Swap the brain, live
 
-Two dozen models across seven engines — Whisper, Moonshine, Parakeet, Canary-Qwen, Voxtral, sherpa-onnx, and OpenAI cloud. Install any local one on demand into its own sandbox (or drop in an OpenAI key for the cloud models), tune temperature, beam size, and the VAD filter, and set the active model without touching a config file.
+Twenty-eight models across eight engines — Whisper, Moonshine v1 and v2, Parakeet, Canary-Qwen, Voxtral, sherpa-onnx, and OpenAI cloud. Install any local one on demand into its own sandbox (or drop in an OpenAI key for the cloud models), tune temperature, beam size, and the VAD filter, and set the active model without touching a config file.
 
 </td>
 <td width="50%">
@@ -119,10 +119,11 @@ Whisper is built in. The rest install on demand from the Model Manager (`macaw -
 |-------|---------|-----------|----------|---------|---------|
 | Whisper `tiny` → `large-v3-turbo` | [faster-whisper][faster-whisper] · [OpenAI Whisper][whisper] | 99+ | 75 MB – 3 GB | CPU or GPU | built in |
 | Moonshine `tiny` / `base` | [Useful Sensors Moonshine][moonshine] | English | ~30–60 MB | CPU | `macaw[moonshine]` |
+| Moonshine v2 `tiny` / `small` / `medium` | [Moonshine Streaming][moonshine] | English | ~35–250 MB | CPU | `macaw[moonshine2]` |
 | Parakeet TDT `v2` / `v3` | [NVIDIA NeMo][nemo] | English / 25 | ~2.5 GB | NVIDIA GPU | `macaw[nemo]` |
 | Canary-Qwen 2.5B | [NVIDIA NeMo][nemo] | English | ~5 GB | NVIDIA GPU | `macaw[nemo]` |
 | Voxtral Mini 3B | [Mistral Voxtral][voxtral] · [Transformers][transformers] | 13 | ~6 GB | NVIDIA GPU | `macaw[voxtral]` |
-| Zipformer · Paraformer · Parakeet (ONNX) | [sherpa-onnx][sherpa-onnx] | English · Chinese · 25 | ~26 MB – 660 MB | CPU | `macaw[sherpa]` |
+| Zipformer · Paraformer · Parakeet · Nemotron (ONNX) | [sherpa-onnx][sherpa-onnx] | English · Chinese · 25 | ~26 MB – 660 MB | CPU | `macaw[sherpa]` |
 | GPT-4o Transcribe · mini | [OpenAI][openai-stt] | 99+ | cloud (API key) | Cloud | `macaw[openai]` |
 
 The default is `large-v3-turbo`: 99+ languages, about 1.6 GB, and the best speed-to-accuracy trade-off on a GPU. On a laptop with no GPU, `base` or `distil-small.en` keep things snappy.
@@ -184,7 +185,7 @@ macaw --download large-v3-turbo    # fetch a model
 macaw --run                        # headless engine (hotkey + overlay-less dictation)
 ```
 
-That gives you the engine and the `macaw` CLI without the desktop app — dictation still lands in your clipboard or focused window. Backends install from `macaw --setup`, or as extras: `macaw[sherpa]`, `macaw[moonshine]`, `macaw[nemo]`, `macaw[voxtral]`, `macaw[openai]`, `macaw[cuda]`.
+That gives you the engine and the `macaw` CLI without the desktop app — dictation still lands in your clipboard or focused window. Backends install from `macaw --setup`, or as extras: `macaw[sherpa]`, `macaw[moonshine]`, `macaw[moonshine2]`, `macaw[nemo]`, `macaw[voxtral]`, `macaw[openai]`, `macaw[cuda]`.
 
 ## Usage
 

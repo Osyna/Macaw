@@ -29,8 +29,8 @@ params:                # shared tunables, rendered as controls in the Manager
   - key: vad_filter
     label: Silence filter (VAD)
     kind: bool
-    default: true
-    hint: "Skip non-speech"
+    default: false
+    hint: "Model-level Silero pass — redundant since the global Skip-silence gate; enable only if you turned that off"
 
 models:
   - id: tiny

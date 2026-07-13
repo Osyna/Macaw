@@ -4,6 +4,11 @@ Notable changes to Macaw. Older releases live on the [releases page](https://git
 
 ## Unreleased
 
+- Sherpa models decode with up to 4 ONNX threads instead of 2 (measured
+  1.4x on the Nemotron encoder), and Whisper's per-model VAD filter now
+  defaults off — the global Skip-silence gate already does that job, so
+  Silero no longer runs twice on the Whisper path.
+
 - **True streaming for live typing.** Natively-streaming models (the sherpa
   Zipformer/Paraformer/Nemotron family) now keep one persistent decode
   stream during live typing and receive only the NEW audio each tick —

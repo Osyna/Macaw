@@ -267,6 +267,9 @@ def _load_sherpa(model: str, language: str):
     cfg = _SHERPA_MODELS[model]
     files = [cfg[k] for k in ("encoder", "decoder", "joiner", "tokens") if k in cfg]
     root = snapshot_download(cfg["repo"], allow_patterns=files)
+    # 4 threads: measured 1.4x over 2 on the 0.6B Nemotron encoder; beyond 4
+    # the return is marginal and it starts starving the rest of the system.
+    threads = min(4, os.cpu_count() or 2)
 
     def path(name: str) -> str:
         return os.path.join(root, name)
@@ -282,7 +285,7 @@ def _load_sherpa(model: str, language: str):
             decoder=path(cfg["decoder"]),
             joiner=path(cfg["joiner"]),
             tokens=path(cfg["tokens"]),
-            num_threads=2,
+            num_threads=threads,
             model_type=cfg["model_type"],
             provider="cpu",
         )
@@ -303,7 +306,7 @@ def _load_sherpa(model: str, language: str):
             tokens=path(cfg["tokens"]),
             encoder=path(cfg["encoder"]),
             decoder=path(cfg["decoder"]),
-            num_threads=2,
+            num_threads=threads,
             provider="cpu",
         )
     else:  # online_transducer (streaming Zipformer)
@@ -312,7 +315,7 @@ def _load_sherpa(model: str, language: str):
             encoder=path(cfg["encoder"]),
             decoder=path(cfg["decoder"]),
             joiner=path(cfg["joiner"]),
-            num_threads=2,
+            num_threads=threads,
             provider="cpu",
         )
 
