@@ -2,7 +2,7 @@
 
 Notable changes to Macaw. Older releases live on the [releases page](https://github.com/Osyna/Macaw/releases).
 
-## Unreleased
+## 0.5.0 — 2026-07-13
 
 - Done “flash”: the ok-tinted wash now follows the pill’s rounded
   corners instead of flashing a square box around them.
