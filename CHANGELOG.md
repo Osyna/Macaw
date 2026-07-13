@@ -4,6 +4,9 @@ Notable changes to Macaw. Older releases live on the [releases page](https://git
 
 ## Unreleased
 
+- Done “flash”: the ok-tinted wash now follows the pill’s rounded
+  corners instead of flashing a square box around them.
+
 - **Silence gate you can see.** The Input level meter doubles as the
   silence control: drag the marker on the live bar — anything quieter
   counts as silence for the auto-stop timer (`silence_level`). The band
