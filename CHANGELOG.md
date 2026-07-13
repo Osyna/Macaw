@@ -4,6 +4,21 @@ Notable changes to Macaw. Older releases live on the [releases page](https://git
 
 ## Unreleased
 
+- **Picks for this machine.** The engine probes your hardware once (GPU
+  vendor, VRAM, cores, RAM, ARM/Apple) and ranks the catalog against each
+  model's own metadata — top picks wear a "#1 pick" badge, a "For you"
+  filter shows just the ranked list, and the dossier explains every pick
+  ("uses your 24 GB NVIDIA GPU"). Detected specs shown above the list.
+  Cloud models only rank once their API key is set; models that need a
+  GPU you don't have (or more VRAM than you've got) are never suggested.
+
+- Model dossier: a new **About** section — description and feature/tradeoff
+  bullets — now sits below the Spoken language picker for every model, and
+  multi-line pros/cons render correctly (previously dropped entirely).
+
+- Settings: **Default language** is a proper list now (same languages as
+  the per-model picker) instead of a free-text ISO field.
+
 - Sherpa models decode with up to 4 ONNX threads instead of 2 (measured
   1.4x on the Nemotron encoder), and Whisper's per-model VAD filter now
   defaults off — the global Skip-silence gate already does that job, so

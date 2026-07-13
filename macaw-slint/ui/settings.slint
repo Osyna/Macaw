@@ -71,6 +71,8 @@ export component SettingsView inherits ScrollArea {
     in property <Cfg> cfg;
     in property <[string]> devices;      // labels; [0] = "System default"
     in-out property <int> device-current: 0;
+    in property <[string]> langs;        // display names; index-paired with codes in Rust
+    in property <int> lang-current: 0;
     in property <bool> capturing-hotkey: false;
 
     callback set-str(string, string);    // key, value
@@ -80,6 +82,7 @@ export component SettingsView inherits ScrollArea {
     callback capture-hotkey();
     callback set-autostart(bool);
     callback set-api-key(string);
+    callback pick-default-lang(int);
     in property <float> mic-level: 0;    // live input level (Settings-visible)
     in property <bool> engine-connected: false;
     in property <string> engine-state: "idle";
@@ -174,12 +177,12 @@ export component SettingsView inherits ScrollArea {
                     }
                 }
                 Row {
-                    label: "Language (ISO)";
-                    hint: "Default spoken language (two-letter code). Models can override it individually.";
-                    Field {
-                        text: cfg.language;
-                        placeholder: "en";
-                        submitted(v) => { root.set-str("language", v); }
+                    label: "Default language";
+                    hint: "What models transcribe unless a model overrides it in the Model Manager. English-only models ignore this.";
+                    Select {
+                        options: root.langs;
+                        current: root.lang-current;
+                        changed(i) => { root.pick-default-lang(i); }
                     }
                 }
                 Row {

@@ -119,6 +119,9 @@ export component MainWindow inherits Window {
     in property <[ParamRow]> detail-params;
     in property <[string]> langs;
     in property <int> lang-current;
+    in property <int> default-lang-current;
+    in property <string> hw-summary;
+    callback pick-default-lang(int);
     callback install(string);
     callback download(string);
     callback activate(string);
@@ -233,6 +236,9 @@ export component MainWindow inherits Window {
             cfg: root.cfg;
             devices: root.devices;
             device-current <=> root.device-current;
+            langs: root.langs;
+            lang-current: root.default-lang-current;
+            pick-default-lang(i) => { root.pick-default-lang(i); }
             capturing-hotkey: root.capturing-hotkey;
             set-str(k, v) => { root.set-str(k, v); }
             set-num(k, v) => { root.set-num(k, v); }
@@ -289,6 +295,7 @@ export component MainWindow inherits Window {
             detail-params: root.detail-params;
             langs: root.langs;
             lang-current: root.lang-current;
+            hw-summary: root.hw-summary;
             install(e) => { root.install(e); }
             download(id) => { root.download(id); }
             activate(id) => { root.activate(id); }

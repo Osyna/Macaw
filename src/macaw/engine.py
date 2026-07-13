@@ -31,7 +31,7 @@ import numpy as np
 import pyperclip
 import zmq
 
-from macaw import net
+from macaw import hardware, net
 from macaw.audio import sounds
 from macaw.audio.capture import AudioCapture
 from macaw.audio.transcriber import Transcriber
@@ -229,6 +229,8 @@ class Engine:
         self.cfg = Config.load()
         net.apply(self.cfg.proxy, self.cfg.ssl_verify)  # proxy/SSL: downloads + cloud
         self.desktop = DesktopHelper()
+        self._hw = hardware.probe()  # once; drives the model-fit suggestions
+        logger.info("Hardware: %s", hardware.summary(self._hw))
         self.capture = AudioCapture(device=self.cfg.device_index)
         self.transcriber = Transcriber(
             model_size=self.cfg.model,
@@ -770,6 +772,7 @@ class Engine:
         cfg = self.cfg
         cache = hf_cache_sizes()
         out: list[dict] = []
+        hw = self._hw
         for info in sorted(list_models(), key=lambda m: (m.cloud, -m.rating)):
             backend = create_backend(info.id)
             available = backend.available()
@@ -822,6 +825,7 @@ class Engine:
                     "cur_params": cfg.model_params.get(info.id, {}),
                 }
             )
+        hardware.rank(out, hw)
         return out
 
     def _require_model(self, model_id: str) -> None:
@@ -906,6 +910,8 @@ class Engine:
             return await asyncio.to_thread(self._status)
         if method == "config.get":
             return {"config": self.config_dict(), "path": str(config_path())}
+        if method == "system.info":
+            return {"summary": hardware.summary(self._hw), "hw": self._hw}
         if method == "config.set":
             return self._config_set(params)
         if method == "devices.list":

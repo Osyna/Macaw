@@ -181,6 +181,7 @@ models:
     hardware: NVIDIA / AMD GPU
     vram: "~6 GB"
     rating: 5
+    recommended: true
     notes: |-
       + Best all-round pick: near large-v3 accuracy at roughly 4x the speed.
       + Full 99+ language support — the recommended default for most users.

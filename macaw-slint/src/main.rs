@@ -107,6 +107,7 @@ fn set_colors(model: &Rc<VecModel<slint::Color>>, new: Vec<slint::Color>) {
 enum Msg {
     Ws(ws::Event),
     ConfigLoaded(Value),
+    SystemInfo(Value),
     DevicesLoaded(Value),
     ModelsLoaded(Vec<Value>),
     Cmd(single::Cmd),
@@ -322,6 +323,11 @@ impl App {
             .unwrap_or_default();
         let t = theme::by_name(&theme::base_name(&cfg));
         let corners = theme::corners(t, &cfg);
+        let lang_idx = LANGS
+            .iter()
+            .position(|(_, c)| *c == cfg["language"].as_str().unwrap_or("en"))
+            .unwrap_or(0) as i32;
+        self.ui.set_default_lang_current(lang_idx);
         self.ui.set_cfg(Cfg {
             language: s("language"),
             output_mode: s("output_mode"),
@@ -502,11 +508,25 @@ impl App {
                     2 => m["installed"].as_bool().unwrap_or(false),
                     3 => m["cloud"].as_bool().unwrap_or(false),
                     4 => m["streaming"].as_bool().unwrap_or(false),
+                    5 => m["fit_rank"].as_i64().unwrap_or(0) > 0,
                     _ => true,
                 }
             })
             .map(|m| {
                 let s = |k: &str| SharedString::from(m[k].as_str().unwrap_or_default());
+                // catalog notes arrive as arrays of bullet lines
+                let lines = |k: &str, sep: &str| {
+                    SharedString::from(
+                        m[k].as_array()
+                            .map(|a| {
+                                a.iter()
+                                    .filter_map(Value::as_str)
+                                    .collect::<Vec<_>>()
+                                    .join(sep)
+                            })
+                            .unwrap_or_default(),
+                    )
+                };
                 let id = m["id"].as_str().unwrap_or_default();
                 let extra = m["extra"].as_str().unwrap_or_default();
                 let busy = op
@@ -540,8 +560,8 @@ impl App {
                     cloud: m["cloud"].as_bool().unwrap_or(false),
                     recommended: m["recommended"].as_bool().unwrap_or(false),
                     rating: m["rating"].as_i64().unwrap_or(0) as i32,
-                    pros: s("pros"),
-                    cons: s("cons"),
+                    pros: lines("pros", "\n+ "),
+                    cons: lines("cons", "\n− "),
                     notes: s("notes"),
                     available: m["available"].as_bool().unwrap_or(false),
                     installed: m["installed"].as_bool().unwrap_or(false),
@@ -563,9 +583,15 @@ impl App {
                     busy,
                     progress_pct: if busy { pct } else { -1.0 },
                     progress_msg: SharedString::from(if busy { msg } else { String::new() }),
+                    fit_rank: m["fit_rank"].as_i64().unwrap_or(0) as i32,
+                    fit_why: s("fit_why"),
                 }
             })
             .collect();
+        let mut rows = rows;
+        if filter == 5 {
+            rows.sort_by_key(|r| r.fit_rank); // "For you": best pick first
+        }
         self.ui.set_op_running(op.is_some());
         // selected dossier (master-detail right pane)
         let sel_row = rows.iter().find(|r| r.expanded).cloned();
@@ -758,6 +784,10 @@ impl App {
                 self.cfg.replace(v["config"].clone());
                 self.apply_config();
             }
+            Msg::SystemInfo(v) => {
+                self.ui
+                    .set_hw_summary(SharedString::from(v["summary"].as_str().unwrap_or("")));
+            }
             Msg::DevicesLoaded(devs) => {
                 let mut list = vec![(None, "System default".to_string())];
                 if let Some(arr) = devs.as_array() {
@@ -808,6 +838,16 @@ impl App {
                     Some(Box::new(move |res| {
                         if let Ok(v) = res {
                             let _ = tx.send(Msg::ConfigLoaded(v));
+                        }
+                    })),
+                );
+                let tx = self.msg_tx.clone();
+                self.client.call(
+                    "system.info",
+                    json!({}),
+                    Some(Box::new(move |res| {
+                        if let Ok(v) = res {
+                            let _ = tx.send(Msg::SystemInfo(v));
                         }
                     })),
                 );
@@ -1232,6 +1272,13 @@ fn main() {
         let a = Rc::clone(&app);
         app.ui
             .on_set_api_key(move |v| a.patch(kv("openai_api_key", json!(v.to_string()))));
+    }
+    {
+        let a = Rc::clone(&app);
+        app.ui.on_pick_default_lang(move |i| {
+            let code = LANGS.get(i as usize).map(|(_, c)| *c).unwrap_or("en");
+            a.patch(kv("language", json!(code)));
+        });
     }
     {
         let a = Rc::clone(&app);

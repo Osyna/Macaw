@@ -39,6 +39,8 @@ export struct ModelRow {
     busy: bool,
     progress-pct: float, // -1 = indeterminate
     progress-msg: string,
+    fit-rank: int,       // 1..N = suggested for this machine (0 = not ranked)
+    fit-why: string,     // short reason shown in the dossier
 }
 
 export struct ParamRow {
@@ -147,6 +149,7 @@ component ModelItem inherits Rectangle {
             spacing: 5px;
             alignment: start;
             if m.active: Badge { text: "active"; tint: Theme.pal.ok; }
+            if m.fit-rank > 0 && m.fit-rank <= 3 && !m.active: Badge { text: "#\{m.fit-rank} pick"; tint: Theme.pal.ok; }
             Badge { text: m.backend; }
             if m.cloud: Badge { text: "cloud"; tint: Theme.pal.warn; }
             if m.streaming: Badge { text: "stream"; tint: Theme.pal.accent; }
@@ -173,6 +176,7 @@ export component ModelsView inherits HorizontalLayout {
     in property <[string]> langs;
     in property <int> lang-current;
     in-out property <int> filter-current: 0;
+    in property <string> hw-summary: "";
 
     callback install(string);
     callback download(string);
@@ -203,7 +207,7 @@ export component ModelsView inherits HorizontalLayout {
             HorizontalLayout {
                 spacing: 4px;
                 alignment: start;
-                for f[i] in ["All", "Ready", "Local", "Cloud", "Live"]: FilterChip {
+                for f[i] in ["All", "Ready", "Local", "Cloud", "Live", "For you"]: FilterChip {
                     text: f;
                     active: root.filter-current == i;
                     clicked => {
@@ -211,6 +215,12 @@ export component ModelsView inherits HorizontalLayout {
                         root.filter(i);
                     }
                 }
+            }
+            if root.hw-summary != "": Text {
+                text: "◈ \{root.hw-summary}";
+                color: Theme.pal.muted;
+                font-size: 11px;
+                overflow: elide;
             }
             ScrollArea {
                 viewport-height: list.preferred-height;
@@ -315,21 +325,9 @@ export component ModelsView inherits HorizontalLayout {
                 }
             }
 
-            if root.have-sel && sel.notes != "": Text {
-                text: sel.notes;
-                color: Theme.pal.fg;
-                font-size: 12px;
-                wrap: word-wrap;
-            }
-            if root.have-sel && sel.pros != "": Text {
-                text: "+ \{sel.pros}";
+            if root.have-sel && sel.fit-rank > 0: Text {
+                text: "◈ #\{sel.fit-rank} pick for this machine — \{sel.fit-why}";
                 color: Theme.pal.ok;
-                font-size: 12px;
-                wrap: word-wrap;
-            }
-            if root.have-sel && sel.cons != "": Text {
-                text: "− \{sel.cons}";
-                color: Theme.pal.warn;
                 font-size: 12px;
                 wrap: word-wrap;
             }
@@ -375,6 +373,30 @@ export component ModelsView inherits HorizontalLayout {
                     options: root.langs;
                     current: root.lang-current;
                     changed(i) => { root.set-lang(sel.id, i); }
+                }
+            }
+
+            // ── description / features (below the language choice) ────
+            if root.have-sel && (sel.notes != "" || sel.pros != "" || sel.cons != ""): VerticalLayout {
+                spacing: 4px;
+                SectionTitle { text: "ABOUT"; }
+                if sel.notes != "": Text {
+                    text: sel.notes;
+                    color: Theme.pal.fg;
+                    font-size: 12px;
+                    wrap: word-wrap;
+                }
+                if sel.pros != "": Text {
+                    text: "+ \{sel.pros}";
+                    color: Theme.pal.ok;
+                    font-size: 12px;
+                    wrap: word-wrap;
+                }
+                if sel.cons != "": Text {
+                    text: "− \{sel.cons}";
+                    color: Theme.pal.warn;
+                    font-size: 12px;
+                    wrap: word-wrap;
                 }
             }
 
