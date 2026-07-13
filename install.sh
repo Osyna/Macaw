@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Macaw installer — fetches the latest AppImage release and wires up a
-# launcher. Prefer the .deb/.rpm from https://github.com/Osyna/Macaw/releases
-# if your distro supports them; this script covers everything else.
+# launcher. The tarball from https://github.com/Osyna/Macaw/releases works
+# too if you'd rather place the binaries yourself; this script covers the rest.
 set -euo pipefail
 
 REPO="Osyna/Macaw"

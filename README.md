@@ -136,9 +136,9 @@ Every method gives you the Macaw app (tray + Settings/Models windows + overlay).
 
 | Method | Best for | Command |
 |--------|----------|---------|
-| deb / rpm | Debian, Ubuntu, Fedora, openSUSE | grab it from [Releases](https://github.com/Osyna/Macaw/releases/latest) |
-| Install script | everything else | `curl -fsSL https://raw.githubusercontent.com/Osyna/Macaw/main/install.sh \| bash` |
+| Install script | most Linux setups | `curl -fsSL https://raw.githubusercontent.com/Osyna/Macaw/main/install.sh \| bash` |
 | AppImage | no install | grab it from [Releases](https://github.com/Osyna/Macaw/releases/latest), `chmod +x`, run |
+| Tarball | manual installs | `macaw-<version>-linux-x86_64.tar.gz` from [Releases](https://github.com/Osyna/Macaw/releases/latest) — run `./macaw-ui` |
 | NSIS installer | Windows 10/11 (beta) | `Macaw_<version>_x64-setup.exe` from [Releases](https://github.com/Osyna/Macaw/releases/latest) |
 
 First, the system bits Macaw talks to:
@@ -161,9 +161,9 @@ curl -fsSL https://raw.githubusercontent.com/Osyna/Macaw/main/install.sh | bash
 
 It downloads the latest AppImage to `~/.local/bin`, adds the desktop launcher and icon, and offers to set up input-group access for the evdev hotkey and ydotool. Run `install.sh uninstall` to remove it again.
 
-### AppImage / deb / rpm
+### AppImage / tarball
 
-Each bundle ships the UI **and** the speech engine (Python is embedded — no system Python needed). Whisper is built in; every other backend installs on demand from the Model Manager into its own sandbox under `~/.local/share/macaw/backends/`, including the GPU ones (CUDA wheels and all). On Wayland the overlay anchors via wlr-layer-shell (`gtk-layer-shell`; the deb/rpm pull it in, and Hyprland/Sway/KDE support it out of the box).
+Each bundle ships the native UI **and** the speech engine (Python is embedded — no system Python needed). Whisper is built in; every other backend installs on demand from the Model Manager into its own sandbox under `~/.local/share/macaw/backends/`, including the GPU ones (CUDA wheels and all). The overlay anchors via wlr-layer-shell — Hyprland/Sway/KDE support it out of the box.
 
 ### Windows (beta)
 
@@ -324,9 +324,9 @@ Engine logs are the app's stderr, prefixed `[engine]` — run `Macaw` (or the Ap
 
 ## Releasing
 
-Releases are built by CI whenever a `vX.Y.Z` tag is pushed: `release.yml` ships the wheel/sdist, the Linux Tauri bundles (AppImage/deb/rpm, engine embedded), and `SHA256SUMS`; `windows.yml` adds the NSIS installer.
+Releases are built by CI whenever a `vX.Y.Z` tag is pushed: `release.yml` ships the wheel/sdist and the Linux bundles (AppImage + tarball with the native Slint UI and the embedded engine) plus `SHA256SUMS`; `windows.yml` adds the NSIS installer.
 
-Cut one in a single step. `make tag` bumps the version in `pyproject.toml` and `src-tauri/tauri.conf.json`, commits, and tags:
+Cut one in a single step. `make tag` bumps the version in `pyproject.toml`, `src-tauri/tauri.conf.json` and `macaw-slint/Cargo.toml`, commits, and tags:
 
 ```sh
 make tag VERSION=0.2.0

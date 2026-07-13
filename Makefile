@@ -17,14 +17,17 @@ release: checksums
 	@echo "Release artifacts in $(DIST)/"
 	@ls -lh $(DIST)/
 
-# Cut a release: bump the version in pyproject.toml AND src-tauri/tauri.conf.json,
-# commit, and tag. Pushing the tag triggers release.yml + windows.yml.
-#   make tag VERSION=0.4.0 && git push && git push origin vVERSION
+# Cut a release: bump the version in pyproject.toml, src-tauri/tauri.conf.json
+# AND macaw-slint/Cargo.toml (+lock), commit, and tag. Pushing the tag triggers
+# release.yml (Linux Slint bundles) + windows.yml (Tauri NSIS).
+#   make tag VERSION=0.5.0 && git push && git push origin vVERSION
 tag:
 	@test -n "$(VERSION)" || { echo "usage: make tag VERSION=x.y.z"; exit 1; }
 	@sed -i 's/^version = ".*"/version = "$(VERSION)"/' pyproject.toml
 	@sed -i 's/^  "version": ".*",/  "version": "$(VERSION)",/' src-tauri/tauri.conf.json
-	git add pyproject.toml src-tauri/tauri.conf.json
+	@sed -i '0,/^version = ".*"/s//version = "$(VERSION)"/' macaw-slint/Cargo.toml
+	@cd macaw-slint && cargo update -p macaw-ui --offline -q
+	git add pyproject.toml src-tauri/tauri.conf.json macaw-slint/Cargo.toml macaw-slint/Cargo.lock
 	git commit -m "Release v$(VERSION)"
 	git tag -a "v$(VERSION)" -m "v$(VERSION)"
 	@echo "Tagged v$(VERSION). Push:  git push && git push origin v$(VERSION)"
