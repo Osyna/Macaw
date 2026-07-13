@@ -4,10 +4,9 @@ version = "0.5.0"
 description = "Fast speech-to-text with system tray integration"
 readme = "README.md"
 license = "MIT"
-requires-python = ">=3.10,<3.14"  # onnxruntime/CUDA wheels lag new CPython; raise ceiling when 3.14 wheels ship
+requires-python = ">=3.10,<3.14"  # CUDA wheels in backend venvs lag new CPython; raise ceiling when 3.14 wheels ship
 dependencies = [
-    "faster-whisper>=1.1.0",
-    "onnxruntime>=1.20,<1.24",
+    "huggingface-hub>=0.20",  # model downloads + shared-cache accounting
     "numpy>=2.0.0",
     "pyperclip>=1.9.0",
     "pyzmq>=26.0.0",
@@ -18,14 +17,17 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-cuda = [
+# Every STT backend is optional and installs on demand from the Model Manager
+# into its own isolated venv (see src/macaw/stt/). This keeps the base install
+# — and the frozen engine binary — small.
+whisper = [  # faster-whisper (CTranslate2) — the default backend
+    "faster-whisper>=1.1.0",
+]
+cuda = [  # extra wheels the whisper venv needs for GPU decode (appended by the installer on NVIDIA boxes)
     "nvidia-cublas-cu12",
     "nvidia-cudnn-cu12",
 ]
 rocm = []  # ROCm CTranslate2 wheel installed by install.sh from GitHub releases
-
-# Extra STT backends (see src/macaw/stt/). Each is optional; the base install
-# ships Whisper only. Install e.g. `uv tool install "macaw[moonshine]"`.
 moonshine = [
     "useful-moonshine-onnx",
 ]

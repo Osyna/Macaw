@@ -1,8 +1,8 @@
 """Network settings for model downloads and cloud calls.
 
 One place to route HTTP(S) through a proxy and (optionally) skip SSL
-verification. Downloads happen both in-process (faster-whisper) and in isolated
-worker subprocesses (nemo/voxtral/sherpa/moonshine), so we push proxy + an SSL
+verification. Downloads happen both in-process (huggingface_hub) and in isolated
+worker subprocesses (whisper/nemo/voxtral/sherpa/moonshine), so we push proxy + an SSL
 marker into the process environment — which the workers inherit — and configure
 huggingface_hub's session here for the in-process side. Cloud (OpenAI) calls
 read the same two settings and build their own httpx client.

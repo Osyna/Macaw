@@ -2227,10 +2227,9 @@ name = "macaw"
 version = "0.5.0"
 source = { editable = "." }
 dependencies = [
-    { name = "faster-whisper" },
+    { name = "huggingface-hub" },
     { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "numpy", version = "2.3.5", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
-    { name = "onnxruntime" },
     { name = "pyperclip" },
     { name = "pyyaml" },
     { name = "pyzmq" },
@@ -2275,6 +2274,9 @@ voxtral = [
     { name = "torch" },
     { name = "transformers" },
 ]
+whisper = [
+    { name = "faster-whisper" },
+]
 
 [package.dev-dependencies]
 dev = [
@@ -2289,7 +2291,8 @@ requires-dist = [
     { name = "accelerate", marker = "extra == 'voxtral'" },
     { name = "cuda-python", marker = "extra == 'nemo'", specifier = ">=12.3" },
     { name = "evdev", marker = "sys_platform == 'linux' and extra == 'hotkey'", specifier = ">=1.6" },
-    { name = "faster-whisper", specifier = ">=1.1.0" },
+    { name = "faster-whisper", marker = "extra == 'whisper'", specifier = ">=1.1.0" },
+    { name = "huggingface-hub", specifier = ">=0.20" },
     { name = "huggingface-hub", marker = "extra == 'sherpa'", specifier = ">=0.20" },
     { name = "mistral-common", extras = ["audio"], marker = "extra == 'voxtral'", specifier = ">=1.8" },
     { name = "moonshine-voice", marker = "extra == 'moonshine2'", specifier = ">=0.0.68" },
@@ -2300,7 +2303,6 @@ requires-dist = [
     { name = "numpy", marker = "extra == 'sherpa'", specifier = ">=2.0.0" },
     { name = "nvidia-cublas-cu12", marker = "extra == 'cuda'" },
     { name = "nvidia-cudnn-cu12", marker = "extra == 'cuda'" },
-    { name = "onnxruntime", specifier = ">=1.20,<1.24" },
     { name = "openai", marker = "extra == 'openai'", specifier = ">=1.0" },
     { name = "pyperclip", specifier = ">=1.9.0" },
     { name = "pyyaml", specifier = ">=6.0" },
@@ -2313,7 +2315,7 @@ requires-dist = [
     { name = "useful-moonshine-onnx", marker = "extra == 'moonshine'" },
     { name = "websockets", specifier = ">=12" },
 ]
-provides-extras = ["cuda", "rocm", "moonshine", "moonshine2", "nemo", "voxtral", "sherpa", "openai", "hotkey"]
+provides-extras = ["whisper", "cuda", "rocm", "moonshine", "moonshine2", "nemo", "voxtral", "sherpa", "openai", "hotkey"]
 
 [package.metadata.requires-dev]
 dev = [

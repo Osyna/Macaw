@@ -113,11 +113,11 @@ The recording indicator is fully themeable — opacity, bar colours, icon colour
 
 ## Models
 
-Whisper is built in. The rest install on demand from the Model Manager (`macaw --models`), each in its own sandbox so nothing clobbers your main setup. Pick the one that fits your hardware and languages.
+Every model installs on demand from the Model Manager (`macaw --models`), each in its own sandbox so nothing clobbers your main setup — the app itself stays small. Pick the one that fits your hardware and languages.
 
 | Model | Project | Languages | Download | Runs on | Install |
 |-------|---------|-----------|----------|---------|---------|
-| Whisper `tiny` → `large-v3-turbo` | [faster-whisper][faster-whisper] · [OpenAI Whisper][whisper] | 99+ | 75 MB – 3 GB | CPU or GPU | built in |
+| Whisper `tiny` → `large-v3-turbo` | [faster-whisper][faster-whisper] · [OpenAI Whisper][whisper] | 99+ | 75 MB – 3 GB | CPU or GPU | `macaw[whisper]` |
 | Moonshine `tiny` / `base` | [Useful Sensors Moonshine][moonshine] | English | ~30–60 MB | CPU | `macaw[moonshine]` |
 | Moonshine v2 `tiny` / `small` / `medium` | [Moonshine Streaming][moonshine] | English | ~35–250 MB | CPU | `macaw[moonshine2]` |
 | Parakeet TDT `v2` / `v3` | [NVIDIA NeMo][nemo] | English / 25 | ~2.5 GB | NVIDIA GPU | `macaw[nemo]` |
@@ -163,7 +163,7 @@ It downloads the latest AppImage to `~/.local/bin`, adds the desktop launcher an
 
 ### AppImage / tarball
 
-Each bundle ships the native UI **and** the speech engine (Python is embedded — no system Python needed). Whisper is built in; every other backend installs on demand from the Model Manager into its own sandbox under `~/.local/share/macaw/backends/`, including the GPU ones (CUDA wheels and all). The overlay anchors via wlr-layer-shell — Hyprland/Sway/KDE support it out of the box.
+Each bundle ships the native UI **and** the speech engine (Python is embedded — no system Python needed), and weighs a fraction of what a models-included build would. Every backend — Whisper included — installs on demand from the Model Manager into its own sandbox under `~/.local/share/macaw/backends/` (one click; GPU wheels are added automatically on NVIDIA boxes, and a private copy of `uv` is fetched on the first install if you don't have it). The overlay anchors via wlr-layer-shell — Hyprland/Sway/KDE support it out of the box.
 
 ### Windows (beta)
 

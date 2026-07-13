@@ -2,6 +2,29 @@
 
 Notable changes to Macaw. Older releases live on the [releases page](https://github.com/Osyna/Macaw/releases).
 
+## 0.6.0 — 2026-07-13
+
+- **3× smaller app.** The engine binary drops from ~130 MB to ~43 MB
+  (AppImage/installer shrink to match): faster-whisper and its ffmpeg/
+  CTranslate2/onnxruntime payload no longer ship inside the engine.
+  Whisper now installs on demand into its own sandboxed venv like every
+  other backend — one click in the Model Manager; on NVIDIA machines the
+  CUDA wheels (cublas/cudnn) are added to that venv automatically and
+  decoding stays on the GPU.
+
+- **First install bootstraps its own `uv`.** Frozen installs (AppImage,
+  Windows zip) no longer assume `uv` on PATH: the first backend install
+  fetches a private copy under `~/.local/share/macaw/bin` and reuses it.
+
+- The Skip-silence gate is now a pure-numpy adaptive energy gate (Silero
+  left with faster-whisper). Same contract — 2 s minimum gap, 400 ms
+  padding, and it can only ever trim stretches quieter than −46 dBFS, so
+  quiet speech is never cut.
+
+- Worker protocol: a fire-and-forget `C {json}` config line carries
+  language, punctuation hints and per-model tunables (temperature, beam
+  size, VAD) to backend workers per call — no worker restart on change.
+
 ## 0.5.0 — 2026-07-13
 
 - Done “flash”: the ok-tinted wash now follows the pill’s rounded

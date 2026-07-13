@@ -11,7 +11,7 @@ class SherpaOnnxBackend(SubprocessBackend):
     Serves streaming Zipformer/Paraformer and offline Parakeet TDT models. Models
     and provenance live in ``stt/models/sherpa.yaml``; weights download on first
     use inside the worker. Loading/inference run in worker.py so its bundled
-    onnxruntime never touches the main faster-whisper env.
+    onnxruntime never touches the main environment.
     """
 
     key = "sherpa"

@@ -67,7 +67,7 @@ def install_commands(extra: str, packages: list[str]) -> list[list[str]]:
     """Create the isolated venv and install the backend's packages into it.
 
     A fresh venv resolves independently, so these packages never conflict with
-    the main CUDA + faster-whisper environment.
+    the main environment or with each other's native deps.
     """
     uv = _find_uv() or "uv"
     d = str(venv_dir(extra))
@@ -103,6 +103,7 @@ class SubprocessBackend(Backend):
         super().__init__(*args, **kwargs)
         self._proc: subprocess.Popen | None = None
         self._incremental = False  # worker advertises native streaming at ready
+        self._cfg_sent: str | None = None  # last config line shipped to the worker
         # One request-reply pair at a time: a live-typing tick racing the final
         # utterance pass would otherwise interleave stdin writes / stdout reads.
         self._lock = threading.Lock()
@@ -191,6 +192,7 @@ class SubprocessBackend(Backend):
             self.unload()
             raise RuntimeError(f"{self.key} worker failed to start: {err}")
         self._incremental = bool(status.get("incremental"))
+        self._cfg_sent = None  # fresh worker knows nothing yet
         logger.info("%s worker ready.", self.key)
 
     def _stderr_tail(self, lines: int = 12) -> str:
@@ -210,6 +212,18 @@ class SubprocessBackend(Backend):
             return None
         return self._request(audio, prefix="S ")
 
+    def _config_line(self) -> str:
+        """Language/punctuation/tunables snapshot, applied per-call by loaders
+        that use them (whisper) and ignored by the rest."""
+        return json.dumps(
+            {
+                "language": self.language,
+                "punctuation_hints": self.punctuation_hints,
+                "params": {p.key: self.param(p.key) for p in self.params},
+            },
+            sort_keys=True,
+        )
+
     def _request(self, audio: np.ndarray, prefix: str) -> str:
         self.load()
         assert self._proc is not None and self._proc.stdin is not None
@@ -217,7 +231,11 @@ class SubprocessBackend(Backend):
         os.close(fd)
         try:
             np.save(path, audio)
+            cfg = self._config_line()
             with self._lock:
+                if cfg != self._cfg_sent:
+                    self._proc.stdin.write("C " + cfg + "\n")
+                    self._cfg_sent = cfg
                 self._proc.stdin.write(prefix + path + "\n")
                 self._proc.stdin.flush()
                 reply = self._read_message()

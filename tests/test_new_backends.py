@@ -273,6 +273,25 @@ def test_worker_handle_line_error_reply():
     assert "error" in reply
 
 
+def test_worker_config_line_is_fire_and_forget():
+    # "C {json}" updates the shared CFG and produces NO reply — a reply here
+    # would desync the request/reply pairing SubprocessBackend relies on.
+    worker = _import_worker()
+    line = (
+        'C {"language": "fr", "punctuation_hints": false, "params": {"beam_size": 5}}'
+    )
+    assert worker._handle_line(lambda audio: "x", line) is None
+    assert worker.CFG["language"] == "fr"
+    assert worker.CFG["params"]["beam_size"] == 5
+
+
+def test_worker_malformed_config_line_is_ignored():
+    worker = _import_worker()
+    before = dict(worker.CFG)
+    assert worker._handle_line(lambda audio: "x", "C {broken json") is None
+    assert worker.CFG == before
+
+
 # -- worker._SHERPA_MODELS stays consistent with the sherpa catalog -----------
 
 

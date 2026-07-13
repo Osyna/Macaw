@@ -10,7 +10,7 @@ class MoonshineBackend(SubprocessBackend):
 
     Models, provenance and params live in ``stt/models/moonshine.yaml``.
     Loading/inference run in worker.py so its deps never touch the main
-    CUDA + faster-whisper env.
+    environment.
     """
 
     key = "moonshine"

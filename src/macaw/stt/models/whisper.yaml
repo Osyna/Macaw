@@ -6,7 +6,7 @@
 # "−" as red cons, and plain lines as neutral context in the detail card.
 backend: whisper
 source_url: https://github.com/SYSTRAN/faster-whisper
-extra: null            # in base deps
+extra: whisper         # isolated venv (faster-whisper/ctranslate2 stay out of the engine)
 lang_select: true      # multilingual models show a language chooser (EN-only override below)
 
 params:                # shared tunables, rendered as controls in the Manager

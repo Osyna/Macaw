@@ -370,6 +370,105 @@ def _load_sherpa(model: str, language: str):
     return _online
 
 
+# -- faster-whisper (CTranslate2): the former in-process backend, now venv'd ---
+# Tunables (temperature/beam/VAD) and language arrive via the "C {json}"
+# config line, so they apply per-call without a worker restart.
+
+_PUNCTUATION_PROMPTS = {
+    "en": "Hello, how are you? I'm doing well. Let me explain the situation.",
+    "fr": "Bonjour, comment allez-vous ? Je vais bien. Laissez-moi vous expliquer.",
+    "de": "Hallo, wie geht es Ihnen? Mir geht es gut. Lassen Sie mich das erklären.",
+    "es": "Hola, ¿cómo estás? Estoy bien. Déjame explicarte la situación.",
+    "it": "Ciao, come stai? Sto bene. Lasciami spiegare la situazione.",
+    "pt": "Olá, como vai? Estou bem. Deixe-me explicar a situação.",
+    "nl": "Hallo, hoe gaat het? Het gaat goed. Laat me de situatie uitleggen.",
+    "pl": "Cześć, jak się masz? Dobrze. Pozwól, że wyjaśnię sytuację.",
+    "ru": "Привет, как дела? У меня всё хорошо. Позвольте мне объяснить ситуацию.",
+    "ja": "こんにちは、お元気ですか？元気です。状況を説明させてください。",
+    "zh": "你好，你好吗？我很好。让我解释一下情况。",
+}
+
+CFG: dict = {}  # updated in place by "C {json}" protocol lines
+
+
+def _preload_cuda_libs() -> None:
+    """ctranslate2 dlopens cublas/cudnn by soname. The nvidia pip wheels live in
+    THIS venv's site-packages, not on the loader path — preload them."""
+    import ctypes
+    import glob
+    import sysconfig
+
+    site = sysconfig.get_paths()["purelib"]
+    for lib in sorted(glob.glob(os.path.join(site, "nvidia", "*", "lib", "lib*.so*"))):
+        try:
+            ctypes.CDLL(lib, mode=ctypes.RTLD_GLOBAL)
+        except OSError:
+            pass
+
+
+def _whisper_device() -> tuple[str, str]:
+    """Best device + compute type. MACAW_FORCE_CPU=1 skips the GPU."""
+    if os.environ.get("MACAW_FORCE_CPU"):
+        return "cpu", "int8"
+    try:
+        import ctranslate2
+
+        if ctranslate2.get_cuda_device_count() > 0:
+            supported = ctranslate2.get_supported_compute_types("cuda")
+            for preferred in ("float16", "int8_float16", "int8"):
+                if preferred in supported:
+                    return "cuda", preferred
+            return "cuda", "default"
+    except Exception:  # noqa: BLE001
+        pass
+    return "cpu", "int8"
+
+
+def _load_whisper(model: str, language: str):
+    from faster_whisper import WhisperModel
+
+    if os.name != "nt":
+        _preload_cuda_libs()
+    device, compute = _whisper_device()
+    print(f"whisper: loading {model} ({device}, {compute})", file=sys.stderr)
+    m = WhisperModel(model, device=device, compute_type=compute)
+    state = {"model": m, "device": device}
+
+    def _decode(audio):
+        p = CFG.get("params") or {}
+        lang = CFG.get("language") or language
+        segments, _info = state["model"].transcribe(
+            audio,
+            language=lang,
+            initial_prompt=(
+                _PUNCTUATION_PROMPTS.get(lang)
+                if CFG.get("punctuation_hints", True)
+                else None
+            ),
+            beam_size=int(p.get("beam_size") or 1),
+            temperature=float(p.get("temperature") or 0.0),
+            vad_filter=bool(p.get("vad_filter")),
+            vad_parameters=dict(min_silence_duration_ms=300),
+            without_timestamps=True,
+            condition_on_previous_text=False,
+        )
+        return " ".join(seg.text.strip() for seg in segments).strip()
+
+    def run(audio):
+        try:
+            return _decode(audio)
+        except Exception as exc:  # noqa: BLE001
+            if state["device"] != "cuda":
+                raise
+            # CUDA fault -> permanent CPU fallback (old in-process behaviour)
+            print(f"whisper: CUDA failed ({exc!r}) — reloading on CPU", file=sys.stderr)
+            state["model"] = WhisperModel(model, device="cpu", compute_type="int8")
+            state["device"] = "cpu"
+            return _decode(audio)
+
+    return run
+
+
 LOADERS = {
     "moonshine": _load_moonshine,
     "moonshine2": _load_moonshine2,
@@ -377,6 +476,7 @@ LOADERS = {
     "canary-qwen": _load_canary,
     "voxtral": _load_voxtral,
     "sherpa": _load_sherpa,
+    "whisper": _load_whisper,
 }
 
 
@@ -423,8 +523,15 @@ def main() -> None:
 
 
 def _handle_line(transcribe, line: str) -> dict | None:
-    """One protocol request -> one reply dict (None for blank keep-alives)."""
+    """One protocol request -> one reply dict (None for blank keep-alives and
+    fire-and-forget "C {json}" config updates)."""
     if not line:
+        return None
+    if line.startswith("C "):
+        try:
+            CFG.update(json.loads(line[2:]))
+        except (json.JSONDecodeError, TypeError):
+            pass
         return None
     try:
         if line.startswith("S "):

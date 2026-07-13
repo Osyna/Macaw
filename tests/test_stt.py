@@ -32,6 +32,18 @@ def test_create_backend_routes_by_model():
     assert stt.create_backend("moonshine/base").key == "moonshine"
 
 
+def test_whisper_is_venv_backed():
+    # The frozen engine ships no faster-whisper: whisper must resolve to the
+    # isolated-venv backend under the 'whisper' extra, like every other engine.
+    from macaw.stt.deps import packages_for_extra
+    from macaw.stt.isolated import SubprocessBackend
+
+    b = stt.create_backend("large-v3-turbo")
+    assert isinstance(b, SubprocessBackend)
+    assert b.model.extra == "whisper"
+    assert any(p.startswith("faster-whisper") for p in packages_for_extra("whisper"))
+
+
 def test_silence_gate_returns_empty_without_loading():
     # Near-silent audio short-circuits before any model import/load.
     t = Transcriber(model_size="large-v3-turbo")
@@ -52,14 +64,17 @@ class _EchoBackend:
         return None  # mirrors Backend's default: no native streaming
 
 
-def _gated(monkeypatch, chunks, vad_gate=True):
-    """Transcriber with a stubbed VAD + echo backend; returns (t, backend).
-    Deterministic: Silero itself isn't under test, the gating logic is."""
-    import faster_whisper.vad as fwv
+def _tone(seconds: float, amp: float = 0.1) -> np.ndarray:
+    """Deterministic 'speech': a 220 Hz tone at `amp` (rms ≈ amp/√2)."""
+    t = np.arange(int(seconds * 16_000), dtype=np.float32)
+    return (amp * np.sin(2 * np.pi * 220 * t / 16_000)).astype(np.float32)
 
+
+def _gated(monkeypatch, vad_gate=True):
+    """Transcriber with an echo backend; the energy gate itself is under test,
+    driven by synthetic audio (tones = speech, near-silence = trimmed)."""
     from macaw.stt.base import ModelInfo
 
-    monkeypatch.setattr(fwv, "get_speech_timestamps", lambda audio, opts: chunks)
     t = Transcriber(model_size="large-v3-turbo", vad_gate=vad_gate)
     echo = _EchoBackend()
     echo.model = ModelInfo(
@@ -71,47 +86,63 @@ def _gated(monkeypatch, chunks, vad_gate=True):
 
 
 def test_vad_gate_trims_silence(monkeypatch):
-    # 10 s of audio, VAD says speech is 1 s in the middle -> backend sees 1 s.
-    t, echo = _gated(monkeypatch, [{"start": 16_000, "end": 32_000}])
-    audio = np.full(160_000, 0.1, dtype=np.float32)
+    # 10 s with 1 s of tone in the middle -> backend sees ~1 s (+400 ms pads).
+    t, echo = _gated(monkeypatch)
+    audio = np.concatenate(
+        [np.zeros(64_000, np.float32), _tone(1), np.zeros(80_000, np.float32)]
+    )
     assert t.transcribe(audio) == "ok"
-    assert echo.seen.size == 16_000
+    assert 16_000 <= echo.seen.size <= 32_000  # speech + bounded padding
+
+
+def test_vad_gate_merges_close_speech_runs(monkeypatch):
+    # Two tones 1 s apart (< 2 s minimum gap) stay one continuous span —
+    # mid-sentence pauses must never be snipped out.
+    t, echo = _gated(monkeypatch)
+    audio = np.concatenate(
+        [
+            np.zeros(64_000, np.float32),
+            _tone(1),
+            np.zeros(16_000, np.float32),
+            _tone(1),
+            np.zeros(80_000, np.float32),
+        ]
+    )
+    assert t.transcribe(audio) == "ok"
+    assert 48_000 <= echo.seen.size <= 64_000  # tone+gap+tone kept intact
 
 
 def test_vad_gate_no_speech_short_circuits(monkeypatch):
-    # VAD finds nothing -> '' without ever touching the backend.
-    t, echo = _gated(monkeypatch, [])
-    assert t.transcribe(np.full(160_000, 0.1, dtype=np.float32)) == ""
+    # A quiet hum above the pre-gate energy floor but below the speech
+    # threshold -> '' without ever touching the backend.
+    t, echo = _gated(monkeypatch)
+    assert t.transcribe(np.full(160_000, 0.003, dtype=np.float32)) == ""
     assert echo.seen is None
 
 
 def test_vad_gate_mostly_speech_passes_through(monkeypatch):
     # >=90% speech -> exact original audio, no copy/concat.
-    t, echo = _gated(monkeypatch, [{"start": 0, "end": 158_000}])
-    audio = np.full(160_000, 0.1, dtype=np.float32)
+    t, echo = _gated(monkeypatch)
+    audio = _tone(10)
     t.transcribe(audio)
     assert echo.seen is audio
 
 
 def test_vad_gate_off_passes_everything(monkeypatch):
-    t, echo = _gated(monkeypatch, [{"start": 16_000, "end": 32_000}], vad_gate=False)
-    audio = np.full(160_000, 0.1, dtype=np.float32)
+    t, echo = _gated(monkeypatch, vad_gate=False)
+    audio = np.concatenate(
+        [np.zeros(64_000, np.float32), _tone(1), np.zeros(80_000, np.float32)]
+    )
     t.transcribe(audio)
     assert echo.seen is audio
 
 
-def test_vad_gate_failure_never_loses_audio(monkeypatch):
-    # A crashing VAD must degrade to unfiltered transcription, not data loss.
-    import faster_whisper.vad as fwv
-
-    t, echo = _gated(monkeypatch, [])
-
-    def boom(audio, opts):
-        raise RuntimeError("onnx exploded")
-
-    monkeypatch.setattr(fwv, "get_speech_timestamps", boom)
-    audio = np.full(160_000, 0.1, dtype=np.float32)
-    assert t.transcribe(audio) == "ok"
+def test_vad_gate_never_trims_quiet_speech(monkeypatch):
+    # Anything above the -46 dBFS ceiling is always kept: a whisper-quiet
+    # 0.01-amplitude tone across the whole clip must pass through untouched.
+    t, echo = _gated(monkeypatch)
+    audio = _tone(10, amp=0.01)
+    t.transcribe(audio)
     assert echo.seen is audio
 
 
@@ -171,18 +202,11 @@ def test_streaming_batch_pass_resets_native_stream(monkeypatch):
 
 
 def test_streaming_falls_back_without_native_support(monkeypatch):
-    # transcribe_partial -> None means re-transcribe the full buffer (with the
-    # VAD gate applied there, so stub timestamps keep everything).
-    import faster_whisper.vad as fwv
-
-    monkeypatch.setattr(
-        fwv,
-        "get_speech_timestamps",
-        lambda audio, opts: [{"start": 0, "end": audio.size}],
-    )
+    # transcribe_partial -> None means re-transcribe the full buffer (a tone is
+    # all speech, so the VAD gate passes it through untouched).
     b = _EchoBackend()
     t = _streaming(monkeypatch, b)
-    _, full = t.transcribe_streaming(np.full(32_000, 0.1, dtype=np.float32))
+    _, full = t.transcribe_streaming(_tone(2))
     assert full == "ok"
     assert b.seen.size == 32_000  # whole buffer, every tick
 

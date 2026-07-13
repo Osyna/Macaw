@@ -58,9 +58,19 @@ a = Analysis(
         "zmq",
         "yaml",
         "numpy",
-        "faster_whisper",
+        "huggingface_hub",
     ],
-    excludes=["PyQt6", "tkinter"],  # UI is Tauri now; keep the binary lean
+    # The STT backends (faster-whisper included) live in on-demand isolated
+    # venvs — none of their heavy deps may leak into the frozen engine.
+    excludes=[
+        "PyQt6",
+        "tkinter",
+        "faster_whisper",
+        "ctranslate2",
+        "av",
+        "onnxruntime",
+        "tokenizers",
+    ],
 )
 pyz = PYZ(a.pure)
 

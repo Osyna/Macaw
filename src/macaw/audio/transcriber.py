@@ -96,32 +96,52 @@ class Transcriber:
 
     @staticmethod
     def _trim_silence(audio: np.ndarray) -> np.ndarray:
-        """Silero-VAD gate: cut non-speech stretches so every backend pays for
-        speech only (Whisper pads to a full 30 s window regardless of content,
-        and hallucinates on silence). Conservative: 2 s minimum gap, 400 ms
-        padding around speech; mostly-speech audio passes through untouched.
-        Returns an empty array when no speech at all is detected."""
+        """Silence gate: cut long near-silent stretches so every backend pays
+        for speech only (Whisper pads to a full 30 s window regardless of
+        content, and hallucinates on silence). Pure numpy — an adaptive RMS
+        gate over 30 ms frames (Silero left the engine with faster-whisper).
+        Conservative: 2 s minimum gap, 400 ms padding around speech, and only
+        frames quieter than -46 dBFS are ever eligible for trimming; mostly-
+        speech audio passes through untouched. Returns an empty array when no
+        speech at all is detected."""
+        frame = 480  # 30 ms @ 16 kHz
+        n = audio.size // frame
+        if n < 40:  # ~1.2 s — nothing worth trimming
+            return audio
         try:
-            # faster-whisper (a base dep) bundles the Silero ONNX model; the
-            # session is cached inside the module after the first call.
-            from faster_whisper.vad import VadOptions, get_speech_timestamps
-
-            chunks = get_speech_timestamps(
-                audio,
-                VadOptions(min_silence_duration_ms=2000, speech_pad_ms=400),
-            )
+            frames = audio[: n * frame].reshape(n, frame)
+            rms = np.sqrt(np.mean(frames * frames, axis=1))
+            # Adaptive threshold: 3x the quietest-decile noise floor, clamped so
+            # anything above -46 dBFS is always kept (never trims quiet speech).
+            floor = float(np.percentile(rms, 10))
+            thr = min(max(3.0 * floor, 1e-3), 5e-3)
+            speech = rms > thr
         except Exception as exc:  # noqa: BLE001 — gate must never lose audio
             logger.warning("VAD gate failed (%s) — transcribing unfiltered", exc)
             return audio
-        if not chunks:
+        if not speech.any():
             return audio[:0]
-        kept = sum(c["end"] - c["start"] for c in chunks)
+        # Merge speech runs separated by < 2 s, then pad each run by 400 ms.
+        gap, pad = 66, 13  # frames: 2 s, 400 ms
+        idx = np.flatnonzero(speech)
+        runs: list[list[int]] = [[int(idx[0]), int(idx[0])]]
+        for i in idx[1:]:
+            if i - runs[-1][1] <= gap:
+                runs[-1][1] = int(i)
+            else:
+                runs.append([int(i), int(i)])
+        spans = [
+            (max(0, s - pad) * frame, min(n, e + 1 + pad) * frame) for s, e in runs
+        ]
+        if spans[-1][1] == n * frame:
+            spans[-1] = (spans[-1][0], audio.size)  # keep the sub-frame tail
+        kept = sum(e - s for s, e in spans)
         if kept >= 0.9 * audio.size:
             return audio  # mostly speech — skip the copy, keep exact boundaries
         logger.info(
             "VAD gate: %.1fs -> %.1fs of speech", audio.size / 16_000, kept / 16_000
         )
-        return np.concatenate([audio[c["start"] : c["end"]] for c in chunks])
+        return np.concatenate([audio[s:e] for s, e in spans])
 
     # -- transcription --------------------------------------------------
 

@@ -39,7 +39,7 @@ from macaw.config import Config, config_path
 from macaw.desktop import DesktopHelper, auto_type_available
 from macaw.stt import create_backend, get_model_info, list_models
 from macaw.stt.base import hf_cache_sizes
-from macaw.stt.deps import packages_for_extra
+from macaw.stt.deps import ensure_uv, packages_for_extra
 from macaw.stt.isolated import install_commands, mark_installed, remove
 from macaw.trigger import _ipc_address
 
@@ -118,6 +118,11 @@ class _InstallJob(threading.Thread):
             if not packages:
                 self._progress(f"No packages found for '{extra}'", True, False)
                 return
+            if extra == "whisper" and hardware.probe().get("gpu") == "nvidia":
+                # CTranslate2 dlopens cublas/cudnn; the worker preloads them
+                # from the venv's own nvidia wheels (pyproject's `cuda` extra).
+                packages += packages_for_extra("cuda")
+            ensure_uv(self._progress)  # frozen installs: fetch a private uv once
             self._progress(f"Creating isolated environment for {extra}…")
             for cmd in install_commands(extra, packages):
                 code = self._stream(cmd)
