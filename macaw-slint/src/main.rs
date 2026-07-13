@@ -142,7 +142,7 @@ struct App {
     preview_mode: RefCell<String>, // state chip selected in Appearance
     expanded: RefCell<String>,     // model id with the open dossier ("" = none)
     search: RefCell<String>,
-    filter: Cell<i32>, // 0 All / 1 Ready / 2 Installed / 3 Cloud / 4 Streaming
+    filter: Cell<i32>, // -1 none / 0 For you / 1 Light / 2 Local / 3 Cloud / 4 Live
 }
 
 impl App {
@@ -337,6 +337,7 @@ impl App {
             level_gain: f("level_gain", 1.0),
             sound_enabled: b("sound_enabled", true),
             streaming: b("streaming", false),
+            silence_level: f("silence_level", 0.33),
             punctuation_hints: b("punctuation_hints", true),
             hotkey_enabled: b("hotkey_enabled", false),
             hotkey: s("hotkey"),
@@ -504,12 +505,12 @@ impl App {
                     return false;
                 }
                 match filter {
-                    1 => m["ready"].as_bool().unwrap_or(false),
+                    0 => m["fit_rank"].as_i64().unwrap_or(0) > 0,
+                    1 => m["light"].as_bool().unwrap_or(false),
                     2 => m["installed"].as_bool().unwrap_or(false),
                     3 => m["cloud"].as_bool().unwrap_or(false),
                     4 => m["streaming"].as_bool().unwrap_or(false),
-                    5 => m["fit_rank"].as_i64().unwrap_or(0) > 0,
-                    _ => true,
+                    _ => true, // -1 = no filter
                 }
             })
             .map(|m| {
@@ -585,11 +586,12 @@ impl App {
                     progress_msg: SharedString::from(if busy { msg } else { String::new() }),
                     fit_rank: m["fit_rank"].as_i64().unwrap_or(0) as i32,
                     fit_why: s("fit_why"),
+                    light: m["light"].as_bool().unwrap_or(false),
                 }
             })
             .collect();
         let mut rows = rows;
-        if filter == 5 {
+        if filter == 0 {
             rows.sort_by_key(|r| r.fit_rank); // "For you": best pick first
         }
         self.ui.set_op_running(op.is_some());
@@ -1109,7 +1111,7 @@ fn main() {
         preview_mode: RefCell::new("eq".into()),
         expanded: RefCell::new(String::new()),
         search: RefCell::new(String::new()),
-        filter: Cell::new(0),
+        filter: Cell::new(-1), // -1 = no filter selected
     });
     APP.with(|a| *a.borrow_mut() = Some(Rc::clone(&app)));
     app.ui.set_app_version(env!("CARGO_PKG_VERSION").into());

@@ -123,22 +123,24 @@ pub const CHROME_DARK: ThemeDef = ThemeDef {
 };
 
 pub const CHROME_LIGHT: ThemeDef = ThemeDef {
-    bg: 0xFFFFFF,
-    surface: 0xFFFFFF,
-    control: 0xF2F2F2,
-    fg: 0x141414,
-    muted: 0x6E6E6E,
-    border: 0xD0D0D0,
-    accent: 0x141414,
+    // Layered cool neutrals — canvas sits below controls, controls below
+    // cards — plus a real accent. Deliberately NOT flat white-on-white.
+    bg: 0xE9EBEF,      // cool gray canvas
+    surface: 0xF5F7FA, // raised cards
+    control: 0xDCE0E7, // inputs / chips visibly recessed
+    fg: 0x171A20,
+    muted: 0x5C6472,
+    border: 0xC3CAD6,
+    accent: 0x2F5FE0, // azure highlight instead of ink-on-paper
     accent_fg: 0xFFFFFF,
-    ok: 0x1A7F37,
-    warn: 0x9A6700,
-    danger: 0xCF222E,
-    overlay_bg: 0xFFFFFF,
-    eq_idle: 0xD0D0D0,
+    ok: 0x178A4C,
+    warn: 0x96690A,
+    danger: 0xD32F3A,
+    overlay_bg: 0xF5F7FA,
+    eq_idle: 0xC3CAD6,
     eq_colors: [0, 0, 0, 0],
     corners: [0, 0, 0, 0],
-    border_color: 0xD0D0D0,
+    border_color: 0xC3CAD6,
 };
 
 pub const DRACULA: ThemeDef = ThemeDef {

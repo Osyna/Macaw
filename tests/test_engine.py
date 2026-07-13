@@ -444,11 +444,14 @@ def _vis(energy: float, gain) -> float:
 
     from macaw.engine import Engine
 
-    stub = SimpleNamespace(
-        capture=SimpleNamespace(current_energy=energy),
-        cfg=SimpleNamespace(level_gain=gain),
-    )
-    return Engine._vis_level(stub)
+    class _S:
+        _gain = Engine._gain
+        _vis_level = Engine._vis_level
+
+    s = _S()
+    s.capture = SimpleNamespace(current_energy=energy)
+    s.cfg = SimpleNamespace(level_gain=gain)
+    return s._vis_level()
 
 
 def test_level_gain_boosts_quiet_input():
@@ -475,3 +478,36 @@ def test_level_gain_out_of_range_is_clamped():
     assert _vis(1e-3, 99.0) == _vis(1e-3, 4.0)
     assert _vis(1e-3, 0.0) == _vis(1e-3, 0.5)
     assert _vis(1e-3, None) == _vis(1e-3, 1.0)
+
+
+def _silence_thr(level: float, gain: float) -> float:
+    """Run Engine._apply_silence_level against a stub; returns raw threshold."""
+    from types import SimpleNamespace
+
+    from macaw.engine import Engine
+
+    class _S:
+        _gain = Engine._gain
+        _apply_silence_level = Engine._apply_silence_level
+
+    s = _S()
+    s.cfg = SimpleNamespace(silence_level=level, level_gain=gain)
+    s.capture = SimpleNamespace(silence_threshold=0.0)
+    s._apply_silence_level()
+    return s.capture.silence_threshold
+
+
+def test_silence_level_default_matches_legacy_threshold():
+    # marker at 0.33 with no boost ≈ the old hardcoded 1e-3 energy gate
+    assert abs(_silence_thr(0.33, 1.0) - 1e-3) < 3e-4
+
+
+def test_silence_level_tracks_the_boosted_meter():
+    # with 2x input boost the meter shows double — the same marker position
+    # must map to the raw energy the METER shows there, not the raw scale
+    assert abs(_silence_thr(0.66, 2.0) - _silence_thr(0.33, 1.0)) < 1e-9
+
+
+def test_silence_level_extremes_clamp():
+    assert _silence_thr(0.0, 1.0) == 1e-4  # floor: marker at zero
+    assert _silence_thr(1.5, 1.0) == _silence_thr(1.0, 1.0)  # clamped

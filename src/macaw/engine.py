@@ -232,6 +232,7 @@ class Engine:
         self._hw = hardware.probe()  # once; drives the model-fit suggestions
         logger.info("Hardware: %s", hardware.summary(self._hw))
         self.capture = AudioCapture(device=self.cfg.device_index)
+        self._apply_silence_level()
         self.transcriber = Transcriber(
             model_size=self.cfg.model,
             language=_lang_for(self.cfg),
@@ -543,14 +544,23 @@ class Engine:
                 self.capture.stop()
         return {"on": on}
 
+    def _gain(self) -> float:
+        g = self.cfg.level_gain
+        return min(4.0, max(0.5, 1.0 if g is None else float(g)))
+
     def _vis_level(self) -> float:
         """Log-scaled 0..1 level with the user's visual boost applied —
         quiet mics still fill the animation; the clamp caps screaming."""
         raw = self.capture.current_energy
         vis = (math.log10(raw) + 4) / 3.0 if raw > 1e-10 else 0.0
-        gain = self.cfg.level_gain
-        gain = min(4.0, max(0.5, 1.0 if gain is None else float(gain)))
-        return min(1.0, max(0.0, vis * gain))
+        return min(1.0, max(0.0, vis * self._gain()))
+
+    def _apply_silence_level(self) -> None:
+        """The user drags a marker on the SAME meter `_vis_level` fills, so
+        invert that mapping (gain included) to get the raw energy threshold
+        the capture layer compares against. Default 0.33 ≈ the old 1e-3."""
+        lvl = min(1.0, max(0.0, float(self.cfg.silence_level or 0.0)))
+        self.capture.silence_threshold = 10 ** (3 * (lvl / self._gain()) - 4)
 
     async def _mic_monitor(self) -> None:
         """~30 Hz level events while idle. Recording's own monitor takes over
@@ -758,6 +768,7 @@ class Engine:
         if cfg.device_index != old.device_index and not self.is_recording:
             self.capture.stop()  # the mic meter may hold the old stream open
             self.capture = AudioCapture(device=cfg.device_index)
+        self._apply_silence_level()  # threshold follows level/gain/device changes
         if (cfg.proxy, cfg.ssl_verify) != (old.proxy, old.ssl_verify):
             net.apply(cfg.proxy, cfg.ssl_verify)
         if cfg.model != old.model:
@@ -814,6 +825,8 @@ class Engine:
                     ],
                     "cloud": info.cloud,
                     "recommended": info.recommended,
+                    # resource-friendly: runs on plain CPUs (no GPU requirement)
+                    "light": (not info.cloud) and ("CPU" in info.hardware),
                     "available": available,
                     "installed": size > 0,
                     "ready": backend.is_ready(cache),

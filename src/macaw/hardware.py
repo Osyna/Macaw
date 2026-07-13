@@ -116,7 +116,11 @@ def _fit(model: dict, hw: dict) -> tuple[int, str] | None:
     the catalog is ranked with no code change.
     """
     hw_field = model.get("hardware") or ""
-    needs_gpu = "GPU" in hw_field and "CPU" not in hw_field
+    # "GPU recommended" / "Any GPU or 8-core CPU" still run on CPU — only an
+    # unqualified GPU requirement is a hard one.
+    needs_gpu = (
+        "GPU" in hw_field and "CPU" not in hw_field and "recommended" not in hw_field
+    )
     cpu_ok = not needs_gpu
     gpu_match = (hw["gpu"] == "nvidia" and "NVIDIA" in hw_field) or (
         hw["gpu"] == "amd" and "AMD" in hw_field
@@ -144,7 +148,7 @@ def _fit(model: dict, hw: dict) -> tuple[int, str] | None:
             score += 8  # right-sized for a GPU-less machine
             why = "runs fully on CPU — no GPU needed"
         else:
-            why = "light CPU model — leaves the GPU free"
+            why = "resource-friendly — light on CPU, leaves the GPU free"
         if hw["arm"]:
             score += 8
             why = "light ONNX build — ideal on ARM CPUs"
@@ -156,9 +160,14 @@ def _fit(model: dict, hw: dict) -> tuple[int, str] | None:
     return score, why
 
 
-def rank(models: list[dict], hw: dict, top: int = 5) -> None:
+def rank(models: list[dict], hw: dict, top: int = 5, light_slots: int = 2) -> None:
     """Annotate payload dicts in place: fit_rank (1 = best pick, 0 = unranked)
-    and fit_why. Deterministic: score desc, then rating desc, then id."""
+    and fit_why. Deterministic: score desc, then rating desc, then id.
+
+    `light_slots` picks are reserved for resource-friendly (CPU) models so a
+    big-GPU machine still surfaces the best lightweight options — some, like
+    Moonshine v2, are tiny AND very accurate.
+    """
     scored = []
     for m in models:
         m["fit_rank"], m["fit_why"] = 0, ""
@@ -166,5 +175,13 @@ def rank(models: list[dict], hw: dict, top: int = 5) -> None:
         if res is not None:
             scored.append((res[0], m.get("rating", 0), m["id"], m, res[1]))
     scored.sort(key=lambda t: (-t[0], -t[1], t[2]))
-    for i, (_, _, _, m, why) in enumerate(scored[:top], start=1):
+    picks = scored[:top]
+    lights_in = sum(1 for t in picks if t[3].get("light"))
+    if lights_in < light_slots:
+        extra = [t for t in scored[top:] if t[3].get("light")]
+        extra = extra[: light_slots - lights_in]
+        if extra:
+            picks = picks[: top - len(extra)] + extra
+            picks.sort(key=lambda t: (-t[0], -t[1], t[2]))
+    for i, (_, _, _, m, why) in enumerate(picks, start=1):
         m["fit_rank"], m["fit_why"] = i, why

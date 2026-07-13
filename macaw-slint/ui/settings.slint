@@ -15,6 +15,7 @@ export struct Cfg {
     silence-timeout: float,
     vad-gate: bool,
     level-gain: float,
+    silence-level: float,
     sound-enabled: bool,
     streaming: bool,
     punctuation-hints: bool,
@@ -115,27 +116,71 @@ export component SettingsView inherits ScrollArea {
                 }
                 Row {
                     label: "Input level";
-                    hint: "Live microphone check — speak and the bar should move. Silent? Pick another device above.";
-                    Rectangle {
+                    hint: "Live mic check AND the silence gate in one: drag the marker — anything quieter counts as silence for the auto-stop timer. The zone left of the marker is the silent band.";
+                    meter := Rectangle {
                         horizontal-stretch: 1;
+                        property <float> drag-val: -1; // -1 = not dragging
+                        property <float> thr: self.drag-val >= 0 ? self.drag-val : clamp(cfg.silence-level, 0, 1);
                         Rectangle { // track
-                            y: parent.height / 2 - 4px;
+                            y: parent.height / 2 - 5px;
                             width: parent.width;
-                            height: 8px;
-                            border-radius: 4px;
+                            height: 10px;
+                            border-radius: 5px;
                             background: Theme.pal.control;
                             clip: true;
-                            Rectangle { // fill
+                            Rectangle { // silence zone: everything left of the marker
+                                x: 0;
+                                y: 0;
+                                width: parent.width * meter.thr;
+                                height: parent.height;
+                                background: Theme.pal.danger.with-alpha(0.12);
+                            }
+                            Rectangle { // live fill
                                 x: 0;
                                 y: 0;
                                 width: parent.width * clamp(root.mic-level, 0, 1);
                                 height: parent.height;
-                                border-radius: 4px;
-                                background: root.mic-level > 0.45 ? Theme.pal.ok
-                                    : root.mic-level > 0.02 ? Theme.pal.accent : Theme.pal.muted;
+                                border-radius: 5px;
+                                // muted while under the silence gate, alive above it
+                                background: root.mic-level < meter.thr ? Theme.pal.muted
+                                    : root.mic-level > 0.45 + meter.thr * 0.5 ? Theme.pal.ok : Theme.pal.accent;
                                 animate width { duration: 60ms; }
                             }
                         }
+                        thumb := Rectangle { // draggable threshold marker
+                            x: parent.width * meter.thr - self.width / 2;
+                            y: parent.height / 2 - 9px;
+                            width: 6px;
+                            height: 18px;
+                            border-radius: 3px;
+                            background: ta.pressed || ta.has-hover ? Theme.pal.accent : Theme.pal.fg;
+                            border-width: 1px;
+                            border-color: Theme.pal.bg;
+                        }
+                        ta := TouchArea {
+                            mouse-cursor: MouseCursor.col-resize;
+                            moved => {
+                                if (self.pressed) {
+                                    meter.drag-val = clamp(self.mouse-x / parent.width, 0, 1);
+                                }
+                            }
+                            clicked => {
+                                root.set-num("silence_level", clamp(self.mouse-x / parent.width, 0, 1));
+                                meter.drag-val = -1;
+                            }
+                            pointer-event(ev) => {
+                                if (ev.kind == PointerEventKind.up && meter.drag-val >= 0) {
+                                    root.set-num("silence_level", meter.drag-val);
+                                    meter.drag-val = -1;
+                                }
+                            }
+                        }
+                    }
+                    Text {
+                        text: "\{round(meter.thr * 100)}%";
+                        color: Theme.pal.muted;
+                        font-size: 12px;
+                        vertical-alignment: center;
                     }
                 }
                 Row {

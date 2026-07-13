@@ -320,14 +320,19 @@ export component MainWindow inherits Window {
         for t in root.toasts: Rectangle {
             height: tt.preferred-height + 20px;
             border-radius: Theme.radius;
+            // info follows the chrome; error/success keep semantic colors
             background: t.level == "error" ? Theme.pal.danger
-                : t.level == "success" ? Theme.pal.ok : Theme.pal.fg;
+                : t.level == "success" ? Theme.pal.ok : Theme.pal.surface;
+            border-width: 1px;
+            border-color: t.level == "error" || t.level == "success"
+                ? transparent : Theme.pal.border;
             tt := Text {
                 x: 12px;
                 y: 10px;
                 width: parent.width - 24px;
                 text: t.msg;
-                color: white;
+                color: t.level == "error" || t.level == "success"
+                    ? white : Theme.pal.fg;
                 font-size: 12px;
                 wrap: word-wrap;
             }

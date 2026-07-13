@@ -47,6 +47,7 @@ class Config:
     output_mode: str = "clipboard"
     silence_timeout: float = 3.0
     level_gain: float = 1.0  # visual input boost, 0.5-4 (quiet mics; peaks still cap)
+    silence_level: float = 0.33  # meter position (0-1): quieter than this = silence
     vad_gate: bool = True  # trim silence before transcription (all models)
     window_position: str = "bottom_center"
     sound_enabled: bool = True
@@ -111,6 +112,7 @@ class Config:
                 output_mode=data.get("output_mode", "clipboard"),
                 silence_timeout=float(data.get("silence_timeout", 3.0)),
                 level_gain=float(data.get("level_gain", 1.0)),
+                silence_level=float(data.get("silence_level", 0.33)),
                 vad_gate=bool(data.get("vad_gate", True)),
                 window_position=data.get("window_position", "bottom_center"),
                 sound_enabled=bool(data.get("sound_enabled", True)),
@@ -216,6 +218,8 @@ class Config:
             "  # seconds of silence before auto-stop\n"
             f"level_gain: {_yv(self.level_gain)}"
             "  # visual input boost 0.5-4 (animation/meter only; peaks still cap)\n"
+            f"silence_level: {_yv(self.silence_level)}"
+            "  # meter position 0-1: anything quieter counts as silence\n"
             f"vad_gate: {_yv(self.vad_gate)}"
             "  # skip silent stretches before transcribing (faster, fewer hallucinations)\n"
             f"sound_enabled: {_yv(self.sound_enabled)}  # play record / done tones\n"

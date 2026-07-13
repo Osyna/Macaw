@@ -41,6 +41,7 @@ export struct ModelRow {
     progress-msg: string,
     fit-rank: int,       // 1..N = suggested for this machine (0 = not ranked)
     fit-why: string,     // short reason shown in the dossier
+    light: bool,         // resource-friendly: runs on plain CPUs
 }
 
 export struct ParamRow {
@@ -175,7 +176,7 @@ export component ModelsView inherits HorizontalLayout {
     in property <[ParamRow]> detail-params;
     in property <[string]> langs;
     in property <int> lang-current;
-    in-out property <int> filter-current: 0;
+    in-out property <int> filter-current: -1; // -1 = no filter (all models)
     in property <string> hw-summary: "";
 
     callback install(string);
@@ -207,12 +208,13 @@ export component ModelsView inherits HorizontalLayout {
             HorizontalLayout {
                 spacing: 4px;
                 alignment: start;
-                for f[i] in ["All", "Ready", "Local", "Cloud", "Live", "For you"]: FilterChip {
+                // toggle filters: none selected by default, click again to clear
+                for f[i] in ["◈ For you", "☘ Light", "⌂ Local", "☁ Cloud", "∿ Live"]: FilterChip {
                     text: f;
                     active: root.filter-current == i;
                     clicked => {
-                        root.filter-current = i;
-                        root.filter(i);
+                        root.filter-current = root.filter-current == i ? -1 : i;
+                        root.filter(root.filter-current);
                     }
                 }
             }
@@ -273,6 +275,7 @@ export component ModelsView inherits HorizontalLayout {
                 if sel.cloud: Badge { text: "CLOUD"; tint: Theme.pal.warn; }
                 if sel.streaming: Badge { text: "STREAMING"; tint: Theme.pal.accent; }
                 if !sel.cloud && !sel.streaming: Badge { text: "OFFLINE"; }
+                if sel.light: Badge { text: "☘ RESOURCE-FRIENDLY"; tint: Theme.pal.ok; }
             }
 
             // actions right under the title — always reachable

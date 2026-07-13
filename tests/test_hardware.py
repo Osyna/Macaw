@@ -6,7 +6,16 @@ from __future__ import annotations
 from macaw import hardware
 
 
-def _m(id, hw="CPU / Any", vram="—", rating=3, cloud=False, key=False, rec=False):
+def _m(
+    id,
+    hw="CPU / Any",
+    vram="—",
+    rating=3,
+    cloud=False,
+    key=False,
+    rec=False,
+    light=None,
+):
     return {
         "id": id,
         "hardware": hw,
@@ -15,6 +24,7 @@ def _m(id, hw="CPU / Any", vram="—", rating=3, cloud=False, key=False, rec=Fal
         "cloud": cloud,
         "api_key_set": key,
         "recommended": rec,
+        "light": ("CPU" in hw and not cloud) if light is None else light,
     }
 
 
@@ -123,3 +133,22 @@ def test_amd_gpu_matches_amd_capable_models():
     hardware.rank(models, amd_box)
     assert models[0]["fit_rank"] == 0  # CUDA-only model excluded on AMD
     assert models[1]["fit_rank"] == 1
+
+
+def test_light_models_reserved_on_gpu_boxes():
+    # 5 top-rated GPU models would fill every slot — two must yield to the
+    # best resource-friendly CPU models so they stay visible.
+    models = [_m(f"gpu{i}", hw="NVIDIA GPU", vram="~3 GB", rating=5) for i in range(5)]
+    models += [_m("cpu-good", rating=4), _m("cpu-ok", rating=3)]
+    hardware.rank(models, NVIDIA_BOX)
+    ranked = {m["id"]: m for m in models if m["fit_rank"]}
+    assert "cpu-good" in ranked and "cpu-ok" in ranked
+    assert sum(1 for i in ranked if i.startswith("gpu")) == 3
+    assert "resource-friendly" in ranked["cpu-good"]["fit_why"]
+
+
+def test_gpu_recommended_is_soft_requirement():
+    # "GPU recommended" models still run on CPU — never excluded on CPU boxes.
+    models = [_m("medium", hw="GPU recommended", vram="~5 GB", rating=4)]
+    hardware.rank(models, CPU_BOX)
+    assert models[0]["fit_rank"] == 1

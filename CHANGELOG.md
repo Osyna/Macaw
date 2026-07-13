@@ -4,6 +4,24 @@ Notable changes to Macaw. Older releases live on the [releases page](https://git
 
 ## Unreleased
 
+- **Silence gate you can see.** The Input level meter doubles as the
+  silence control: drag the marker on the live bar — anything quieter
+  counts as silence for the auto-stop timer (`silence_level`). The band
+  left of the marker is tinted, the live fill goes muted under the gate,
+  and the mapping tracks your Input boost so the marker always means
+  exactly what the meter shows. Default matches the old behaviour.
+
+- **Filters, reworked.** "For you" leads; nothing is selected by default;
+  clicking a chip toggles it off again. "All" and "Ready" are gone, and a
+  new **☘ Light** (resource-friendly) filter finds the CPU-only models —
+  every chip has an icon, and light models wear a dossier badge. The
+  For-you ranking now reserves two slots for resource-friendly picks, so
+  Moonshine v2 and Nemotron stay visible next to the GPU heavyweights.
+
+- **A real light theme.** Layered cool grays with an azure accent instead
+  of flat white-on-white, and toasts now follow the active theme instead
+  of always rendering dark.
+
 - **Picks for this machine.** The engine probes your hardware once (GPU
   vendor, VRAM, cores, RAM, ARM/Apple) and ranks the catalog against each
   model's own metadata — top picks wear a "#1 pick" badge, a "For you"
