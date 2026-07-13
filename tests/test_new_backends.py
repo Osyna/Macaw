@@ -196,6 +196,83 @@ def test_create_backend_routes_cloud_and_sherpa():
     assert stt.create_backend("sherpa-parakeet-tdt-v3").key == "sherpa"
 
 
+def test_create_backend_routes_moonshine2_and_nemotron():
+    assert stt.create_backend("moonshine2-medium-en").key == "moonshine2"
+    assert stt.create_backend("sherpa-nemotron-streaming-en").key == "sherpa"
+
+
+def test_nemotron_flagged_streaming_and_recommended():
+    by_id = {m.id: m for m in stt.list_models()}
+    m = by_id["sherpa-nemotron-streaming-en"]
+    assert m.streaming is True and m.recommended is True
+
+
+def test_moonshine2_models_have_no_hf_repo():
+    # Weights come from download.moonshine.ai via the package's own cache; a
+    # non-empty repo would make the Manager size/delete an HF repo that never
+    # materializes.
+    for mid in ("moonshine2-tiny-en", "moonshine2-small-en", "moonshine2-medium-en"):
+        assert stt.create_backend(mid).hf_repos() == [], mid
+
+
+def _import_worker():
+    # Importing worker.py rebinds sys.stdout -> sys.stderr as a side effect;
+    # save/restore around the import so pytest's capture survives.
+    saved = sys.stdout
+    try:
+        import macaw.stt.worker as worker
+
+        return worker
+    finally:
+        sys.stdout = saved
+
+
+def test_worker_moonshine2_archs_match_catalog():
+    worker = _import_worker()
+    catalog_ids = {m.id for m in stt.list_models() if m.backend == "moonshine2"}
+    assert set(worker._MOONSHINE2_ARCH) == catalog_ids
+
+
+# -- worker line protocol: batch, stream-feed, and failure replies ------------
+
+
+def test_worker_handle_line_batch_and_feed(tmp_path):
+    worker = _import_worker()
+    calls = {}
+
+    def transcribe(audio):
+        calls["batch"] = audio.size
+        return "batch text"
+
+    def feed(audio):
+        calls["feed"] = audio.size
+        return "partial text"
+
+    transcribe.feed = feed
+    p = tmp_path / "a.npy"
+    np.save(p, np.zeros(160, dtype=np.float32))
+
+    assert worker._handle_line(transcribe, str(p)) == {"text": "batch text"}
+    assert calls["batch"] == 160
+    assert worker._handle_line(transcribe, f"S {p}") == {"text": "partial text"}
+    assert calls["feed"] == 160
+    assert worker._handle_line(transcribe, "") is None
+
+
+def test_worker_handle_line_feed_unsupported(tmp_path):
+    worker = _import_worker()
+    p = tmp_path / "a.npy"
+    np.save(p, np.zeros(16, dtype=np.float32))
+    reply = worker._handle_line(lambda audio: "x", f"S {p}")
+    assert reply == {"error": "stream feed unsupported"}
+
+
+def test_worker_handle_line_error_reply():
+    worker = _import_worker()
+    reply = worker._handle_line(lambda audio: "x", "/nonexistent/audio.npy")
+    assert "error" in reply
+
+
 # -- worker._SHERPA_MODELS stays consistent with the sherpa catalog -----------
 
 

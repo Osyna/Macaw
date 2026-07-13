@@ -2250,6 +2250,11 @@ hotkey = [
 moonshine = [
     { name = "useful-moonshine-onnx" },
 ]
+moonshine2 = [
+    { name = "moonshine-voice" },
+    { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "numpy", version = "2.3.5", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+]
 nemo = [
     { name = "cuda-python" },
     { name = "nemo-toolkit", extra = ["asr"] },
@@ -2287,9 +2292,11 @@ requires-dist = [
     { name = "faster-whisper", specifier = ">=1.1.0" },
     { name = "huggingface-hub", marker = "extra == 'sherpa'", specifier = ">=0.20" },
     { name = "mistral-common", extras = ["audio"], marker = "extra == 'voxtral'", specifier = ">=1.8" },
+    { name = "moonshine-voice", marker = "extra == 'moonshine2'", specifier = ">=0.0.68" },
     { name = "nemo-toolkit", extras = ["asr"], marker = "extra == 'nemo'", specifier = ">=2.0" },
     { name = "numba", marker = "extra == 'nemo'", specifier = ">=0.60" },
     { name = "numpy", specifier = ">=2.0.0" },
+    { name = "numpy", marker = "extra == 'moonshine2'", specifier = ">=2.0.0" },
     { name = "numpy", marker = "extra == 'sherpa'", specifier = ">=2.0.0" },
     { name = "nvidia-cublas-cu12", marker = "extra == 'cuda'" },
     { name = "nvidia-cudnn-cu12", marker = "extra == 'cuda'" },
@@ -2299,14 +2306,14 @@ requires-dist = [
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "pyzmq", specifier = ">=26.0.0" },
     { name = "rich", specifier = ">=13.0" },
-    { name = "sherpa-onnx", marker = "extra == 'sherpa'", specifier = ">=1.11.2" },
+    { name = "sherpa-onnx", marker = "extra == 'sherpa'", specifier = ">=1.13.0" },
     { name = "sounddevice", specifier = ">=0.5.0" },
     { name = "torch", marker = "extra == 'voxtral'" },
     { name = "transformers", marker = "extra == 'voxtral'", specifier = ">=4.56" },
     { name = "useful-moonshine-onnx", marker = "extra == 'moonshine'" },
     { name = "websockets", specifier = ">=12" },
 ]
-provides-extras = ["cuda", "rocm", "moonshine", "nemo", "voxtral", "sherpa", "openai", "hotkey"]
+provides-extras = ["cuda", "rocm", "moonshine", "moonshine2", "nemo", "voxtral", "sherpa", "openai", "hotkey"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -2647,6 +2654,27 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/40/49/0f8c498a28c0efa5f5c95a9e374c83ec1385ca41d0e85e7cf40e5d519a21/ml_dtypes-0.5.4-cp313-cp313t-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:531eff30e4d368cb6255bc2328d070e35836aa4f282a0fb5f3a0cd7260257298", size = 5366453, upload-time = "2025-11-17T22:32:07.115Z" },
     { url = "https://files.pythonhosted.org/packages/8c/27/12607423d0a9c6bbbcc780ad19f1f6baa2b68b18ce4bddcdc122c4c68dc9/ml_dtypes-0.5.4-cp313-cp313t-win_amd64.whl", hash = "sha256:cb73dccfc991691c444acc8c0012bee8f2470da826a92e3a20bb333b1a7894e6", size = 225612, upload-time = "2025-11-17T22:32:08.615Z" },
     { url = "https://files.pythonhosted.org/packages/e5/80/5a5929e92c72936d5b19872c5fb8fc09327c1da67b3b68c6a13139e77e20/ml_dtypes-0.5.4-cp313-cp313t-win_arm64.whl", hash = "sha256:3bbbe120b915090d9dd1375e4684dd17a20a2491ef25d640a908281da85e73f1", size = 164145, upload-time = "2025-11-17T22:32:09.782Z" },
+]
+
+[[package]]
+name = "moonshine-voice"
+version = "0.0.68"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "filelock" },
+    { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "numpy", version = "2.3.5", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "platformdirs" },
+    { name = "requests" },
+    { name = "sounddevice" },
+    { name = "tqdm" },
+]
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/57/bd/75c121629337f1462f7076b0a00f22f252a222a217b8af8675dc4bb9edd0/moonshine_voice-0.0.68-py3-none-macosx_15_0_arm64.whl", hash = "sha256:98e5d2f3e0dd951f83341f29f628c8ff196e83b78e5f83edfe45e6925fc8b07a", size = 76852219, upload-time = "2026-07-11T01:55:02.35Z" },
+    { url = "https://files.pythonhosted.org/packages/cf/d8/441a3af5acfedb1e158852ac0a655a8cea98a14b39d046901d274c672e35/moonshine_voice-0.0.68-py3-none-manylinux_2_31_aarch64.manylinux_2_39_aarch64.whl", hash = "sha256:87d3f6ba911d4ed83ed8457d0032da3d1d08d1f8a21c462f8a6da492b16a145f", size = 55016928, upload-time = "2026-07-11T04:41:07.112Z" },
+    { url = "https://files.pythonhosted.org/packages/74/ef/f80547c1f64ae464ff6e6c903e6a995b1773b31cfb49d85d51547ed8c4ad/moonshine_voice-0.0.68-py3-none-manylinux_2_34_aarch64.whl", hash = "sha256:6df24b28cc03aaa60a87e230b38b84bcffd6f72f5b78b2449addf5bbabb8e52b", size = 84577741, upload-time = "2026-07-11T02:07:40.751Z" },
+    { url = "https://files.pythonhosted.org/packages/04/ef/79eaafcac3b6f23c6185d543a46249409c01d684943c24f0a6260af9f102/moonshine_voice-0.0.68-py3-none-manylinux_2_34_x86_64.whl", hash = "sha256:7c73a06de7241679102efd2fb663639f961514070f8a22e5fa44eb1b58f06c5b", size = 85793492, upload-time = "2026-07-11T02:03:18.605Z" },
+    { url = "https://files.pythonhosted.org/packages/19/fd/9aedc605486815767dd196d3bb75eaf4cbc888e89df831d095f5f22a5254/moonshine_voice-0.0.68-py3-none-win_amd64.whl", hash = "sha256:45285403d75747d8a712147cf9ea4a10c196594ed8b9e7a7a2ee63e819b0a11e", size = 50502944, upload-time = "2026-07-13T01:27:59.595Z" },
 ]
 
 [[package]]

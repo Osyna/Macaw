@@ -1,0 +1,48 @@
+# Moonshine v2 ("Moonshine Streaming", moonshine-voice) — English-only
+# streaming ASR with an ergodic sliding-window encoder: time-to-first-token
+# stays bounded instead of growing with utterance length. 8-bit .ort bundles
+# download from download.moonshine.ai on first use into the package's own
+# cache — NOT the HF cache — so `repo` is empty and the Manager tracks only
+# the venv. `id` matches _MOONSHINE2_ARCH in worker.py.
+backend: moonshine2
+source_url: https://github.com/moonshine-ai/moonshine
+extra: moonshine2
+hardware: CPU / Any
+vram: "—"
+min_specs: "2-core CPU · 2 GB RAM"
+rec_specs: "4-core CPU · 4 GB RAM"
+
+models:
+  - id: moonshine2-tiny-en
+    label: Moonshine v2 tiny
+    size: "~35 MB"
+    speed: fastest
+    languages: EN
+    rating: 3
+    notes: |-
+      + 34M parameters — near-instant on any CPU, with a bounded-latency streaming encoder.
+      + Weights fetch automatically on first use (~35 MB).
+      − English only; accuracy trails the larger v2 models (paper WER 12.0%).
+    min_specs: "1-core CPU · 1 GB RAM"
+    rec_specs: "2-core CPU · 2 GB RAM"
+  - id: moonshine2-small-en
+    label: Moonshine v2 small
+    size: "~125 MB"
+    speed: very fast
+    languages: EN
+    rating: 4
+    notes: |-
+      + 123M parameters with 7.8% average WER — accuracy of models several times its size, still CPU-light.
+      + Bounded time-to-first-token from the sliding-window encoder.
+      − English only.
+  - id: moonshine2-medium-en
+    label: Moonshine v2 medium
+    size: "~250 MB"
+    speed: very fast
+    languages: EN
+    recommended: true
+    rating: 4
+    notes: |-
+      + 245M parameters at 6.7% average WER — rivals Whisper large-v3 at a sixth of the size, on CPU.
+      + The best accuracy-per-byte CPU pick for English dictation.
+      − English only; the quantized build gives up a little accuracy vs the paper's float numbers.

@@ -37,6 +37,19 @@ models:
       + Fast, accurate English on CPU with punctuation and capitalization — no GPU required.
       + The best local pick when you don't have an NVIDIA card.
       − English only; the NeMo build is faster and slightly more accurate if you do have a GPU.
+  - id: sherpa-nemotron-streaming-en
+    label: Nemotron Streaming EN
+    repo: csukuangfj/sherpa-onnx-nemotron-speech-streaming-en-0.6b-int8-2026-01-14
+    size: "~660 MB"
+    speed: very fast
+    languages: EN
+    streaming: true
+    recommended: true
+    rating: 4
+    notes: |-
+      + NVIDIA's cache-aware streaming FastConformer (0.6B, int8) — the strongest natively-streaming English model in sherpa-onnx, built for live typing.
+      + Sub-second algorithmic latency with batch-grade accuracy (int8 matches fp32 within 0.02% WER in Microsoft's on-device study) — no GPU needed.
+      − English only; larger download than the Zipformer streamers.
   - id: sherpa-zipformer-bilingual-zh-en
     label: Zipformer Bilingual (ZH/EN)
     repo: csukuangfj/sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20

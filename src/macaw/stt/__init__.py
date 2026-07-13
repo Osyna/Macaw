@@ -35,6 +35,7 @@ from __future__ import annotations
 from macaw.stt import (  # noqa: E402,F401
     cloud,
     moonshine,
+    moonshine2,
     nemo,
     sherpa,
     voxtral,

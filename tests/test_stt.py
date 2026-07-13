@@ -48,6 +48,9 @@ class _EchoBackend:
         self.seen = audio
         return "ok"
 
+    def transcribe_partial(self, audio, sample_rate=16_000):
+        return None  # mirrors Backend's default: no native streaming
+
 
 def _gated(monkeypatch, chunks, vad_gate=True):
     """Transcriber with a stubbed VAD + echo backend; returns (t, backend).
@@ -110,6 +113,78 @@ def test_vad_gate_failure_never_loses_audio(monkeypatch):
     audio = np.full(160_000, 0.1, dtype=np.float32)
     assert t.transcribe(audio) == "ok"
     assert echo.seen is audio
+
+
+class _StreamBackend(_EchoBackend):
+    """Echo backend with native incremental support; records each delta."""
+
+    def __init__(self):
+        super().__init__()
+        self.deltas: list[int] = []
+
+    def transcribe_partial(self, audio, sample_rate=16_000):
+        self.deltas.append(audio.size)
+        return f"partial after {sum(self.deltas)}"
+
+
+def _streaming(monkeypatch, backend):
+    from macaw.stt.base import ModelInfo
+
+    t = Transcriber(model_size="large-v3-turbo")
+    backend.model = ModelInfo(
+        id="x", backend="whisper", label="x", size="", speed="", languages=""
+    )
+    t._backend = backend
+    monkeypatch.setattr(t, "_ensure_backend", lambda: backend)
+    return t
+
+
+def test_streaming_feeds_only_new_samples(monkeypatch):
+    # Native streamers get the delta each tick, not the whole buffer again.
+    b = _StreamBackend()
+    t = _streaming(monkeypatch, b)
+    _, full1 = t.transcribe_streaming(np.full(16_000, 0.1, dtype=np.float32))
+    t.transcribe_streaming(np.full(48_000, 0.1, dtype=np.float32), prev_text=full1)
+    assert b.deltas == [16_000, 32_000]  # second call fed only the new 2s
+    assert b.seen is None  # batch transcribe never touched
+
+
+def test_streaming_reset_starts_fresh(monkeypatch):
+    b = _StreamBackend()
+    t = _streaming(monkeypatch, b)
+    t.transcribe_streaming(np.full(16_000, 0.1, dtype=np.float32))
+    t.reset_stream()
+    t.transcribe_streaming(np.full(16_000, 0.1, dtype=np.float32))
+    assert b.deltas == [16_000, 16_000]  # full feed again after reset
+
+
+def test_streaming_batch_pass_resets_native_stream(monkeypatch):
+    # The utterance-final batch pass supersedes the live stream: the next
+    # streaming call must feed from sample zero again.
+    b = _StreamBackend()
+    t = _streaming(monkeypatch, b)
+    t.vad_gate = False  # keep the batch pass out of the VAD stub's way
+    t.transcribe_streaming(np.full(16_000, 0.1, dtype=np.float32))
+    t.transcribe(np.full(16_000, 0.1, dtype=np.float32))  # final pass
+    t.transcribe_streaming(np.full(16_000, 0.1, dtype=np.float32))
+    assert b.deltas == [16_000, 16_000]
+
+
+def test_streaming_falls_back_without_native_support(monkeypatch):
+    # transcribe_partial -> None means re-transcribe the full buffer (with the
+    # VAD gate applied there, so stub timestamps keep everything).
+    import faster_whisper.vad as fwv
+
+    monkeypatch.setattr(
+        fwv,
+        "get_speech_timestamps",
+        lambda audio, opts: [{"start": 0, "end": audio.size}],
+    )
+    b = _EchoBackend()
+    t = _streaming(monkeypatch, b)
+    _, full = t.transcribe_streaming(np.full(32_000, 0.1, dtype=np.float32))
+    assert full == "ok"
+    assert b.seen.size == 32_000  # whole buffer, every tick
 
 
 def test_empty_model_is_not_ready():

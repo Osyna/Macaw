@@ -255,6 +255,7 @@ class Engine:
         self._stream_prev_text = ""
         self._stream_confirmed_len = 0  # chars already typed
         self._streaming_active = False
+        self._stream_busy = False  # a live-typing tick is decoding right now
 
         self._monitor_task: asyncio.Task | None = None  # 30 Hz level + silence
         self._stream_task: asyncio.Task | None = None  # 1 Hz streaming tick
@@ -504,6 +505,8 @@ class Engine:
             self._stream_buffer = []
             self._stream_prev_text = ""
             self._stream_confirmed_len = 0
+            self._stream_busy = False
+            self.transcriber.reset_stream()  # fresh native-stream state
             self._stream_task = asyncio.ensure_future(self._stream_loop())
             logger.info("Streaming transcription active")
 
@@ -685,6 +688,9 @@ class Engine:
         audio = np.concatenate(self._stream_buffer)
         if len(audio) < self.capture.sample_rate:
             return  # need at least 1s of audio
+        if self._stream_busy:
+            return  # previous tick still decoding — never overlap worker calls
+        self._stream_busy = True
         threading.Thread(
             target=self._stream_transcribe,
             args=(audio.copy(), self.capture.sample_rate),
@@ -702,6 +708,8 @@ class Engine:
         except Exception as exc:  # noqa: BLE001 — mid-stream tick; final pass reports
             logger.error("Streaming transcription error: %s", exc)
             return
+        finally:
+            self._stream_busy = False
         self._stream_prev_text = full
         if confirmed and len(confirmed) > self._stream_confirmed_len:
             new_text = confirmed[self._stream_confirmed_len :]

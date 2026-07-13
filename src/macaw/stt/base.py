@@ -164,6 +164,15 @@ class Backend(abc.ABC):
     def transcribe(self, audio: np.ndarray, sample_rate: int = 16_000) -> str:
         """Transcribe mono float32 16 kHz audio. Return stripped text ('' if none)."""
 
+    def transcribe_partial(
+        self, audio: np.ndarray, sample_rate: int = 16_000
+    ) -> str | None:
+        """Feed ONLY the new samples of an ongoing utterance to a natively
+        streaming decoder; returns the full partial text so far — or None when
+        this backend can't decode incrementally (callers then fall back to
+        re-transcribing the whole buffer). Default: unsupported."""
+        return None
+
     # -- capability / dependency ---------------------------------------
 
     def available(self) -> bool:

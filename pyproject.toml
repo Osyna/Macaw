@@ -29,6 +29,10 @@ rocm = []  # ROCm CTranslate2 wheel installed by install.sh from GitHub releases
 moonshine = [
     "useful-moonshine-onnx",
 ]
+moonshine2 = [  # Moonshine v2 streaming (.ort via bundled C lib) — CPU, isolated venv
+    "moonshine-voice>=0.0.68",
+    "numpy>=2.0.0",
+]
 nemo = [  # Parakeet TDT + Canary-Qwen — needs a CUDA GPU
     "nemo_toolkit[asr]>=2.0",
     # Without cuda-python NeMo silently disables CUDA-graph decoding and logs
@@ -44,8 +48,9 @@ voxtral = [  # Mistral Voxtral
     "torch",
     "accelerate",
 ]
-sherpa = [  # sherpa-onnx ONNX models (Zipformer/Paraformer/Parakeet) — CPU, isolated venv
-    "sherpa-onnx>=1.11.2",
+sherpa = [  # sherpa-onnx ONNX models (Zipformer/Paraformer/Parakeet/Nemotron) — CPU, isolated venv
+    # >=1.13.0: Nemotron cache-aware streaming support (added 1.12.22) + fixes
+    "sherpa-onnx>=1.13.0",
     "numpy>=2.0.0",           # required at runtime but not declared by sherpa-onnx
     "huggingface-hub>=0.20",  # fetches the ONNX weights on first use
 ]

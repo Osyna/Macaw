@@ -7,9 +7,16 @@ library, so conflicting dependency stacks stay isolated per backend.
 
 Protocol (line-based JSON on the *real* stdout; all library chatter is
 redirected to stderr so it can't corrupt the stream):
-    <- {"status": "ready"}            once the model is loaded
-    -> /path/to/audio.npy\n           a request: mono float32 16 kHz array
+    <- {"status": "ready", "incremental": bool}   once the model is loaded
+    -> /path/to/audio.npy\n           batch request: mono float32 16 kHz array
+                                      (also resets any live stream)
+    -> S /path/to/audio.npy\n         stream-feed: ONLY the new samples; the
+                                      reply text is the full partial so far
     <- {"text": "..."}   |  {"error": "..."}
+
+Backends that can decode incrementally (the natively-streaming sherpa models)
+expose it as a `feed` attribute on the transcribe callable; everything else
+is batch-only and `S` lines answer with an error.
 """
 
 from __future__ import annotations
@@ -178,6 +185,17 @@ _SHERPA_MODELS = {
         "joiner": "joiner.int8.onnx",
         "tokens": "tokens.txt",
     },
+    # Cache-aware streaming FastConformer transducer (sherpa-onnx >= 1.12.22;
+    # routed to the NeMo cache-aware impl automatically via decoder metadata).
+    # Chunk/cache geometry is embedded in the encoder ONNX — nothing to pass.
+    "sherpa-nemotron-streaming-en": {
+        "repo": "csukuangfj/sherpa-onnx-nemotron-speech-streaming-en-0.6b-int8-2026-01-14",
+        "kind": "online_transducer",
+        "encoder": "encoder.int8.onnx",
+        "decoder": "decoder.int8.onnx",
+        "joiner": "joiner.int8.onnx",
+        "tokens": "tokens.txt",
+    },
     "sherpa-zipformer-bilingual-zh-en": {
         "repo": "csukuangfj/sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20",
         "kind": "online_transducer",
@@ -212,6 +230,32 @@ _SHERPA_MODELS = {
         "tokens": "tokens.txt",
     },
 }
+
+
+# -- Moonshine v2 ("moonshine-voice"): streaming .ort models, own CDN cache ----
+
+_MOONSHINE2_ARCH = {  # catalog id -> moonshine_voice.ModelArch name
+    "moonshine2-tiny-en": "TINY_STREAMING",
+    "moonshine2-small-en": "SMALL_STREAMING",
+    "moonshine2-medium-en": "MEDIUM_STREAMING",
+}
+
+
+def _load_moonshine2(model: str, language: str):
+    from moonshine_voice import ModelArch, Transcriber, get_model_for_language
+
+    arch = getattr(ModelArch, _MOONSHINE2_ARCH[model])
+    # Weights (.ort bundle) download from download.moonshine.ai on first use
+    # and cache inside the package's own model dir — not the HF cache.
+    path, arch = get_model_for_language("en", arch)
+    t = Transcriber(model_path=path, model_arch=arch)
+
+    def run(audio):
+        r = t.transcribe_without_streaming(audio, sample_rate=16_000)
+        return " ".join(ln.text.strip() for ln in r.lines if ln.text).strip()
+
+    return run
+
 
 _SHERPA_TAIL = np.zeros(int(0.5 * 16_000), dtype=np.float32)  # flush streaming tail
 
@@ -251,6 +295,9 @@ def _load_sherpa(model: str, language: str):
 
         return _offline
 
+    # online kinds: a persistent stream so live typing can feed only the NEW
+    # samples each tick (true streaming — bounded per-tick cost), while batch
+    # calls still decode a complete utterance from scratch.
     if cfg["kind"] == "online_paraformer":
         rec = sherpa_onnx.OnlineRecognizer.from_paraformer(
             tokens=path(cfg["tokens"]),
@@ -269,20 +316,35 @@ def _load_sherpa(model: str, language: str):
             provider="cpu",
         )
 
+    live = {"s": None}  # the one persistent live-typing stream
+
+    def _drain(s) -> None:
+        while rec.is_ready(s):
+            rec.decode_stream(s)
+
     def _online(audio):
+        live["s"] = None  # a batch pass supersedes any live stream
         s = rec.create_stream()
         s.accept_waveform(16_000, audio)
         s.accept_waveform(16_000, _SHERPA_TAIL)  # tail padding emits final frames
         s.input_finished()
-        while rec.is_ready(s):
-            rec.decode_stream(s)
+        _drain(s)
         return _post(rec.get_result(s))
 
+    def _feed(audio):
+        if live["s"] is None:
+            live["s"] = rec.create_stream()
+        live["s"].accept_waveform(16_000, audio)
+        _drain(live["s"])
+        return _post(rec.get_result(live["s"]))
+
+    _online.feed = _feed
     return _online
 
 
 LOADERS = {
     "moonshine": _load_moonshine,
+    "moonshine2": _load_moonshine2,
     "parakeet": _load_parakeet,
     "canary-qwen": _load_canary,
     "voxtral": _load_voxtral,
@@ -324,17 +386,27 @@ def main() -> None:
     except Exception as exc:  # noqa: BLE001
         _emit({"status": "error", "error": repr(exc)})
         return
-    _emit({"status": "ready"})
+    _emit({"status": "ready", "incremental": hasattr(transcribe, "feed")})
 
     for line in sys.stdin:
-        path = line.strip()
-        if not path:
-            continue
-        try:
-            audio = np.load(path)
-            _emit({"text": transcribe(audio)})
-        except Exception as exc:  # noqa: BLE001
-            _emit({"error": repr(exc)})
+        reply = _handle_line(transcribe, line.strip())
+        if reply is not None:
+            _emit(reply)
+
+
+def _handle_line(transcribe, line: str) -> dict | None:
+    """One protocol request -> one reply dict (None for blank keep-alives)."""
+    if not line:
+        return None
+    try:
+        if line.startswith("S "):
+            feed = getattr(transcribe, "feed", None)
+            if feed is None:
+                return {"error": "stream feed unsupported"}
+            return {"text": feed(np.load(line[2:]))}
+        return {"text": transcribe(np.load(line))}
+    except Exception as exc:  # noqa: BLE001
+        return {"error": repr(exc)}
 
 
 if __name__ == "__main__":

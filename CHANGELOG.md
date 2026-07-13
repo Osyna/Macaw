@@ -4,6 +4,21 @@ Notable changes to Macaw. Older releases live on the [releases page](https://git
 
 ## Unreleased
 
+- **True streaming for live typing.** Natively-streaming models (the sherpa
+  Zipformer/Paraformer/Nemotron family) now keep one persistent decode
+  stream during live typing and receive only the NEW audio each tick —
+  bounded per-tick cost instead of re-decoding the whole utterance every
+  second. Ticks never overlap anymore, and worker protocol calls are
+  serialized (a live-typing tick can no longer race the final pass).
+
+- **Nemotron Streaming EN** (0.6B int8, ~660 MB): NVIDIA's cache-aware
+  streaming FastConformer — the strongest natively-streaming English model
+  in sherpa-onnx, sub-second latency on CPU. Recommended for live typing.
+
+- **Moonshine v2** (tiny/small/medium, 35–250 MB): English streaming ASR
+  with bounded time-to-first-token; medium rivals Whisper large-v3 at a
+  sixth of the size, on CPU. New `moonshine2` backend + isolated venv.
+
 - **Faster transcription on every model.** A Silero VAD gate now cuts
   silent stretches before audio reaches any backend — dictation is often
   30–60% silence, so this is a straight speed multiplier and it removes

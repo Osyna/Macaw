@@ -31,6 +31,11 @@ class Transcriber:
         self.vad_gate = vad_gate
         self.model_params: dict = {}  # tunables for the current model
         self._backend = None
+        self._stream_fed = 0  # samples already fed to a native stream (16 kHz)
+
+    def reset_stream(self) -> None:
+        """Start a fresh live-typing utterance (engine calls this on record start)."""
+        self._stream_fed = 0
 
     # -- backend lifecycle ---------------------------------------------
 
@@ -123,6 +128,7 @@ class Transcriber:
     def transcribe(self, audio: np.ndarray, sample_rate: int = 16_000) -> str:
         """Transcribe a complete audio signal. Returns stripped text or ''."""
         backend = self._ensure_backend()
+        self._stream_fed = 0  # a batch pass supersedes any live stream (worker too)
         audio = self._prepare(audio, sample_rate)
 
         # Silence gate (dot avoids allocating a full squared copy).
@@ -153,8 +159,12 @@ class Transcriber:
         Returns (confirmed_new, full_text): the text this run and the previous
         run agree on (minus what was already confirmed), and the full current
         transcription.
+
+        Natively streaming backends (sherpa online models) get ONLY the new
+        samples each call — bounded per-tick cost instead of re-decoding the
+        whole utterance. Everything else re-transcribes the full buffer.
         """
-        full_text = self.transcribe(audio, sample_rate=sample_rate)
+        full_text = self._streaming_pass(audio, sample_rate)
         if not full_text:
             return "", prev_text
         if not prev_text:
@@ -171,3 +181,21 @@ class Transcriber:
         if common_len == 0:
             return "", full_text
         return " ".join(curr_words[:common_len]), full_text
+
+    def _streaming_pass(self, audio: np.ndarray, sample_rate: int) -> str:
+        """One live-typing decode: native delta feed when supported, else a
+        full-buffer re-transcription. Returns the full text so far."""
+        backend = self._ensure_backend()
+        if sample_rate == 16_000:  # delta indices only line up unresampled
+            prepared = self._prepare(audio, sample_rate)
+            delta = prepared[self._stream_fed :]
+            if delta.size == 0 and self._stream_fed > 0:
+                return ""  # active native stream, no new audio — nothing new
+            if delta.size:
+                partial = backend.transcribe_partial(delta, 16_000)
+                if partial is not None:
+                    self._stream_fed = prepared.size
+                    if partial:
+                        logger.info(partial)
+                    return partial
+        return self.transcribe(audio, sample_rate=sample_rate)

@@ -6,6 +6,7 @@ import os
 import shutil
 import subprocess
 import tempfile
+import threading
 from pathlib import Path
 
 import numpy as np
@@ -101,6 +102,10 @@ class SubprocessBackend(Backend):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self._proc: subprocess.Popen | None = None
+        self._incremental = False  # worker advertises native streaming at ready
+        # One request-reply pair at a time: a live-typing tick racing the final
+        # utterance pass would otherwise interleave stdin writes / stdout reads.
+        self._lock = threading.Lock()
 
     # -- capability / weight management --------------------------------
 
@@ -185,6 +190,7 @@ class SubprocessBackend(Backend):
                 err = f"{err}\n{self._stderr_tail()}"
             self.unload()
             raise RuntimeError(f"{self.key} worker failed to start: {err}")
+        self._incremental = bool(status.get("incremental"))
         logger.info("%s worker ready.", self.key)
 
     def _stderr_tail(self, lines: int = 12) -> str:
@@ -195,15 +201,26 @@ class SubprocessBackend(Backend):
             return "(stderr unavailable)"
 
     def transcribe(self, audio: np.ndarray, sample_rate: int = 16_000) -> str:
+        return self._request(audio, prefix="")
+
+    def transcribe_partial(
+        self, audio: np.ndarray, sample_rate: int = 16_000
+    ) -> str | None:
+        if not self._incremental:
+            return None
+        return self._request(audio, prefix="S ")
+
+    def _request(self, audio: np.ndarray, prefix: str) -> str:
         self.load()
         assert self._proc is not None and self._proc.stdin is not None
         fd, path = tempfile.mkstemp(prefix="macaw-audio-", suffix=".npy")
         os.close(fd)
         try:
             np.save(path, audio)
-            self._proc.stdin.write(path + "\n")
-            self._proc.stdin.flush()
-            reply = self._read_message()
+            with self._lock:
+                self._proc.stdin.write(prefix + path + "\n")
+                self._proc.stdin.flush()
+                reply = self._read_message()
             if "error" in reply:
                 raise RuntimeError(reply["error"])
             return reply.get("text", "").strip()
