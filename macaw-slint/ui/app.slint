@@ -1,6 +1,15 @@
 // Main window: header (brand, tabs, engine dot) over Settings/Appearance/
 // Models views, with a transient toast stack in the corner.
 
+// Embedded fonts: text rendering must never depend on system-font
+// enumeration — fontique's dwrite path can come up empty (observed on
+// Windows/wine: fallback query unwraps None -> the app dies before the
+// first window). DejaVu also guarantees the chip/status glyph coverage.
+import "fonts/DejaVuSans.ttf";
+import "fonts/DejaVuSans-Bold.ttf";
+import "fonts/DejaVuSansMono.ttf";
+import "fonts/DejaVuSansMono-Bold.ttf";
+
 import { Theme, Palette, Look, Tip } from "theme.slint";
 import { Btn, Badge } from "widgets.slint";
 import { SettingsView, Cfg } from "settings.slint";
@@ -51,7 +60,7 @@ component TabBtn inherits Rectangle {
 
 export component MainWindow inherits Window {
     title: "Macaw";
-    default-font-family: "monospace"; // terminal chrome; the pill keeps the UI font
+    default-font-family: "DejaVu Sans Mono"; // terminal chrome (embedded); the pill keeps the UI font
     // fixed: Slint derives min=max size hints from this, so the window is
     // not resizable; a Hyprland rule (main.rs) floats it so it never tiles
     width: 1180px;

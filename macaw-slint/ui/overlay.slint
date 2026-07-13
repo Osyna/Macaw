@@ -6,6 +6,7 @@
 import { OverlayPill } from "pill.slint";
 
 export component OverlayWindow inherits Window {
+    default-font-family: "DejaVu Sans"; // embedded (see app.slint imports)
     in property <string> mode <=> pill.mode;
     in property <string> record-anim <=> pill.record-anim;
     in property <string> anim <=> pill.anim;

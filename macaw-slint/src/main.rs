@@ -1172,14 +1172,13 @@ fn main() {
             #[cfg(not(unix))]
             attrs
         });
-    // Renderer pinned per platform: software on Linux (smaller RSS, no GL),
-    // femtovg on Windows — 1.17's software renderer panics in fontique
-    // system-font enumeration there (systemfonts.rs:71).
-    #[cfg(unix)]
-    let selector = selector.renderer_name("software".into());
-    #[cfg(windows)]
-    let selector = selector.renderer_name("femtovg".into());
-    selector.select().expect("select winit backend");
+    // Software renderer everywhere: no GL dependency (VMs, RDP, wine, weak
+    // drivers), small RSS. Text never touches system-font enumeration — the
+    // UI fonts are embedded and pinned via default-font-family (app.slint).
+    selector
+        .renderer_name("software".into())
+        .select()
+        .expect("select winit backend");
 
     let ui = MainWindow::new().expect("create main window"); // adapter #0
     let overlay = OverlayWindow::new().expect("create overlay"); // adapter #1
