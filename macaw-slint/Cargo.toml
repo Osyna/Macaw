@@ -1,6 +1,6 @@
 [package]
 name = "macaw-ui"
-version = "0.5.0"
+version = "0.6.0"
 description = "Macaw — native Slint frontend (tray, settings/models, recording overlay)"
 edition = "2021"
 rust-version = "1.92"
