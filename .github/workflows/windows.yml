@@ -63,8 +63,11 @@ jobs:
         run: |
           # --stop with no running instance exits before any window/backend
           # init — proves the exe loads and its DLLs resolve on a bare box.
-          & out/Macaw/macaw-ui.exe --stop
-          if ($LASTEXITCODE -ne 0) { exit 1 }
+          # GUI-subsystem exe: it detaches from the console, so run it via
+          # Start-Process and read the real exit code.
+          $p = Start-Process -FilePath out/Macaw/macaw-ui.exe -ArgumentList "--stop" -Wait -PassThru
+          Write-Host "exit code: $($p.ExitCode)"
+          if ($p.ExitCode -ne 0) { exit 1 }
 
       - name: Resolve version
         shell: bash
