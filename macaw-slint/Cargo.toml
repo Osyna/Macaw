@@ -12,19 +12,21 @@ path = "src/main.rs"
 # Layer-shell recording indicator: separate Wayland client (custom Slint
 # platform + software renderer into wl_shm) — always-on-top on ANY Wayland
 # compositor with zwlr_layer_shell_v1, click-through, WM-independent.
+# Unix-only (its deps live under [target.'cfg(unix)']): Windows builds use
+# `cargo build --bin macaw-ui` and the plain winit overlay fallback.
 [[bin]]
 name = "macaw-overlay"
 path = "src/bin/macaw-overlay.rs"
 
 [dependencies]
-# UI — winit/Wayland backend + software renderer: pure CPU, no GL/GPU driver
+# UI — winit backend + software renderer: pure CPU, no GL/GPU driver
 # mappings (~2× smaller RSS than femtovg on NVIDIA), plenty for a settings
 # window and a 210×52 overlay. unstable-winit-030 gives the window-attributes
-# hook (per-window Wayland app_id so Hyprland rules can target the overlay).
+# hook (per-window Wayland app_id so Hyprland rules can target the overlay)
+# and monitor geometry for the overlay fallback placement.
 slint = { version = "1.17", default-features = false, features = [
     "std",
     "compat-1-2",
-    "backend-winit-wayland",
     "renderer-software",
     "unstable-winit-030",
 ] }
@@ -32,12 +34,28 @@ slint = { version = "1.17", default-features = false, features = [
 tungstenite = "0.28"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+
+[target.'cfg(unix)'.dependencies]
+slint = { version = "1.17", default-features = false, features = [
+    "backend-winit-wayland",
+] }
 # StatusNotifierItem tray (Hyprland/waybar) — no tokio: blocking + async-io.
 ksni = { version = "0.3.5", default-features = false, features = ["blocking", "async-io"] }
 # Layer-shell overlay (macaw-overlay bin) — no xkbcommon: click-through
 # surface takes no input. Versions pinned to sctk's wayland-client.
 smithay-client-toolkit = { version = "0.20", default-features = false, features = ["calloop"] }
 wayland-client = "0.31.14"
+
+[target.'cfg(windows)'.dependencies]
+slint = { version = "1.17", default-features = false, features = [
+    "backend-winit",
+] }
+# Win32 notification-area icon + menu (the ksni equivalent).
+tray-icon = "0.21"
+
+[target.'cfg(windows)'.build-dependencies]
+# Embeds the .ico into macaw-ui.exe (Explorer/taskbar icon).
+winresource = "0.1"
 
 [build-dependencies]
 slint-build = "1"

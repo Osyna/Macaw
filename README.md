@@ -167,14 +167,14 @@ Each bundle ships the native UI **and** the speech engine (Python is embedded �
 
 ### Windows (beta)
 
-Run `Macaw_<version>_x64-setup.exe` from the [latest release](https://github.com/Osyna/Macaw/releases/latest).
+Run `Macaw_<version>_x64-setup.exe` from the [latest release](https://github.com/Osyna/Macaw/releases/latest) — the same native UI as Linux (tray, Models, Appearance, recording overlay), or grab `macaw-<version>-win64.zip` for a portable install (run `macaw-ui.exe`).
 
 What's different on Windows:
 
 - **Hotkey** uses the native `RegisterHotKey` API — set it in Settings as usual (no `input` group, no evdev).
 - **Typing** uses `SendInput` — no ydotool/wtype/xdotool needed.
-- **Models:** Whisper, sherpa-onnx, Moonshine, Voxtral, and the GPT-4o cloud models work; **NeMo (Parakeet GPU / Canary-Qwen) is Linux-only.** `uv.exe` ships with the engine, so sandboxed installs from the Model Manager just work.
-- **Autostart:** flip **Settings → Start at login**.
+- **Models:** Whisper, sherpa-onnx, Moonshine, Voxtral, and the GPT-4o cloud models work; **NeMo (Parakeet GPU / Canary-Qwen) is Linux-only.** Sandboxed installs from the Model Manager fetch a private `uv` on first use.
+- **Autostart:** flip **Settings → Start at login** (a `HKCU\…\Run` entry).
 - Config lives at `%USERPROFILE%\.config\macaw\config.yaml`.
 
 ### CLI-only install (no UI)
@@ -239,7 +239,7 @@ streaming: false            # live typing as you speak (alpha)
 ## How it works
 
 ```
-Macaw (Tauri app: tray, Settings/Models, overlay)
+Macaw (native Slint app: tray, Settings/Models, overlay)
    |            \
    | spawns      \ WebSocket (JSON-RPC + events, 127.0.0.1, token-authed)
    v              \
@@ -251,24 +251,24 @@ macaw-engine  <----+          macaw --trigger --[ZMQ IPC]--> macaw-engine
    +-- HotkeyListener (evdev / RegisterHotKey)
 ```
 
-- The UI is a [Tauri](https://tauri.app) app; the engine is headless Python. The app spawns the engine and holds its stdin — if either dies, the other follows.
+- The UI is a native [Slint](https://slint.dev) app (pure Rust, no webview); the engine is headless Python. The app spawns the engine and holds its stdin — if either dies, the other follows.
 - CLI IPC is ZMQ REQ/REP over a Unix socket at `$XDG_RUNTIME_DIR/macaw.ipc` (TCP on Windows).
 - The UI drives the engine over a local WebSocket: config, model management, recording state, live mic levels for the overlay bars.
 - Audio is captured at 16 kHz mono with energy-based speech detection.
-- Transcription runs through pluggable backends; the default is `large-v3-turbo` on faster-whisper with a Silero VAD filter.
+- Transcription runs through pluggable backends; the default is `large-v3-turbo` on faster-whisper, behind an adaptive energy silence gate.
 - Pasting uses ydotool (evdev), wtype (Wayland virtual keyboard), or xdotool (X11), with XWayland detection on Hyprland.
 
-`Transcriber` is a thin facade. It normalizes audio to mono float32 at 16 kHz and gates silence, then hands off to whichever backend the configured model points at. Whisper runs in-process; the others carry native dependency stacks that don't get along with the CUDA + faster-whisper environment, so each lives in its own isolated venv under `~/.local/share/macaw/backends/<extra>/`, driven by a sidecar worker (`stt/worker.py`) that swaps audio and text over a pipe. The Model Manager's Install button builds that venv for you, and nothing touches the main environment.
+`Transcriber` is a thin facade. It normalizes audio to mono float32 at 16 kHz and gates silence, then hands off to whichever backend the configured model points at. Every backend — Whisper included — carries a native dependency stack of its own, so each lives in its own isolated venv under `~/.local/share/macaw/backends/<extra>/`, driven by a sidecar worker (`stt/worker.py`) that swaps audio and text over a pipe. The Model Manager's Install button builds that venv for you, and nothing touches the main environment.
 
-### Native Slint frontend (in development)
+### Native Slint frontend
 
-`macaw-slint/` holds the next-generation frontend: pure Rust with
-[Slint](https://slint.dev) — one ~11 MB binary at ~23 MB RSS, no webview, no
-GTK, no async runtime. Same engine, same WebSocket protocol, same features
-(tray via StatusNotifierItem, Settings + Models, themeable overlay). On
-Hyprland the overlay is positioned through runtime window rules; other
-compositors get a floating window. Linux-only and built locally for now —
-the Tauri app remains the packaged path until this ships through CI.
+`macaw-slint/` is the frontend on both platforms: pure Rust with
+[Slint](https://slint.dev) — one ~13 MB binary, no webview, no GTK, no async
+runtime. Same engine, same WebSocket protocol. The tray is StatusNotifierItem
+on Linux and a Win32 notification icon on Windows. On Wayland the overlay is
+a dedicated layer-shell client (`macaw-overlay`); on Hyprland it's positioned
+through runtime window rules; everywhere else (GNOME, Windows) it's a
+frameless always-on-top window the app places itself.
 
 ```sh
 cd macaw-slint && cargo build --release
@@ -326,7 +326,7 @@ Engine logs are the app's stderr, prefixed `[engine]` — run `Macaw` (or the Ap
 
 Releases are built by CI whenever a `vX.Y.Z` tag is pushed: `release.yml` ships the wheel/sdist and the Linux bundles (AppImage + tarball with the native Slint UI and the embedded engine) plus `SHA256SUMS`; `windows.yml` adds the NSIS installer.
 
-Cut one in a single step. `make tag` bumps the version in `pyproject.toml`, `src-tauri/tauri.conf.json` and `macaw-slint/Cargo.toml`, commits, and tags:
+Cut one in a single step. `make tag` bumps the version in `pyproject.toml` and `macaw-slint/Cargo.toml`, commits, and tags:
 
 ```sh
 make tag VERSION=0.2.0
@@ -352,7 +352,7 @@ Macaw stands on a lot of good open-source work:
 - [Mistral Voxtral][voxtral] and Hugging Face [Transformers][transformers]
 - [Useful Sensors Moonshine][moonshine] for the featherweight option
 - [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) (k2-fsa) for streaming ASR on plain CPUs
-- [Tauri](https://tauri.app), [sounddevice](https://python-sounddevice.readthedocs.io/), and [uv](https://docs.astral.sh/uv/)
+- [Slint](https://slint.dev), [sounddevice](https://python-sounddevice.readthedocs.io/), and [uv](https://docs.astral.sh/uv/)
 
 ## Star history
 

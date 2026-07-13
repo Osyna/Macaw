@@ -26,13 +26,19 @@ impl Engine {
             "--ws-port".into(),
             ws_port.to_string(),
         ]);
-        match Command::new(&bin)
-            .args(&args)
+        let mut cmd = Command::new(&bin);
+        cmd.args(&args)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
+            .stderr(Stdio::piped());
+        // The engine is a console binary: without this every launch of the
+        // GUI app would pop a console window on Windows.
+        #[cfg(windows)]
         {
+            use std::os::windows::process::CommandExt;
+            cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+        }
+        match cmd.spawn() {
             Ok(mut child) => {
                 if let Some(out) = child.stdout.take() {
                     forward(out);
@@ -81,8 +87,13 @@ fn resolve() -> (String, Vec<String>) {
             return (bin, argv);
         }
     }
+    let name = if cfg!(windows) {
+        "macaw-engine.exe"
+    } else {
+        "macaw-engine"
+    };
     if let Ok(exe) = std::env::current_exe() {
-        let sidecar = exe.with_file_name("macaw-engine");
+        let sidecar = exe.with_file_name(name);
         if sidecar.is_file() {
             return (sidecar.to_string_lossy().into_owned(), vec![]);
         }

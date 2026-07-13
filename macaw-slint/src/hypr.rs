@@ -32,6 +32,12 @@ fn signature() -> Option<String> {
     best.map(|(_, name)| name)
 }
 
+/// True when a Hyprland instance is reachable (window rules do placement);
+/// false = winit fallback paths must position windows themselves.
+pub fn available() -> bool {
+    signature().is_some()
+}
+
 fn hyprctl(args: &[&str]) {
     if let Some(sig) = signature() {
         let _ = Command::new("hyprctl")

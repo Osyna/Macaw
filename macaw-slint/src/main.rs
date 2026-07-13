@@ -2,11 +2,12 @@
 //!
 //! One process, three background threads + the UI event loop:
 //!   ws       — blocking WebSocket client to the engine
-//!   single   — unix-socket single-instance server (argv forwarding)
-//!   ksni     — tray service (spawned by ksni itself)
+//!   single   — single-instance server (unix socket / loopback TCP), argv fwd
+//!   tray     — ksni service (unix) / Win32 notification icon (windows)
 //! All UI access happens on the Slint event loop; background threads and RPC
 //! replies marshal in via `upgrade_in_event_loop` and reach the app state
 //! through a UI-thread-local handle (Rc — deliberately !Send).
+#![cfg_attr(windows, windows_subsystem = "windows")]
 
 mod bars;
 mod engine;
@@ -659,9 +660,43 @@ impl App {
         );
         drop(cfg);
         let (x, y) = hypr::focused_monitor()
+            .or_else(|| self.winit_monitor())
             .map(|m| hypr::anchor_xy(&pos, w, h, custom, &m))
             .unwrap_or((0, 0));
         (x, y, w, h)
+    }
+
+    /// Monitor geometry via winit when Hyprland isn't around (Windows, GNOME,
+    /// …) — same logical-pixel space `anchor_xy` expects.
+    fn winit_monitor(&self) -> Option<hypr::Monitor> {
+        use slint::winit_030::WinitWindowAccessor;
+        self.ui
+            .window()
+            .with_winit_window(|win| {
+                let m = win.current_monitor().or_else(|| win.primary_monitor())?;
+                let sf = m.scale_factor();
+                let p = m.position();
+                let s = m.size();
+                Some(hypr::Monitor {
+                    x: (p.x as f64 / sf) as i32,
+                    y: (p.y as f64 / sf) as i32,
+                    w: (s.width as f64 / sf) as i32,
+                    h: (s.height as f64 / sf) as i32,
+                    reserved_top: 0,
+                    reserved_bottom: 0,
+                })
+            })
+            .flatten()
+    }
+
+    /// Off-Hyprland (Windows, GNOME fallback) the compositor won't place the
+    /// overlay for us — position the winit window directly.
+    fn place_overlay_fallback(&self, x: i32, y: i32) {
+        if !hypr::available() {
+            self.overlay
+                .window()
+                .set_position(slint::LogicalPosition::new(x as f32, y as f32));
+        }
     }
 
     /// Send to the layer-shell overlay process; false = gone (fallback).
@@ -693,6 +728,7 @@ impl App {
             self.overlay
                 .window()
                 .set_size(slint::LogicalSize::new(w as f32, h as f32));
+            self.place_overlay_fallback(x, y);
             let _ = self.overlay.show();
         }
     }
@@ -904,6 +940,7 @@ impl App {
                         .window()
                         .set_size(slint::LogicalSize::new(w as f32, h as f32));
                     hypr::move_mapped(x, y);
+                    self.place_overlay_fallback(x, y);
                 }
             }
             ws::Event::Models => self.refresh_models(),
@@ -1004,6 +1041,7 @@ impl App {
     }
 }
 
+#[cfg(not(windows))]
 fn autostart_path() -> std::path::PathBuf {
     let base = std::env::var("XDG_CONFIG_HOME")
         .map(std::path::PathBuf::from)
@@ -1013,6 +1051,7 @@ fn autostart_path() -> std::path::PathBuf {
     base.join("autostart/macaw.desktop")
 }
 
+#[cfg(not(windows))]
 fn set_autostart(on: bool) {
     let path = autostart_path();
     if !on {
@@ -1031,6 +1070,34 @@ fn set_autostart(on: bool) {
     }
 }
 
+/// HKCU Run entry — the Windows equivalent of the XDG autostart file.
+#[cfg(windows)]
+fn set_autostart(on: bool) {
+    use std::os::windows::process::CommandExt;
+    const KEY: &str = r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run";
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    let mut cmd = std::process::Command::new("reg");
+    if on {
+        let Ok(exe) = std::env::current_exe() else {
+            return;
+        };
+        cmd.args([
+            "add",
+            KEY,
+            "/v",
+            "Macaw",
+            "/t",
+            "REG_SZ",
+            "/d",
+            &format!("\"{}\"", exe.display()),
+            "/f",
+        ]);
+    } else {
+        cmd.args(["delete", KEY, "/v", "Macaw", "/f"]);
+    }
+    let _ = cmd.creation_flags(CREATE_NO_WINDOW).status();
+}
+
 fn main() {
     let flag = std::env::args().skip(1).find(|a| a.starts_with("--"));
 
@@ -1047,21 +1114,27 @@ fn main() {
     // Per-window Wayland app_id, keyed on the window TITLE — hide()+show()
     // re-creates winit windows, so a creation-order counter drifts (a
     // re-shown main window inherited the overlay app_id: class lost,
-    // float rules missed, window tiled).
+    // float rules missed, window tiled). Windows has no app_id concept —
+    // attributes pass through untouched there.
     slint::BackendSelector::new()
         .backend_name("winit".into())
         .with_winit_window_attributes_hook(move |attrs| {
-            use slint::winit_030::winit::platform::wayland::WindowAttributesExtWayland;
-            // Size hints come from the fixed .slint window size — adding
-            // min/max here too raced Slint's own hints and could kill the
-            // surface (min > max protocol error) before first map.
-            let overlay = attrs.title == hypr::OVERLAY_TITLE;
-            let app_id = if overlay {
-                hypr::OVERLAY_TITLE
-            } else {
-                "macaw"
-            };
-            attrs.with_name(app_id, "")
+            #[cfg(unix)]
+            {
+                use slint::winit_030::winit::platform::wayland::WindowAttributesExtWayland;
+                // Size hints come from the fixed .slint window size — adding
+                // min/max here too raced Slint's own hints and could kill the
+                // surface (min > max protocol error) before first map.
+                let overlay = attrs.title == hypr::OVERLAY_TITLE;
+                let app_id = if overlay {
+                    hypr::OVERLAY_TITLE
+                } else {
+                    "macaw"
+                };
+                return attrs.with_name(app_id, "");
+            }
+            #[cfg(not(unix))]
+            attrs
         })
         .select()
         .expect("select winit backend");
@@ -1331,8 +1404,22 @@ fn main() {
         });
     }
     app.ui.on_open_url(|url| {
-        let _ = std::process::Command::new("xdg-open")
-            .arg(url.as_str())
+        #[cfg(windows)]
+        let mut cmd = {
+            use std::os::windows::process::CommandExt;
+            // `start` is a cmd.exe builtin; the empty "" is its window title slot.
+            let mut c = std::process::Command::new("cmd");
+            c.args(["/C", "start", "", url.as_str()]);
+            c.creation_flags(0x0800_0000); // CREATE_NO_WINDOW — no cmd flash
+            c
+        };
+        #[cfg(not(windows))]
+        let mut cmd = {
+            let mut c = std::process::Command::new("xdg-open");
+            c.arg(url.as_str());
+            c
+        };
+        let _ = cmd
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
             .spawn();

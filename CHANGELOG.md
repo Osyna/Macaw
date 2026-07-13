@@ -2,6 +2,22 @@
 
 Notable changes to Macaw. Older releases live on the [releases page](https://github.com/Osyna/Macaw/releases).
 
+## 0.7.0 — 2026-07-13
+
+- **Windows gets the real app.** The native Slint UI now builds and ships
+  for win64 — the same tray, Models/Appearance tabs, hardware-ranked picks,
+  themes and recording overlay as Linux. Installers before this shipped the
+  retired pre-cutover WebView frontend; that stack is gone from the repo.
+  - Recording overlay: frameless always-on-top window, placed from monitor
+    geometry with the same anchor settings as Linux.
+  - Tray: Win32 notification icon — left-click opens, menu has the same
+    Start/Stop recording, Settings, Models and Quit entries.
+  - Single instance + `macaw-ui.exe --trigger/--settings/--models/--stop`
+    argv forwarding over loopback TCP.
+  - Start-at-login now writes an `HKCU\…\Run` entry; engine and browser
+    launches no longer flash console windows.
+  - Ships as an NSIS per-user installer (no admin) plus a portable zip.
+
 ## 0.6.0 — 2026-07-13
 
 - **3× smaller app.** The engine binary drops from ~130 MB to ~43 MB

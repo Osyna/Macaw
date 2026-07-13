@@ -1,8 +1,9 @@
 name: Windows
 
-# win64 build: PyInstaller onefile engine + Tauri NSIS installer.
-# Runs on every version tag (artifacts attached to the GitHub Release) and on
-# demand via workflow_dispatch (artifacts downloadable from the run page).
+# win64 build of the native Slint UI + PyInstaller onefile engine, packaged
+# as an NSIS per-user installer and a portable zip. Runs on every version tag
+# (artifacts attached to the GitHub Release) and on demand via
+# workflow_dispatch (artifacts downloadable from the run page).
 
 on:
   workflow_dispatch:
@@ -42,35 +43,67 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
 
-      - uses: oven-sh/setup-bun@v2
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: macaw-slint
 
-      - name: Install frontend deps
-        run: bun install
-        working-directory: ui
+      - name: Build Slint UI (macaw-ui.exe)
+        run: cargo build --release --bin macaw-ui
+        working-directory: macaw-slint
 
-      - name: Stage engine sidecar
+      - name: Stage bundle layout
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force src-tauri/binaries | Out-Null
-          Copy-Item dist/macaw-engine.exe src-tauri/binaries/macaw-engine-x86_64-pc-windows-msvc.exe
+          New-Item -ItemType Directory -Force out/Macaw | Out-Null
+          Copy-Item macaw-slint/target/release/macaw-ui.exe out/Macaw/
+          Copy-Item dist/macaw-engine.exe out/Macaw/
 
-      - name: Build Tauri app (NSIS)
-        run: bunx @tauri-apps/cli@^2 build --bundles nsis
-
-      - name: Collect artifacts
+      - name: Smoke-test the UI exe (headless --stop path)
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force out | Out-Null
-          Copy-Item src-tauri/target/release/bundle/nsis/*.exe out/
+          # --stop with no running instance exits before any window/backend
+          # init — proves the exe loads and its DLLs resolve on a bare box.
+          & out/Macaw/macaw-ui.exe --stop
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: Resolve version
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+          else
+            echo "VERSION=$(grep -m1 '^version = ' pyproject.toml | sed -E 's/version = \"(.*)\"/\1/')" >> "$GITHUB_ENV"
+          fi
+
+      - name: Build NSIS installer
+        shell: pwsh
+        run: |
+          $nsis = "makensis"
+          if (-not (Get-Command makensis -ErrorAction SilentlyContinue)) {
+            choco install nsis -y --no-progress
+            $nsis = "C:\Program Files (x86)\NSIS\makensis.exe"
+          }
+          & $nsis /DVERSION=$env:VERSION /DSRCDIR=..\..\out\Macaw packaging\windows\macaw.nsi
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          Move-Item packaging\windows\Macaw_$($env:VERSION)_x64-setup.exe out\
+
+      - name: Zip portable bundle
+        shell: pwsh
+        run: |
+          Compress-Archive -Path out/Macaw -DestinationPath "out/macaw-$($env:VERSION)-win64.zip"
           Copy-Item dist/macaw-engine.exe out/
 
       - uses: actions/upload-artifact@v4
         with:
           name: macaw-win64
-          path: out/*
+          path: |
+            out/*.exe
+            out/*.zip
 
       - name: Attach to release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: out/*
+          files: |
+            out/*.exe
+            out/*.zip
