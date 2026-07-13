@@ -426,7 +426,7 @@ impl App {
                 .unwrap_or(false),
             proxy: s("proxy"),
             ssl_verify: b("ssl_verify", true),
-            autostart: autostart_path().exists(),
+            autostart: autostart_enabled(),
         });
         let want = cfg["device_index"].as_i64();
         let idx = self
@@ -1039,6 +1039,28 @@ impl App {
         single::release();
         let _ = slint::quit_event_loop();
     }
+}
+
+#[cfg(not(windows))]
+fn autostart_enabled() -> bool {
+    autostart_path().exists()
+}
+
+/// True when the HKCU Run entry exists (mirrors autostart_path().exists()).
+#[cfg(windows)]
+fn autostart_enabled() -> bool {
+    use std::os::windows::process::CommandExt;
+    std::process::Command::new("reg")
+        .args([
+            "query",
+            r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run",
+            "/v",
+            "Macaw",
+        ])
+        .creation_flags(0x0800_0000) // CREATE_NO_WINDOW
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false)
 }
 
 #[cfg(not(windows))]

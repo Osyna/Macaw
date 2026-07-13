@@ -173,10 +173,10 @@ mod imp {
         let menu = Menu::new();
         menu.append_items(&[
             &toggle,
-            &PredefinedMenuItem::separator(None),
+            &PredefinedMenuItem::separator(),
             &settings,
             &models,
-            &PredefinedMenuItem::separator(None),
+            &PredefinedMenuItem::separator(),
             &quit,
         ])
         .ok()?;
