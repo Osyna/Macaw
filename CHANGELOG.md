@@ -10,8 +10,9 @@ Notable changes to Macaw. Older releases live on the [releases page](https://git
   Silero no longer runs twice on the Whisper path.
 
 - **True streaming for live typing.** Natively-streaming models (the sherpa
-  Zipformer/Paraformer/Nemotron family) now keep one persistent decode
-  stream during live typing and receive only the NEW audio each tick —
+  Zipformer/Paraformer/Nemotron family, and now Moonshine v2) keep one
+  persistent decode stream during live typing and receive only the NEW
+  audio each tick —
   bounded per-tick cost instead of re-decoding the whole utterance every
   second. Ticks never overlap anymore, and worker protocol calls are
   serialized (a live-typing tick can no longer race the final pass).

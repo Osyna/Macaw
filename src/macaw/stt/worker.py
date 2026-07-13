@@ -243,6 +243,7 @@ _MOONSHINE2_ARCH = {  # catalog id -> moonshine_voice.ModelArch name
 
 def _load_moonshine2(model: str, language: str):
     from moonshine_voice import ModelArch, Transcriber, get_model_for_language
+    from moonshine_voice.transcriber import MOONSHINE_FLAG_FORCE_UPDATE
 
     arch = getattr(ModelArch, _MOONSHINE2_ARCH[model])
     # Weights (.ort bundle) download from download.moonshine.ai on first use
@@ -250,10 +251,34 @@ def _load_moonshine2(model: str, language: str):
     path, arch = get_model_for_language("en", arch)
     t = Transcriber(model_path=path, model_arch=arch)
 
-    def run(audio):
-        r = t.transcribe_without_streaming(audio, sample_rate=16_000)
-        return " ".join(ln.text.strip() for ln in r.lines if ln.text).strip()
+    live = {"s": None}  # the one persistent live-typing stream
 
+    def _text(transcript) -> str:
+        return " ".join(ln.text.strip() for ln in transcript.lines if ln.text).strip()
+
+    def _close() -> None:
+        s, live["s"] = live["s"], None
+        if s is not None:
+            try:
+                s.stop()
+                s.close()
+            except Exception:  # noqa: BLE001 — never let teardown kill a request
+                pass
+
+    def run(audio):
+        _close()  # a batch pass supersedes any live stream
+        return _text(t.transcribe_without_streaming(audio, sample_rate=16_000))
+
+    def _feed(audio):
+        # Pull mode: no update_interval -> no internal timer thread; each call
+        # decodes the newly-added samples synchronously (verified live).
+        if live["s"] is None:
+            live["s"] = t.create_stream()
+            live["s"].start()
+        live["s"].add_audio(audio, 16_000)
+        return _text(live["s"].update_transcription(MOONSHINE_FLAG_FORCE_UPDATE))
+
+    run.feed = _feed
     return run
 
 
