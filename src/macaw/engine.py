@@ -531,15 +531,18 @@ class Engine:
         """~30 Hz while recording: `level` events + the silence timeout."""
         while self.is_recording:
             self.emit("level", {"rms": self._vis_level()})
-            timeout = self.cfg.silence_timeout
-            if not self.capture.speech_detected:
-                if time.time() - self.capture.last_sound_time >= timeout:
-                    self.cancel_recording()
-                    return
-            if self.capture.speech_detected and self.capture.last_sound_time:
-                if time.time() - self.capture.last_sound_time >= timeout:
-                    self.stop_recording()
-                    return
+            # auto_stop off = infinite session: only the hotkey / tray /
+            # Record button (record.toggle) ends it
+            if self.cfg.auto_stop:
+                timeout = self.cfg.silence_timeout
+                if not self.capture.speech_detected:
+                    if time.time() - self.capture.last_sound_time >= timeout:
+                        self.cancel_recording()
+                        return
+                if self.capture.speech_detected and self.capture.last_sound_time:
+                    if time.time() - self.capture.last_sound_time >= timeout:
+                        self.stop_recording()
+                        return
             await asyncio.sleep(1 / 30)
 
     # -- idle mic meter (Settings "is my microphone working?") ----------
@@ -806,10 +809,12 @@ class Engine:
     def _config_set(self, params: dict) -> dict:
         patch = params.get("patch") or {}
         cfg = Config.load()  # respect concurrent hand-edits of the YAML
+        old_mode = cfg.output_mode
         for key, value in patch.items():
             if key not in _CONFIG_FIELDS:
                 raise ValueError(f"unknown config field: {key}")
             setattr(cfg, key, value)
+        cfg.nudge_live_defaults(old_mode, patch)
         cfg.save()
         self._apply_config(cfg)
         return {"config": self.config_dict(), "path": str(config_path())}

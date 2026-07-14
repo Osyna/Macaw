@@ -13,6 +13,7 @@ export struct Cfg {
     output-mode: string,       // clipboard | type | live
     device-label: string,
     silence-timeout: float,
+    auto-stop: bool,
     vad-gate: bool,
     level-gain: float,
     silence-level: float,
@@ -199,15 +200,26 @@ export component SettingsView inherits ScrollArea {
                 }
                 Row {
                     label: "Stop after silence";
-                    hint: "Recording stops by itself after this much silence.";
-                    SliderX {
+                    hint: "Recording stops by itself after this much silence (live typing defaults to 5 s).";
+                    if cfg.auto-stop: SliderX {
                         value: cfg.silence-timeout;
                         minimum: 1;
                         maximum: 10;
                         step: 0.5;
                         changed(v) => { root.set-num("silence_timeout", v); }
                     }
-                    Text { text: "\{cfg.silence-timeout}s"; color: Theme.pal.muted; font-size: 12px; vertical-alignment: center; }
+                    Text {
+                        text: cfg.auto-stop ? "\{cfg.silence-timeout}s" : "∞ — stops only when you toggle it";
+                        color: Theme.pal.muted;
+                        font-size: 12px;
+                        vertical-alignment: center;
+                        horizontal-stretch: cfg.auto-stop ? 0 : 1;
+                    }
+                }
+                Row {
+                    label: "Never auto-stop";
+                    hint: "Infinite recording: the hotkey (or tray / Record button) starts AND stops it — silence never ends the session.";
+                    Toggle { checked: !cfg.auto-stop; toggled(v) => { root.set-bool("auto_stop", !v); } }
                 }
                 Row {
                     label: "Skip silence";

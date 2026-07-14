@@ -120,3 +120,44 @@ def test_onboarded_gates_only_fresh_installs(tmp_path: Path):
     reset = tmp_path / "reset.yaml"
     reset.write_text("onboarded: false\n")
     assert Config.load(reset).onboarded is False
+
+
+def test_live_switch_nudges_silence_timeout_to_5s():
+    # Switching to live typing off the stock 3 s bumps to 5 s — speakers need
+    # breathing room; the auto-stop would cut them off mid-thought.
+    cfg = Config()
+    cfg.output_mode = "live"
+    cfg.nudge_live_defaults(old_mode="type", patch={"output_mode": "live"})
+    assert cfg.silence_timeout == 5.0
+
+
+def test_live_switch_respects_deliberate_timeouts():
+    # A custom value survives the switch…
+    cfg = Config(silence_timeout=7.0)
+    cfg.output_mode = "live"
+    cfg.nudge_live_defaults(old_mode="type", patch={"output_mode": "live"})
+    assert cfg.silence_timeout == 7.0
+    # …and so does an explicit value in the very same patch.
+    cfg2 = Config()
+    cfg2.output_mode = "live"
+    cfg2.silence_timeout = 3.0
+    cfg2.nudge_live_defaults(
+        old_mode="type", patch={"output_mode": "live", "silence_timeout": 3.0}
+    )
+    assert cfg2.silence_timeout == 3.0
+
+
+def test_live_nudge_only_fires_on_the_switch():
+    # Already live -> unrelated patches never touch the timeout.
+    cfg = Config()
+    cfg.output_mode = "live"
+    cfg.nudge_live_defaults(old_mode="live", patch={"sound_enabled": False})
+    assert cfg.silence_timeout == 3.0
+
+
+def test_auto_stop_round_trips(tmp_path: Path):
+    p = tmp_path / "config.yaml"
+    cfg = Config(auto_stop=False)
+    cfg.save(p)
+    assert Config.load(p).auto_stop is False
+    assert Config.load(tmp_path / "missing.yaml").auto_stop is True

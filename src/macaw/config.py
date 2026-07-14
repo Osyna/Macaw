@@ -46,6 +46,7 @@ class Config:
     language: str = "en"
     output_mode: str = "clipboard"  # clipboard | type | live (live = type as you speak)
     silence_timeout: float = 3.0
+    auto_stop: bool = True  # False = record until toggled (hotkey/tray/Record)
     level_gain: float = 1.0  # visual input boost, 0.5-4 (quiet mics; peaks still cap)
     silence_level: float = 0.33  # meter position (0-1): quieter than this = silence
     vad_gate: bool = True  # trim silence before transcription (all models)
@@ -98,6 +99,18 @@ class Config:
     ssl_verify: bool = True  # False disables SSL certificate verification
     star_prompted: bool = False  # shown the GitHub-star nudge once
 
+    def nudge_live_defaults(self, old_mode: str, patch: dict) -> None:
+        """Switching to live typing: give speakers more breathing room — bump
+        the silence timeout to 5 s. Only ever off the stock 3 s, and never
+        over an explicit value in the same patch: a deliberate choice wins."""
+        if (
+            self.output_mode == "live"
+            and old_mode != "live"
+            and "silence_timeout" not in patch
+            and self.silence_timeout == 3.0
+        ):
+            self.silence_timeout = 5.0
+
     @classmethod
     def load(cls, path: Path | None = None) -> Config:
         path = path or _DEFAULT_CONFIG_PATH
@@ -116,6 +129,7 @@ class Config:
                 language=data.get("language", "en"),
                 output_mode=mode,
                 silence_timeout=float(data.get("silence_timeout", 3.0)),
+                auto_stop=bool(data.get("auto_stop", True)),
                 level_gain=float(data.get("level_gain", 1.0)),
                 silence_level=float(data.get("silence_level", 0.33)),
                 vad_gate=bool(data.get("vad_gate", True)),
@@ -221,6 +235,8 @@ class Config:
             "# ── Behaviour ────────────────────────────────────────────\n"
             f"silence_timeout: {_yv(self.silence_timeout)}"
             "  # seconds of silence before auto-stop\n"
+            f"auto_stop: {_yv(self.auto_stop)}"
+            "  # false = never stop on silence; the hotkey starts AND stops\n"
             f"level_gain: {_yv(self.level_gain)}"
             "  # visual input boost 0.5-4 (animation/meter only; peaks still cap)\n"
             f"silence_level: {_yv(self.silence_level)}"

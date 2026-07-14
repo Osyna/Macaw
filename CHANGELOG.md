@@ -2,6 +2,16 @@
 
 Notable changes to Macaw. Older releases live on the [releases page](https://github.com/Osyna/Macaw/releases).
 
+## 0.8.1 — 2026-07-14
+
+- **Live typing defaults to a 5 s silence stop.** Switching Output type
+  to Live typing bumps "Stop after silence" from the stock 3 s to 5 s —
+  live dictation needs breathing room. Only the stock value is nudged;
+  anything you set yourself is respected.
+- **Never auto-stop.** New toggle under Stop after silence: silence never
+  ends the session — the hotkey (or tray / Record button) starts AND
+  stops recording. The timeout slider hides behind an ∞ while it's on.
+
 ## 0.8.0 — 2026-07-14
 
 - **Live typing now trusts streaming models.** Native streamers
