@@ -6,9 +6,9 @@ global hotkey, text injection, WebSocket API. Tauri bundles the resulting
 binary as a sidecar (src-tauri/binaries/macaw-engine-<target-triple>).
 
 Bundled as real files (read from disk at runtime, not imported):
-  - the YAML model catalog        (macaw/stt/models/*.yaml)
+  - the YAML model catalog        (macaw/stt/models/*.yaml, macaw/llm/models/*.yaml)
   - sound assets                  (macaw/assets/*)
-  - the isolated-backend worker   (macaw/stt/worker.py — spawned via subprocess)
+  - the isolated-backend workers  (macaw/stt/worker.py, macaw/llm/worker.py — spawned via subprocess)
   - macaw's dist metadata         (packages_for_extra parses Requires-Dist)
 """
 
@@ -31,6 +31,8 @@ datas = [
     (os.path.join(src, "assets"), "macaw/assets"),
     (os.path.join(src, "stt", "models"), "macaw/stt/models"),
     (os.path.join(src, "stt", "worker.py"), "macaw/stt"),
+    (os.path.join(src, "llm", "models"), "macaw/llm/models"),
+    (os.path.join(src, "llm", "worker.py"), "macaw/llm"),
 ]
 datas += copy_metadata("macaw")
 

@@ -2,6 +2,13 @@
 
 Notable changes to Macaw. Older releases live on the [releases page](https://github.com/Osyna/Macaw/releases).
 
+## 0.9.1 — 2026-07-14
+
+- **Fix: the LLM tab is empty in the packaged build.** The frozen engine
+  didn't bundle the new formatter catalog (`llm/models/*.yaml`) or its
+  worker, so 0.9.0's LLM tab showed no models. Both are now packaged, like
+  the STT catalog. (Source installs were unaffected.)
+
 ## 0.9.0 — 2026-07-14
 
 - **New: LLM formatting.** A new **LLM** tab turns raw dictation into finished
