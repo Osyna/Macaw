@@ -19,10 +19,10 @@ from macaw.llm.registry import register, register_model
 
 def test_backends_and_models_registered():
     ids = {m.id for m in llm.list_models()}
-    for expected in ("qwen2.5-0.5b-instruct", "qwen2.5-1.5b-instruct"):
+    for expected in ("qwen2.5-0.5b-instruct", "qwen2.5-1.5b-instruct", "rules-basic"):
         assert expected in ids, f"{expected} not registered"
-    # local catalog is llama.cpp only; cloud is now the provider system
-    assert {m.backend for m in llm.list_models()} == {"llamacpp"}
+    # local catalog: llama.cpp models + the dependency-free rules formatter
+    assert {m.backend for m in llm.list_models()} == {"llamacpp", "rules"}
 
 
 def test_unknown_model_is_none():
@@ -32,6 +32,35 @@ def test_unknown_model_is_none():
 
 def test_create_backend_routes_by_model():
     assert llm.create_backend("qwen2.5-0.5b-instruct").key == "llamacpp"
+
+
+def test_rules_backend_needs_nothing():
+    # The rules formatter is always available and ready — no venv, no weights.
+    b = llm.create_backend("rules-basic")
+    assert b.key == "rules"
+    assert b.available() is True
+    assert b.is_ready() is True
+    assert b.hf_repos() == []
+
+
+def test_rules_cleanup_fixes_dictation():
+    from macaw.llm.rules import clean
+
+    # spoken punctuation → symbols, filler trimmed, capitalised, closed off
+    assert clean("hey um can you send the report by friday") == (
+        "Hey can you send the report by friday."
+    )
+    assert clean("one comma two comma three period") == "One, two, three."
+    assert clean("line one new line line two") == "Line one\nLine two"
+    assert clean("i think i'll wait") == "I think I'll wait."
+    assert clean("the the same word") == "The same word."
+    assert clean("   ") == ""
+
+
+def test_rules_backend_formats_via_facade():
+    f = Formatter("rules-basic")
+    assert f.is_ready() is True
+    assert f.format("um hello world") == "Hello world."
 
 
 def test_local_backend_is_venv_gated(monkeypatch, tmp_path):

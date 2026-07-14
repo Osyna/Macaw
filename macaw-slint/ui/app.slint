@@ -170,6 +170,7 @@ export component MainWindow inherits Window {
     in property <bool> llm-have-sel;
     in property <string> llm-test-output;
     in property <bool> llm-test-busy;
+    in property <string> llm-test-stat;
     in property <string> llm-default-prompt;
     in-out property <bool> show-providers;
     callback llm-activate(string);
@@ -371,6 +372,7 @@ export component MainWindow inherits Window {
             have-sel: root.llm-have-sel;
             test-output: root.llm-test-output;
             test-busy: root.llm-test-busy;
+            test-stat: root.llm-test-stat;
             default-prompt: root.llm-default-prompt;
             op-running: root.op-running;
             set-bool(k, v) => { root.set-bool(k, v); }

@@ -18,6 +18,7 @@ import argparse
 import json
 import os
 import sys
+import time
 
 # This file's dir is on sys.path[0]; drop it so `import llama_cpp` finds the
 # real package, never a sibling module, and never reaches back into macaw.
@@ -46,20 +47,32 @@ def _n_gpu_layers() -> int:
 
 
 def _load(repo: str, filename: str, n_ctx: int):
+    import llama_cpp
     from huggingface_hub import hf_hub_download
     from llama_cpp import Llama
 
     path = hf_hub_download(repo, filename)  # HF-cache hit once downloaded
-    return Llama(
+    llm = Llama(
         model_path=path,
         n_ctx=n_ctx,
+        n_batch=512,  # ingest the fixed ~250-token system prompt in one pass
         n_gpu_layers=_n_gpu_layers(),
         n_threads=os.cpu_count() or 4,
+        flash_attn=True,  # faster, lower-memory attention (CPU and GPU)
         verbose=False,
     )
+    # The smart-mode system prompt is identical on every call; cache its KV so
+    # each format skips re-processing that prefix — the single biggest speed-up
+    # for short formatting turns, and cheap for these tiny models' KV.
+    try:
+        llm.set_cache(llama_cpp.LlamaRAMCache(capacity_bytes=512 * 1024 * 1024))
+    except Exception:  # noqa: BLE001 — caching is an optimization, never fatal
+        pass
+    return llm
 
 
-def _format(llm, system: str, text: str, max_tokens: int) -> str:
+def _format(llm, system: str, text: str, max_tokens: int) -> dict:
+    t0 = time.monotonic()
     out = llm.create_chat_completion(
         messages=[
             {"role": "system", "content": system},
@@ -69,7 +82,11 @@ def _format(llm, system: str, text: str, max_tokens: int) -> str:
         top_k=1,
         max_tokens=max_tokens,
     )
-    return (out["choices"][0]["message"]["content"] or "").strip()
+    secs = time.monotonic() - t0
+    result = (out["choices"][0]["message"]["content"] or "").strip()
+    toks = int((out.get("usage") or {}).get("completion_tokens", 0))
+    tps = round(toks / secs, 1) if secs > 0 and toks else 0.0
+    return {"text": result, "tps": tps, "secs": round(secs, 2)}
 
 
 def main() -> None:
@@ -92,13 +109,13 @@ def main() -> None:
             continue
         try:
             req = json.loads(line)
-            text = _format(
+            reply = _format(
                 llm,
                 req.get("system", ""),
                 req.get("text", ""),
                 int(req.get("max_tokens", 256)),
             )
-            _emit({"text": text})
+            _emit(reply)
         except Exception as exc:  # noqa: BLE001
             _emit({"error": repr(exc)})
 

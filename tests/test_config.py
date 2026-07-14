@@ -46,6 +46,7 @@ def test_config_round_trips_every_ui_edited_field(tmp_path: Path):
         "llm_enabled": True,
         "llm_model": "provider:openai",
         "llm_prompt": "Format as an email.\nKeep it concise.",
+        "llm_load_mode": "cold",
         "providers": {"openai": {"enabled": True, "model": "gpt-4o-mini"}},
     }
     p = tmp_path / "config.yaml"

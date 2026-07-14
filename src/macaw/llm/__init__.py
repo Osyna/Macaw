@@ -21,7 +21,7 @@ from __future__ import annotations
 
 # Import for the @register side effect. Heavy deps (llama.cpp, openai) stay
 # lazy — these modules only bind a key at import time.
-from macaw.llm import llamacpp  # noqa: E402,F401
+from macaw.llm import llamacpp, rules  # noqa: E402,F401
 from macaw.llm.base import LlmBackend, LlmInfo, MissingDependency
 from macaw.llm.catalog import CatalogError, load_catalog
 from macaw.llm.registry import (

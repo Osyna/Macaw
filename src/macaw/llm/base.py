@@ -65,6 +65,9 @@ class LlmBackend(abc.ABC):
         self.model = model
         self._api_key = ""
         self._base_url = ""
+        # last format() timing, for the LLM tab's Try-it stat (0 when unknown)
+        self.last_tps = 0.0
+        self.last_secs = 0.0
 
     def configure(self, api_key: str = "", base_url: str = "") -> None:
         """Supply cloud credentials/endpoint (no-op for local backends)."""

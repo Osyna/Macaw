@@ -112,7 +112,7 @@ enum Msg {
     DevicesLoaded(Value),
     ModelsLoaded(Vec<Value>),
     LlmModelsLoaded(Vec<Value>),
-    LlmTest(String),
+    LlmTest(String, String),
     ProvidersLoaded(Vec<Value>),
     ProviderTest(String),
     Cmd(single::Cmd),
@@ -458,6 +458,7 @@ impl App {
             llm_enabled: b("llm_enabled", false),
             llm_prompt: s("llm_prompt"),
             llm_base_url: s("llm_base_url"),
+            llm_load_mode: s("llm_load_mode"),
         });
         // the wizard only ever appears once a real config said "not onboarded"
         self.ui.set_show_wizard(!b("onboarded", true));
@@ -634,6 +635,7 @@ impl App {
                     repo_url: SharedString::from(repo_url(m)),
                     available: m["available"].as_bool().unwrap_or(false),
                     installed: m["installed"].as_bool().unwrap_or(false),
+                    removable: m["removable"].as_bool().unwrap_or(false),
                     ready: m["ready"].as_bool().unwrap_or(false),
                     active: m["active"].as_bool().unwrap_or(false),
                     api_key_set: m["api_key_set"].as_bool().unwrap_or(false),
@@ -1096,9 +1098,10 @@ impl App {
                 self.llm_models_raw.replace(list);
                 self.render_llm_models();
             }
-            Msg::LlmTest(out) => {
+            Msg::LlmTest(out, stat) => {
                 self.ui.set_llm_test_busy(false);
                 self.ui.set_llm_test_output(SharedString::from(out));
+                self.ui.set_llm_test_stat(SharedString::from(stat));
             }
             Msg::ProvidersLoaded(list) => {
                 self.providers_raw.replace(list);
@@ -1831,16 +1834,20 @@ fn main() {
         app.ui.on_llm_test(move |t| {
             a.ui.set_llm_test_busy(true);
             a.ui.set_llm_test_output(SharedString::new());
+            a.ui.set_llm_test_stat(SharedString::new());
             let tx = a.msg_tx.clone();
             a.client.call(
                 "llm.test",
                 json!({ "text": t.to_string() }),
                 Some(Box::new(move |res| {
-                    let out = match res {
-                        Ok(v) => v["output"].as_str().unwrap_or_default().to_string(),
-                        Err(e) => format!("Error: {e}"),
+                    let (out, stat) = match res {
+                        Ok(v) => (
+                            v["output"].as_str().unwrap_or_default().to_string(),
+                            v["stat"].as_str().unwrap_or_default().to_string(),
+                        ),
+                        Err(e) => (format!("Error: {e}"), String::new()),
                     };
-                    let _ = tx.send(Msg::LlmTest(out));
+                    let _ = tx.send(Msg::LlmTest(out, stat));
                 })),
             );
         });

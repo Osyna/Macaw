@@ -107,6 +107,9 @@ class Config:
         ""  # cloud LLM key; falls back to openai_api_key, then $OPENAI_API_KEY
     )
     llm_base_url: str = ""  # OpenAI-compatible endpoint ("" = OpenAI)
+    # Local formatter load mode: "hot" keeps the model warm in RAM for instant
+    # formatting; "cold" loads it only when needed and frees it after idle.
+    llm_load_mode: str = "hot"
     # Cloud LLM providers the user has configured: {provider_id: {base_url?,
     # model?, enabled}}. API keys are NOT here — they live in the encrypted
     # secret store (see macaw/secrets.py + macaw/llm/providers.py).
@@ -221,6 +224,7 @@ class Config:
                 llm_prompt=data.get("llm_prompt") or "",
                 llm_api_key=data.get("llm_api_key") or "",
                 llm_base_url=data.get("llm_base_url") or "",
+                llm_load_mode=data.get("llm_load_mode") or "hot",
                 providers=data.get("providers") or {},
             )
         return cls()
@@ -376,6 +380,8 @@ class Config:
             "  # pass final text through a formatter model (clipboard / type modes)\n"
             f"llm_model: {_yv(self.llm_model)}"
             "  # formatter model id (set it in the LLM tab; blank = none)\n"
+            f"llm_load_mode: {_yv(self.llm_load_mode)}"
+            "  # 'hot' keeps the model warm in RAM; 'cold' loads on demand\n"
             "# (cloud provider keys + endpoints are managed in the Providers window)\n"
             "# llm_prompt: system prompt for formatting (blank = built-in smart mode)\n"
             f"{prompt}\n"

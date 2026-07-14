@@ -54,6 +54,10 @@ logger = logging.getLogger("macaw")
 
 _CONFIG_FIELDS = {f.name for f in fields(Config)}
 
+# Cold load mode frees the local formatter this many idle seconds after its
+# last use — a burst of dictations stays fast without holding RAM forever.
+_LLM_COLD_IDLE_SECS = 120.0
+
 
 def _version() -> str:
     from importlib.metadata import PackageNotFoundError, version
@@ -291,6 +295,7 @@ class Engine:
             self.cfg.save()
         self.formatter = _make_formatter(self.cfg)
         self._llm_load_thread: threading.Thread | None = None
+        self._llm_idle_timer: threading.Timer | None = None
 
         self.state = "idle"
         self.state_detail = ""
@@ -420,8 +425,11 @@ class Engine:
 
     def _warm_formatter(self) -> None:
         """Warm the local formatter in the background so the first format is
-        instant. Cloud needs no warming; a not-ready model is left alone."""
+        instant. Skipped when formatting won't run now: disabled, not ready,
+        live output (never formats), cold mode (loads on demand), or cloud."""
         if not (self.cfg.llm_enabled and self.formatter.is_ready()):
+            return
+        if self.cfg.output_mode == "live" or self.cfg.llm_load_mode == "cold":
             return
         if self.formatter.is_provider():
             return  # cloud providers need no warm-up
@@ -439,6 +447,25 @@ class Engine:
 
         self._llm_load_thread = threading.Thread(target=_load, daemon=True)
         self._llm_load_thread.start()
+
+    def _touch_formatter(self) -> None:
+        """Called after a format. In cold mode, (re)arm an idle timer that
+        frees the local model after inactivity; in hot mode, cancel it."""
+        timer, self._llm_idle_timer = self._llm_idle_timer, None
+        if timer is not None:
+            timer.cancel()
+        if self.cfg.llm_load_mode != "cold" or self.formatter.is_provider():
+            return
+        self._llm_idle_timer = threading.Timer(_LLM_COLD_IDLE_SECS, self._cold_unload)
+        self._llm_idle_timer.daemon = True
+        self._llm_idle_timer.start()
+
+    def _cold_unload(self) -> None:
+        try:
+            self.formatter.unload()
+            logger.info("Formatter unloaded (cold idle).")
+        except Exception as exc:  # noqa: BLE001
+            logger.error("Formatter cold unload failed: %s", exc)
 
     def _refresh_formatter(self) -> None:
         """Re-resolve the formatter after a provider/key change (which doesn't
@@ -774,6 +801,7 @@ class Engine:
                 except Exception as exc:  # noqa: BLE001 — keep the raw transcription
                     logger.error("LLM formatting failed: %s", exc)
                     self.toast("warn", f"LLM formatting failed: {exc}")
+                self._touch_formatter()
             self.emit("text", {"kind": "final", "text": text})
             if self.cfg.output_mode in ("type", "live"):
                 # Overlay hides on idle; give the compositor a beat before typing
@@ -943,8 +971,24 @@ class Engine:
             self.formatter.apply(
                 cfg.llm_model, cfg.llm_prompt, _resolve_provider(cfg), cfg.ssl_verify
             )
-        if cfg.llm_enabled and (llm_now != llm_was or not old.llm_enabled):
-            self._warm_formatter()
+        # (re)warm or free the local model when anything governing whether it
+        # should be resident changed — model/prompt, enable, output or load mode.
+        # Unrelated config edits leave a warm worker untouched.
+        if (
+            llm_now != llm_was
+            or cfg.llm_enabled != old.llm_enabled
+            or cfg.output_mode != old.output_mode
+            or cfg.llm_load_mode != old.llm_load_mode
+        ):
+            warmable = (
+                cfg.llm_enabled
+                and cfg.output_mode != "live"
+                and cfg.llm_load_mode != "cold"
+            )
+            if warmable:
+                self._warm_formatter()
+            elif not self.formatter.is_provider():
+                self._cold_unload()
         self.emit("config", {"config": self.config_dict()})
 
     # ── models ───────────────────────────────────────────────────────
@@ -1067,6 +1111,7 @@ class Engine:
             # "installed" = weights on disk (not the shared runtime venv, which
             # dir_size folds into disk_size for every model sharing it).
             weights = sum(cache.get(r, 0) for r in backend.hf_repos())
+            has_weights = bool(backend.hf_repos())
             pros, cons, notes = _split_notes(info.notes)
             out.append(
                 {
@@ -1091,7 +1136,11 @@ class Engine:
                     "source_url": info.source_url,
                     "repo": info.repo,
                     "available": available,
-                    "installed": weights > 0,
+                    # a no-weight local backend (e.g. rules) is usable as soon
+                    # as its dep is present; only real weights are removable.
+                    "installed": weights > 0
+                    or (available and not info.cloud and not has_weights),
+                    "removable": weights > 0,
                     "ready": backend.is_ready(cache),
                     "active": info.id == cfg.llm_model,
                     "disk_size": size,
@@ -1135,6 +1184,7 @@ class Engine:
                     "active": mid == cfg.llm_model,
                     "disk_size": 0,
                     "api_key_set": r["key_set"],
+                    "removable": False,
                 }
             )
         return out
@@ -1198,7 +1248,16 @@ class Engine:
             return {"output": ""}
         if not self.formatter.is_ready():
             raise RuntimeError("no formatter model ready — pick and install one")
-        return {"output": self.formatter.format(text)}
+        out = self.formatter.format(text)
+        self._touch_formatter()
+        tps, secs = self.formatter.last_tps, self.formatter.last_secs
+        if tps:
+            stat = f"≈{tps:g} tok/s · {secs:g}s"
+        elif secs:
+            stat = f"{secs:g}s"
+        else:
+            stat = "instant"
+        return {"output": out, "stat": stat}
 
     # ── cloud providers ──────────────────────────────────────────────
 

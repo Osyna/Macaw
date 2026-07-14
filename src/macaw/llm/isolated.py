@@ -34,7 +34,7 @@ class LlmSubprocessBackend(LlmBackend):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self._proc: subprocess.Popen | None = None
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
 
     # -- capability / weight management --------------------------------
 
@@ -131,39 +131,44 @@ class LlmSubprocessBackend(LlmBackend):
     def format(self, text: str, system: str) -> str:
         if not text.strip():
             return ""
-        self.load()
-        assert self._proc is not None and self._proc.stdin is not None
         # bound generation to the input's shape: formatting rarely grows text,
         # so cap tokens near its length — fast, and stops runaway generation.
         max_tokens = min(2048, max(64, len(text) // 2 + 96))
         req = json.dumps({"system": system, "text": text, "max_tokens": max_tokens})
+        # hold the lock across load→write→read so a cold idle-unload (which also
+        # takes the lock) can never tear the worker down mid-format.
         with self._lock:
+            self.load()
+            assert self._proc is not None and self._proc.stdin is not None
             self._proc.stdin.write(req + "\n")
             self._proc.stdin.flush()
             reply = self._read_message()
         if "error" in reply:
             raise RuntimeError(reply["error"])
+        self.last_tps = float(reply.get("tps", 0.0) or 0.0)
+        self.last_secs = float(reply.get("secs", 0.0) or 0.0)
         return reply.get("text", "").strip()
 
     def unload(self) -> None:
-        proc, self._proc = self._proc, None
-        if proc is None:
-            return
-        try:
-            proc.terminate()
+        with self._lock:
+            proc, self._proc = self._proc, None
+            if proc is None:
+                return
             try:
-                proc.wait(timeout=2)
-            except subprocess.TimeoutExpired:
-                proc.kill()
-                proc.wait(timeout=2)
-        except Exception:  # noqa: BLE001
-            pass
-        for pipe in (proc.stdin, proc.stdout):
-            try:
-                if pipe is not None:
-                    pipe.close()
+                proc.terminate()
+                try:
+                    proc.wait(timeout=2)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+                    proc.wait(timeout=2)
             except Exception:  # noqa: BLE001
                 pass
+            for pipe in (proc.stdin, proc.stdout):
+                try:
+                    if pipe is not None:
+                        pipe.close()
+                except Exception:  # noqa: BLE001
+                    pass
 
     # -- protocol ------------------------------------------------------
 

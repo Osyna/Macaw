@@ -2,6 +2,24 @@
 
 Notable changes to Macaw. Older releases live on the [releases page](https://github.com/Osyna/Macaw/releases).
 
+## 0.11.0 — 2026-07-14
+
+- **Faster local formatting.** The llama.cpp worker now runs with flash
+  attention, a larger prompt batch, and — the big one — a **KV cache for the
+  fixed system prompt**, so every format skips re-processing those ~250 tokens.
+  Warm throughput roughly doubled on this box (≈6.7 → ≈13.6 tok/s on the 0.5B).
+  The **Try it** card now shows the measured **tok/s** so you can see it.
+- **Hot / cold load, from the LLM tab.** A new **Keep in memory** switch.
+  *Hot* keeps the model warm in RAM for instant formatting; *cold* loads it
+  only when needed and frees it after a couple of idle minutes — saving memory
+  when you format occasionally.
+- **A no-model "Basic cleanup" formatter.** A new **rules** engine: pure
+  Python, no download, no runtime, always available and instant. It fixes
+  capitalization, spacing, spoken punctuation ("comma", "new line") and trims
+  "um"/"uh" filler entirely offline — the fast floor when you don't want a model.
+- **Formatting stays clipboard/type only.** Live typing streams raw words and
+  never runs the formatter; in live mode Macaw no longer even warms the model.
+
 ## 0.10.1 — 2026-07-14
 
 - **Fix: LLM tab model-card buttons.** Delete / About sat flush against — and

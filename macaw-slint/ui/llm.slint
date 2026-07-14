@@ -22,6 +22,7 @@ export struct LlmModelRow {
     repo-url: string,
     available: bool,     // runtime (venv) installed
     installed: bool,     // weights on disk
+    removable: bool,     // real weights on disk that can be deleted
     ready: bool,         // can format right now
     active: bool,
     api-key-set: bool,
@@ -40,6 +41,7 @@ export component LlmView inherits ScrollArea {
     in property <bool> have-sel;
     in property <string> test-output;
     in property <bool> test-busy;
+    in property <string> test-stat;     // Try-it speed readout (tok/s)
     in property <string> default-prompt; // built-in smart prompt (shown when custom is blank)
     in property <bool> op-running;
 
@@ -75,6 +77,14 @@ export component LlmView inherits ScrollArea {
                     Toggle {
                         checked: cfg.llm-enabled;
                         toggled(v) => { root.set-bool("llm_enabled", v); }
+                    }
+                }
+                Row {
+                    label: "Keep in memory";
+                    hint: "Hot: the model stays loaded in RAM for instant formatting. Cold: it loads only when needed and is freed after a couple of idle minutes, saving memory.";
+                    Toggle {
+                        checked: cfg.llm-load-mode != "cold";
+                        toggled(v) => { root.set-str("llm_load_mode", v ? "hot" : "cold"); }
                     }
                 }
                 Text {
@@ -183,7 +193,7 @@ export component LlmView inherits ScrollArea {
                                 primary: true;
                                 clicked => { root.manage-providers(); }
                             }
-                            if !sel.cloud && sel.installed: Btn {
+                            if !sel.cloud && sel.removable: Btn {
                                 text: "Delete";
                                 danger: true;
                                 enabled: !root.op-running;
@@ -278,6 +288,11 @@ export component LlmView inherits ScrollArea {
                         font-size: 13px;
                         wrap: word-wrap;
                     }
+                }
+                if root.test-stat != "": Text {
+                    text: root.test-stat;
+                    color: Theme.pal.muted;
+                    font-size: 11px;
                 }
             }
         }

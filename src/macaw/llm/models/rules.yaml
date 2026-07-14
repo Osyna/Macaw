@@ -1,0 +1,20 @@
+# Rule-based instant formatter — no model, no download, no venv. Pure-Python
+# cleanup that fixes capitalization, spacing, spoken punctuation and obvious
+# filler in microseconds, fully offline. It won't reshape text (emails/lists)
+# or fix wording — pick a local or cloud model for that.
+backend: rules
+source_url: https://github.com/Osyna/Macaw
+extra: null
+hardware: CPU / Any
+vram: "—"
+
+models:
+  - id: rules-basic
+    label: Basic cleanup
+    size: "—"
+    speed: instant
+    rating: 3
+    notes: |-
+      + No download and no model — pure rules, runs in microseconds and always works offline.
+      + Fixes capitalization, spacing, spoken punctuation ("comma", "new line") and trims "um"/"uh" filler.
+      − Won't reshape into emails or lists, or fix wording — pick a local or cloud model for that.

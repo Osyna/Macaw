@@ -9,6 +9,7 @@ cleaned, formatted text, and degrades to the original text if anything fails.
 from __future__ import annotations
 
 import logging
+import time
 
 from macaw.llm import providers
 from macaw.llm.prompts import resolve_system
@@ -32,6 +33,8 @@ class Formatter:
         self.provider = provider  # resolved provider dict when model is a provider
         self.ssl_verify = ssl_verify
         self._backend = None  # local backend cache
+        self.last_tps = 0.0  # last format() speed (local worker); 0 if unknown
+        self.last_secs = 0.0
 
     # -- selection ----------------------------------------------------
 
@@ -94,17 +97,24 @@ class Formatter:
         """Return the formatted text. Raises on failure (caller keeps the raw)."""
         if not text or not text.strip():
             return text
+        self.last_tps = 0.0
+        self.last_secs = 0.0
         if self.is_provider():
             if not self.provider:
                 return text
+            t0 = time.monotonic()
             out = providers.chat(
                 self.provider, self.system_prompt(), text, ssl_verify=self.ssl_verify
             )
+            self.last_secs = round(time.monotonic() - t0, 2)
             return out or text
         b = self._ensure_backend()
         if b is None:
             return text
-        return b.format(text, self.system_prompt()) or text
+        result = b.format(text, self.system_prompt()) or text
+        self.last_tps = getattr(b, "last_tps", 0.0)
+        self.last_secs = getattr(b, "last_secs", 0.0)
+        return result
 
     def apply(
         self,
