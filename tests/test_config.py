@@ -43,6 +43,11 @@ def test_config_round_trips_every_ui_edited_field(tmp_path: Path):
         "proxy": "http://x:8080",
         "ssl_verify": False,
         "star_prompted": True,
+        "llm_enabled": True,
+        "llm_model": "qwen2.5-1.5b-instruct",
+        "llm_prompt": "Format as an email.\nKeep it concise.",
+        "llm_api_key": "sk-llm",
+        "llm_base_url": "http://localhost:11434/v1",
     }
     p = tmp_path / "config.yaml"
     Config(**values).save(p)

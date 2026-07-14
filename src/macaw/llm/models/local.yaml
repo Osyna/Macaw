@@ -1,0 +1,51 @@
+# Local text-formatting models — GGUF via llama.cpp in the isolated 'llm' venv.
+# CPU-fast and GPU-offloaded when a CUDA llama.cpp build is installed. `repo` +
+# `filename` are the exact Hugging Face GGUF (download link, on-disk size, and
+# what the worker loads). Small instruct models: dictation cleanup is a short
+# task, so even the 0.5B is effectively instant.
+backend: llamacpp
+source_url: https://github.com/abetlen/llama-cpp-python
+extra: llm
+hardware: CPU / Any (GPU-accelerated)
+vram: "—"
+n_ctx: 4096
+min_specs: "2-core CPU · 2 GB RAM"
+rec_specs: "4-core CPU · 4 GB RAM"
+
+models:
+  - id: qwen2.5-0.5b-instruct
+    label: Qwen2.5 0.5B
+    repo: bartowski/Qwen2.5-0.5B-Instruct-GGUF
+    filename: Qwen2.5-0.5B-Instruct-Q4_K_M.gguf
+    size: "~400 MB"
+    speed: instant
+    recommended: true
+    rating: 4
+    notes: |-
+      + Fastest local option — sub-second cleanup on any CPU, tiny download.
+      + Great at punctuation, capitalization and trimming filler from dictation.
+      − Lighter touch on heavy reformatting (long emails, complex lists) than the 1.5B.
+    min_specs: "2-core CPU · 1 GB RAM"
+  - id: qwen2.5-1.5b-instruct
+    label: Qwen2.5 1.5B
+    repo: bartowski/Qwen2.5-1.5B-Instruct-GGUF
+    filename: Qwen2.5-1.5B-Instruct-Q4_K_M.gguf
+    size: "~1.1 GB"
+    speed: very fast
+    recommended: true
+    rating: 5
+    notes: |-
+      + Best balance of quality and speed for local formatting — reliably detects emails, messages and lists.
+      + Still fast on CPU; near-instant with GPU offload.
+      − Larger download and a little slower than the 0.5B.
+  - id: llama-3.2-1b-instruct
+    label: Llama 3.2 1B
+    repo: bartowski/Llama-3.2-1B-Instruct-GGUF
+    filename: Llama-3.2-1B-Instruct-Q4_K_M.gguf
+    size: "~0.8 GB"
+    speed: very fast
+    rating: 4
+    notes: |-
+      + Meta's compact instruct model — strong, natural English formatting.
+      + Fast on CPU, GPU-offloaded when available.
+      − English-leaning; Qwen2.5 handles multilingual dictation better.

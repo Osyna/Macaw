@@ -1,0 +1,261 @@
+// LLM formatting tab: enable the post-STT formatter, pick a model (small local
+// via llama.cpp, or cloud), customise the system prompt (blank = smart mode),
+// set cloud credentials and try it on a sample. One scroll column of cards,
+// like Settings — the model picker is a dropdown, not a master-detail list.
+
+import { Theme } from "theme.slint";
+import { Btn, Badge, Toggle, Select, Field, MultiField, ProgressBar, Card, Row, ScrollArea } from "widgets.slint";
+import { Cfg } from "settings.slint";
+
+export struct LlmModelRow {
+    id: string,
+    label: string,
+    backend: string,
+    size: string,
+    speed: string,
+    cloud: bool,
+    recommended: bool,
+    notes: string,
+    rating: int,
+    source-url: string,
+    repo-url: string,
+    available: bool,     // runtime (venv) installed
+    installed: bool,     // weights on disk
+    ready: bool,         // can format right now
+    active: bool,
+    api-key-set: bool,
+    busy: bool,
+    progress-pct: float, // -1 = indeterminate
+    progress-msg: string,
+}
+
+export component LlmView inherits ScrollArea {
+    in property <Cfg> cfg;
+    in property <[LlmModelRow]> models;
+    in property <[string]> names;      // dropdown labels (index-paired with models)
+    in property <int> current;         // active model index (-1 = none)
+    in property <LlmModelRow> sel;      // the active/selected model's detail
+    in property <bool> have-sel;
+    in property <string> test-output;
+    in property <bool> op-running;
+
+    callback set-bool(string, bool);
+    callback set-str(string, string);
+    callback set-llm-key(string);
+    callback activate(string);   // model id
+    callback install(string);    // pip extra
+    callback download(string);   // model id
+    callback delete(string);     // model id
+    callback cancel();
+    callback run-test(string);
+    callback open-url(string);
+
+    viewport-height: col.preferred-height;
+
+    col := VerticalLayout {
+        width: root.content-width;
+        padding: 16px;
+        spacing: 14px;
+
+        // ── formatting master switch ─────────────────────────────────
+        Card {
+            title: "FORMATTING";
+            Row {
+                label: "Enable";
+                hint: "Pass the finished transcription through a small LLM that fixes punctuation, trims dictation filler and formats the text. Applies to Clipboard and Type output — live typing streams words as you speak, so it's left untouched.";
+                Toggle {
+                    checked: cfg.llm-enabled;
+                    toggled(v) => { root.set-bool("llm_enabled", v); }
+                }
+            }
+            Text {
+                text: "Smart mode reads what you dictated — an email, a chat reply, a list — and shapes it to match, without changing your words or answering the content. Tune the instructions below.";
+                color: Theme.pal.muted;
+                font-size: 12px;
+                wrap: word-wrap;
+            }
+        }
+
+        // ── model picker ─────────────────────────────────────────────
+        Card {
+            title: "MODEL";
+            Row {
+                label: "Formatter";
+                hint: "The model that cleans up your text. Small local models are near-instant on CPU (GPU-accelerated when available); cloud models need an API key but use no local resources.";
+                Select {
+                    options: root.names;
+                    current: root.current;
+                    changed(i) => {
+                        if (i >= 0 && i < root.models.length) {
+                            root.activate(root.models[i].id);
+                        }
+                    }
+                }
+            }
+            if !root.have-sel: Text {
+                text: "Pick a formatter model to get started.";
+                color: Theme.pal.muted;
+                font-size: 12px;
+            }
+            if root.have-sel: VerticalLayout {
+                spacing: 8px;
+                HorizontalLayout {
+                    spacing: 6px;
+                    alignment: start;
+                    if sel.cloud: Badge { text: "CLOUD"; tint: Theme.pal.warn; }
+                    if !sel.cloud: Badge { text: sel.size; }
+                    if sel.recommended: Badge { text: "RECOMMENDED"; tint: Theme.pal.ok; }
+                    if sel.ready: Badge { text: "READY"; tint: Theme.pal.ok; }
+                    Text {
+                        text: sel.speed;
+                        color: Theme.pal.muted;
+                        font-size: 11px;
+                        vertical-alignment: center;
+                    }
+                }
+                if sel.notes != "": Text {
+                    text: sel.notes;
+                    color: Theme.pal.fg;
+                    font-size: 12px;
+                    wrap: word-wrap;
+                }
+                if sel.busy: VerticalLayout {
+                    spacing: 4px;
+                    ProgressBar { pct: sel.progress-pct; }
+                    HorizontalLayout {
+                        Text {
+                            text: sel.progress-msg;
+                            color: Theme.pal.muted;
+                            font-size: 11px;
+                            overflow: elide;
+                            horizontal-stretch: 1;
+                        }
+                        Btn { text: "Cancel"; clicked => { root.cancel(); } }
+                    }
+                }
+                if !sel.busy: HorizontalLayout {
+                    spacing: 8px;
+                    alignment: start;
+                    if !sel.cloud && !sel.available: Btn {
+                        text: "Install runtime";
+                        primary: true;
+                        enabled: !root.op-running;
+                        clicked => { root.install("llm"); }
+                    }
+                    if !sel.cloud && sel.available && !sel.installed: Btn {
+                        text: "Download " + sel.size;
+                        primary: true;
+                        enabled: !root.op-running;
+                        clicked => { root.download(sel.id); }
+                    }
+                    if sel.cloud && !sel.api-key-set: Text {
+                        text: "⚠ Set an API key below to use this model.";
+                        color: Theme.pal.warn;
+                        font-size: 12px;
+                        vertical-alignment: center;
+                    }
+                    if !sel.cloud && sel.installed: Btn {
+                        text: "Delete weights";
+                        danger: true;
+                        enabled: !root.op-running;
+                        clicked => { root.delete(sel.id); }
+                    }
+                    if sel.source-url != "": Btn {
+                        text: "About ↗";
+                        clicked => { root.open-url(sel.source-url); }
+                    }
+                }
+            }
+        }
+
+        // ── system prompt ────────────────────────────────────────────
+        Card {
+            title: "SYSTEM PROMPT";
+            Text {
+                text: "The instructions sent with every format. Leave it blank to use the built-in smart mode; write your own to always format a certain way (e.g. \"Rewrite as a formal email.\").";
+                color: Theme.pal.muted;
+                font-size: 12px;
+                wrap: word-wrap;
+            }
+            prompt-ed := MultiField {
+                text: cfg.llm-prompt;
+                placeholder: "Smart mode (built-in): detect the kind of text and format it, fix punctuation and capitalization, keep the meaning and language exactly.";
+            }
+            HorizontalLayout {
+                spacing: 8px;
+                alignment: end;
+                Btn {
+                    text: "Reset to smart mode";
+                    enabled: cfg.llm-prompt != "";
+                    clicked => { root.set-str("llm_prompt", ""); }
+                }
+                Btn {
+                    text: "Save prompt";
+                    primary: true;
+                    clicked => { root.set-str("llm_prompt", prompt-ed.text); }
+                }
+            }
+        }
+
+        // ── cloud credentials (only for cloud models) ────────────────
+        if root.have-sel && sel.cloud: Card {
+            title: "CLOUD";
+            Row {
+                label: "API key";
+                hint: "Your OpenAI (or compatible) API key. Saved in the config file; falls back to the STT cloud key, then $OPENAI_API_KEY.";
+                Field {
+                    placeholder: sel.api-key-set ? "•••••••••••• (set)" : "sk-…";
+                    secret: true;
+                    submitted(v) => { root.set-llm-key(v); }
+                }
+            }
+            Row {
+                label: "Base URL";
+                hint: "Any OpenAI-compatible endpoint — Groq, Together, or a local Ollama. Blank = OpenAI.";
+                Field {
+                    text: cfg.llm-base-url;
+                    placeholder: "https://api.openai.com/v1";
+                    submitted(v) => { root.set-str("llm_base_url", v); }
+                }
+            }
+        }
+
+        // ── try it ───────────────────────────────────────────────────
+        Card {
+            title: "TRY IT";
+            Text {
+                text: "Format a sample with the current model and prompt.";
+                color: Theme.pal.muted;
+                font-size: 12px;
+                wrap: word-wrap;
+            }
+            test-in := Field {
+                placeholder: "hey so um can you send me that report by friday thanks";
+                submitted(v) => { root.run-test(v); }
+            }
+            HorizontalLayout {
+                alignment: start;
+                Btn {
+                    text: "Format sample";
+                    primary: true;
+                    enabled: sel.ready && !root.op-running;
+                    clicked => { root.run-test(test-in.text); }
+                }
+            }
+            if root.test-output != "": Rectangle {
+                background: Theme.pal.control;
+                border-radius: Theme.radius;
+                height: out-t.preferred-height + 20px;
+                out-t := Text {
+                    x: 10px;
+                    y: 10px;
+                    width: parent.width - 20px;
+                    text: root.test-output;
+                    color: Theme.pal.fg;
+                    font-size: 13px;
+                    wrap: word-wrap;
+                }
+            }
+        }
+    }
+}

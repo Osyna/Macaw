@@ -217,7 +217,7 @@ fn dispatch(v: Value, pending: &mut HashMap<u64, Reply>, events: &Sender<Event>)
         "config" => Event::Config {
             config: d.get("config").cloned().unwrap_or(Value::Null),
         },
-        "models" => Event::Models,
+        "models" | "llm" => Event::Models,
         "progress" => Event::Progress {
             op: s("op"),
             key: s("key"),

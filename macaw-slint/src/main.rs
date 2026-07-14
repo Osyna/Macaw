@@ -111,6 +111,8 @@ enum Msg {
     SystemInfo(Value),
     DevicesLoaded(Value),
     ModelsLoaded(Vec<Value>),
+    LlmModelsLoaded(Vec<Value>),
+    LlmTest(String),
     Cmd(single::Cmd),
 }
 
@@ -128,6 +130,7 @@ struct App {
     cfg: RefCell<Value>,
     devices: RefCell<Vec<(Option<i64>, String)>>, // (device_index, label)
     models_raw: RefCell<Vec<Value>>,
+    llm_models_raw: RefCell<Vec<Value>>,
     op: RefCell<Option<(String, String, String, f32)>>, // op, key, msg, pct(-1 = indet)
     toasts: Rc<VecModel<Toast>>,
     levels: Rc<VecModel<f32>>,
@@ -448,6 +451,9 @@ impl App {
             proxy: s("proxy"),
             ssl_verify: b("ssl_verify", true),
             autostart: autostart_enabled(),
+            llm_enabled: b("llm_enabled", false),
+            llm_prompt: s("llm_prompt"),
+            llm_base_url: s("llm_base_url"),
         });
         // the wizard only ever appears once a real config said "not onboarded"
         self.ui.set_show_wizard(!b("onboarded", true));
@@ -507,6 +513,84 @@ impl App {
                 }
             })),
         );
+    }
+
+    fn refresh_llm_models(&self) {
+        let tx = self.msg_tx.clone();
+        self.client.call(
+            "llm.list",
+            json!({}),
+            Some(Box::new(move |res| {
+                if let Ok(Value::Array(list)) = res {
+                    let _ = tx.send(Msg::LlmModelsLoaded(list));
+                }
+            })),
+        );
+    }
+
+    fn render_llm_models(&self) {
+        let raw = self.llm_models_raw.borrow();
+        let op = self.op.borrow();
+        let s = |m: &Value, k: &str| SharedString::from(m[k].as_str().unwrap_or_default());
+        let repo_url = |m: &Value| {
+            let repo = m["repo"].as_str().unwrap_or_default();
+            if repo.is_empty() {
+                String::new()
+            } else if repo.starts_with("http") {
+                repo.to_string()
+            } else {
+                format!("https://huggingface.co/{repo}")
+            }
+        };
+        let rows: Vec<LlmModelRow> = raw
+            .iter()
+            .map(|m| {
+                let id = m["id"].as_str().unwrap_or_default();
+                // ops share one slot: an llm download keys on the model id, an
+                // install on the "llm" extra.
+                let busy = op
+                    .as_ref()
+                    .map(|(o, key, ..)| {
+                        (o == "download" && key == id) || (o == "install" && key == "llm")
+                    })
+                    .unwrap_or(false);
+                let (msg, pct) = op
+                    .as_ref()
+                    .map(|(_, _, m, p)| (m.clone(), *p))
+                    .unwrap_or_default();
+                LlmModelRow {
+                    id: s(m, "id"),
+                    label: s(m, "label"),
+                    backend: s(m, "backend"),
+                    size: s(m, "size"),
+                    speed: s(m, "speed"),
+                    cloud: m["cloud"].as_bool().unwrap_or(false),
+                    recommended: m["recommended"].as_bool().unwrap_or(false),
+                    notes: s(m, "notes"),
+                    rating: m["rating"].as_i64().unwrap_or(0) as i32,
+                    source_url: s(m, "source_url"),
+                    repo_url: SharedString::from(repo_url(m)),
+                    available: m["available"].as_bool().unwrap_or(false),
+                    installed: m["installed"].as_bool().unwrap_or(false),
+                    ready: m["ready"].as_bool().unwrap_or(false),
+                    active: m["active"].as_bool().unwrap_or(false),
+                    api_key_set: m["api_key_set"].as_bool().unwrap_or(false),
+                    busy,
+                    progress_pct: if busy { pct } else { -1.0 },
+                    progress_msg: SharedString::from(if busy { msg } else { String::new() }),
+                }
+            })
+            .collect();
+        let names: Vec<SharedString> = rows.iter().map(|r| r.label.clone()).collect();
+        let current = rows.iter().position(|r| r.active).map(|i| i as i32).unwrap_or(-1);
+        let sel = rows.iter().find(|r| r.active).cloned();
+        self.ui.set_llm_have_sel(sel.is_some());
+        if let Some(r) = sel {
+            self.ui.set_llm_sel(r);
+        }
+        self.ui.set_llm_names(ModelRc::from(names.as_slice()));
+        self.ui.set_llm_current(current);
+        self.ui.set_llm_models(ModelRc::from(rows.as_slice()));
     }
 
     /// Active model's native-streaming capability -> the Settings badge and
@@ -943,6 +1027,11 @@ impl App {
                 self.render_models();
                 self.sync_live_native();
             }
+            Msg::LlmModelsLoaded(list) => {
+                self.llm_models_raw.replace(list);
+                self.render_llm_models();
+            }
+            Msg::LlmTest(out) => self.ui.set_llm_test_output(SharedString::from(out)),
             Msg::Cmd(cmd) => self.on_cmd(cmd),
         }
     }
@@ -985,6 +1074,7 @@ impl App {
                     })),
                 );
                 self.refresh_models();
+                self.refresh_llm_models();
             }
             ws::Event::Disconnected => self.ui.set_engine_connected(false),
             ws::Event::State { state, detail } => {
@@ -1021,7 +1111,10 @@ impl App {
                     self.place_overlay_fallback(x, y);
                 }
             }
-            ws::Event::Models => self.refresh_models(),
+            ws::Event::Models => {
+                self.refresh_models();
+                self.refresh_llm_models();
+            }
             ws::Event::Progress {
                 op,
                 key,
@@ -1038,6 +1131,7 @@ impl App {
                     self.op.replace(Some((op, key, msg, pct.unwrap_or(-1.0))));
                 }
                 self.render_models();
+                self.render_llm_models();
             }
             ws::Event::Toast { level, msg } => self.toast(&level, &msg),
             ws::Event::Show { window } => self.present(&window),
@@ -1300,6 +1394,7 @@ fn main() {
         cfg: RefCell::new(Value::Null),
         devices: RefCell::new(vec![(None, "System default".into())]),
         models_raw: RefCell::new(vec![]),
+        llm_models_raw: RefCell::new(vec![]),
         op: RefCell::new(None),
         toasts,
         levels,
@@ -1538,6 +1633,61 @@ fn main() {
         let a = Rc::clone(&app);
         app.ui
             .on_cancel_op(move || a.client.call("models.cancel", json!({}), None));
+    }
+    {
+        let a = Rc::clone(&app);
+        app.ui
+            .on_set_llm_key(move |v| a.patch(kv("llm_api_key", json!(v.to_string()))));
+    }
+    {
+        let a = Rc::clone(&app);
+        app.ui.on_llm_activate(move |id| {
+            a.client
+                .call("llm.set_active", json!({ "id": id.to_string() }), None);
+        });
+    }
+    {
+        let a = Rc::clone(&app);
+        app.ui.on_llm_install(move |extra| {
+            a.client
+                .call("llm.install", json!({ "extra": extra.to_string() }), None);
+        });
+    }
+    {
+        let a = Rc::clone(&app);
+        app.ui.on_llm_download(move |id| {
+            a.client
+                .call("llm.download", json!({ "id": id.to_string() }), None);
+        });
+    }
+    {
+        let a = Rc::clone(&app);
+        app.ui.on_llm_delete(move |id| {
+            a.client
+                .call("llm.delete", json!({ "id": id.to_string() }), None);
+        });
+    }
+    {
+        let a = Rc::clone(&app);
+        app.ui
+            .on_llm_cancel(move || a.client.call("models.cancel", json!({}), None));
+    }
+    {
+        let a = Rc::clone(&app);
+        app.ui.on_llm_test(move |t| {
+            let tx = a.msg_tx.clone();
+            a.client.call(
+                "llm.test",
+                json!({ "text": t.to_string() }),
+                Some(Box::new(move |res| {
+                    if let Ok(v) = res {
+                        let _ = tx.send(Msg::LlmTest(
+                            v["output"].as_str().unwrap_or_default().to_string(),
+                        ));
+                    }
+                })),
+            );
+        });
     }
     {
         let a = Rc::clone(&app);

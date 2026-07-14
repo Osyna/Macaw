@@ -248,6 +248,9 @@ def cmd_status(_args: object) -> int:
             "[dim]○[/] Macaw is [red]not running[/]  ([dim]start it with:[/] macaw)"
         )
     console.print(f"  [dim]model  [/] {cfg.model}")
+    if cfg.llm_model:
+        state = "[green](formatting on)[/]" if cfg.llm_enabled else "[dim](off)[/]"
+        console.print(f"  [dim]llm    [/] {cfg.llm_model} {state}")
     console.print(f"  [dim]theme  [/] {cfg.theme}")
     console.print(f"  [dim]config [/] {config_path()}")
     console.print(f"  [dim]version[/] {_version()}")

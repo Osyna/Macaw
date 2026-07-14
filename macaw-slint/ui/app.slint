@@ -15,10 +15,11 @@ import { Btn, Badge } from "widgets.slint";
 import { SettingsView, Cfg } from "settings.slint";
 import { AppearanceView } from "appearance.slint";
 import { ModelsView, ModelRow, ParamRow } from "models.slint";
+import { LlmView, LlmModelRow } from "llm.slint";
 import { OverlayWindow } from "overlay.slint";
 import { OnboardingWizard } from "onboarding.slint";
 
-export { OverlayWindow, Cfg, ModelRow, ParamRow, Palette, Theme, Look, Tip }
+export { OverlayWindow, Cfg, ModelRow, ParamRow, LlmModelRow, Palette, Theme, Look, Tip }
 
 export struct Toast {
     level: string, // info | error | success
@@ -148,6 +149,20 @@ export component MainWindow inherits Window {
     callback param-bool(string, string, bool);
     callback models-search(string);
     callback models-filter(int);
+    // llm plumbing (forwarded)
+    in property <[LlmModelRow]> llm-models;
+    in property <[string]> llm-names;
+    in property <int> llm-current;
+    in property <LlmModelRow> llm-sel;
+    in property <bool> llm-have-sel;
+    in property <string> llm-test-output;
+    callback set-llm-key(string);
+    callback llm-activate(string);
+    callback llm-install(string);
+    callback llm-download(string);
+    callback llm-delete(string);
+    callback llm-cancel();
+    callback llm-test(string);
 
     callback toggle-recording();
     callback close-window();
@@ -205,6 +220,13 @@ export component MainWindow inherits Window {
                     text: "Appearance";
                     active: root.tab == "appearance";
                     clicked => { root.tab = "appearance"; }
+                }
+                TabBtn {
+                    y: 12px;
+                    icon: "✦";
+                    text: "LLM";
+                    active: root.tab == "llm";
+                    clicked => { root.tab = "llm"; }
                 }
                 Rectangle { horizontal-stretch: 1; }
                 TabBtn {
@@ -323,6 +345,26 @@ export component MainWindow inherits Window {
             param-bool(id, k, v) => { root.param-bool(id, k, v); }
             search(t) => { root.models-search(t); }
             filter(i) => { root.models-filter(i); }
+        }
+        if root.tab == "llm": LlmView {
+            cfg: root.cfg;
+            models: root.llm-models;
+            names: root.llm-names;
+            current: root.llm-current;
+            sel: root.llm-sel;
+            have-sel: root.llm-have-sel;
+            test-output: root.llm-test-output;
+            op-running: root.op-running;
+            set-bool(k, v) => { root.set-bool(k, v); }
+            set-str(k, v) => { root.set-str(k, v); }
+            set-llm-key(v) => { root.set-llm-key(v); }
+            activate(id) => { root.llm-activate(id); }
+            install(e) => { root.llm-install(e); }
+            download(id) => { root.llm-download(id); }
+            delete(id) => { root.llm-delete(id); }
+            cancel => { root.llm-cancel(); }
+            run-test(t) => { root.llm-test(t); }
+            open-url(u) => { root.open-url(u); }
         }
     }
 

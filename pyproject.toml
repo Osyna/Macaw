@@ -56,6 +56,10 @@ sherpa = [  # sherpa-onnx ONNX models (Zipformer/Paraformer/Parakeet/Nemotron) �
     "numpy>=2.0.0",           # required at runtime but not declared by sherpa-onnx
     "huggingface-hub>=0.20",  # fetches the ONNX weights on first use
 ]
+llm = [  # local text formatting — llama.cpp (GGUF) in an isolated venv, CPU + GPU
+    "llama-cpp-python>=0.3.0",
+    "huggingface-hub>=0.20",  # fetches the GGUF weights on first use
+]
 openai = [  # GPT-4o cloud transcription — installs into the MAIN env, no isolated venv
     "openai>=1.0",
 ]

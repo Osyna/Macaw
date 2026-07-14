@@ -37,6 +37,11 @@ from macaw.audio.capture import AudioCapture
 from macaw.audio.transcriber import Transcriber
 from macaw.config import Config, config_path
 from macaw.desktop import DesktopHelper, auto_type_available
+from macaw.llm import create_backend as llm_create_backend
+from macaw.llm import get_model_info as llm_get_model_info
+from macaw.llm import list_models as llm_list_models
+from macaw.llm.base import hf_cache_sizes as llm_hf_cache_sizes
+from macaw.llm.formatter import Formatter
 from macaw.stt import create_backend, get_model_info, list_models
 from macaw.stt.base import hf_cache_sizes
 from macaw.stt.deps import ensure_uv, packages_for_extra
@@ -60,6 +65,15 @@ def _version() -> str:
 def _lang_for(cfg: Config) -> str:
     """The active model's language: its per-model choice, else the default."""
     return cfg.model_languages.get(cfg.model) or cfg.language or "en"
+
+
+def _llm_key(cfg: Config) -> str:
+    """Cloud-LLM key: the dedicated field, else the STT cloud key, else env."""
+    return cfg.llm_api_key or cfg.openai_api_key or os.environ.get("OPENAI_API_KEY", "")
+
+
+def _make_formatter(cfg: Config) -> Formatter:
+    return Formatter(cfg.llm_model, cfg.llm_prompt, _llm_key(cfg), cfg.llm_base_url)
 
 
 def _split_notes(text: str) -> tuple[list[str], list[str], str]:
@@ -90,10 +104,11 @@ class _InstallJob(threading.Thread):
     `progress` events (op="install", key=<extra>, pct=null — indeterminate).
     """
 
-    def __init__(self, engine: Engine, extra: str) -> None:
+    def __init__(self, engine: Engine, extra: str, event: str = "models") -> None:
         super().__init__(daemon=True)
         self._engine = engine
         self._extra = extra
+        self._event = event
         self._proc: subprocess.Popen | None = None
         self._cancelled = False
         self._last = ""
@@ -118,13 +133,18 @@ class _InstallJob(threading.Thread):
             if not packages:
                 self._progress(f"No packages found for '{extra}'", True, False)
                 return
+            index_url = None
             if extra == "whisper" and hardware.probe().get("gpu") == "nvidia":
                 # CTranslate2 dlopens cublas/cudnn; the worker preloads them
                 # from the venv's own nvidia wheels (pyproject's `cuda` extra).
                 packages += packages_for_extra("cuda")
+            if extra == "llm" and hardware.probe().get("gpu") == "nvidia":
+                # llama.cpp GPU build: add the CUDA wheel index. uv falls back to
+                # the CPU wheel when no match, so it's safe on any machine.
+                index_url = "https://abetlen.github.io/llama-cpp-python/whl/cu124"
             ensure_uv(self._progress)  # frozen installs: fetch a private uv once
             self._progress(f"Creating isolated environment for {extra}…")
-            for cmd in install_commands(extra, packages):
+            for cmd in install_commands(extra, packages, index_url):
                 code = self._stream(cmd)
                 if self._cancelled:
                     self._progress("Cancelled", True, False)
@@ -143,7 +163,7 @@ class _InstallJob(threading.Thread):
                 self._progress(str(exc), True, False)
         finally:
             self._engine._op_finished(self)
-            self._engine.emit("models", {})
+            self._engine.emit(self._event, {})
 
     def _stream(self, cmd: list[str]) -> int:
         logger.info("Install step: %s", " ".join(cmd))
@@ -180,10 +200,18 @@ class _DownloadJob(threading.Thread):
     Cancel just abandons the result — hf downloads aren't interruptible.
     """
 
-    def __init__(self, engine: Engine, model_id: str) -> None:
+    def __init__(
+        self,
+        engine: Engine,
+        model_id: str,
+        create=create_backend,
+        event: str = "models",
+    ) -> None:
         super().__init__(daemon=True)
         self._engine = engine
         self._model_id = model_id
+        self._create = create
+        self._event = event
         self._cancelled = False
 
     def _progress(
@@ -203,7 +231,7 @@ class _DownloadJob(threading.Thread):
 
     def run(self) -> None:
         try:
-            create_backend(self._model_id).download(progress_callback=self._on_pct)
+            self._create(self._model_id).download(progress_callback=self._on_pct)
             if not self._cancelled:
                 self._progress("Downloaded", 100.0, True, True)
         except Exception as exc:  # noqa: BLE001
@@ -212,7 +240,7 @@ class _DownloadJob(threading.Thread):
                 self._progress(str(exc), None, True, False)
         finally:
             self._engine._op_finished(self)
-            self._engine.emit("models", {})
+            self._engine.emit(self._event, {})
 
     def _on_pct(self, pct: int) -> None:
         if not self._cancelled:
@@ -245,6 +273,11 @@ class Engine:
             vad_gate=self.cfg.vad_gate,
         )
         self.transcriber.model_params = self.cfg.model_params.get(self.cfg.model, {})
+
+        # Post-STT text formatting (optional). Its own warm worker so the model
+        # stays loaded between dictations.
+        self.formatter = _make_formatter(self.cfg)
+        self._llm_load_thread: threading.Thread | None = None
 
         self.state = "idle"
         self.state_detail = ""
@@ -371,6 +404,28 @@ class Engine:
                 self.cfg.model,
             )
             self.emit("show", {"window": "models"})
+
+    def _warm_formatter(self) -> None:
+        """Warm the local formatter in the background so the first format is
+        instant. Cloud needs no warming; a not-ready model is left alone."""
+        if not (self.cfg.llm_enabled and self.formatter.is_ready()):
+            return
+        if self.formatter._info() and self.formatter._info().cloud:
+            return
+        if self._llm_load_thread is not None and self._llm_load_thread.is_alive():
+            return
+
+        def _load() -> None:
+            try:
+                self.formatter.load()
+                logger.info("Formatter ready (%s).", self.cfg.llm_model)
+            except Exception as exc:  # noqa: BLE001 — optional; never crash
+                logger.error(
+                    "Formatter warm-up failed (%s): %s", self.cfg.llm_model, exc
+                )
+
+        self._llm_load_thread = threading.Thread(target=_load, daemon=True)
+        self._llm_load_thread.start()
 
     def _switch_model(self, model_name: str) -> None:
         """(Re)load a newly-selected model in the background."""
@@ -679,6 +734,21 @@ class Engine:
             self._stream_frozen_text = ""
 
         if text:
+            # Optional LLM pass: clean up / format the final text. Live typing
+            # already streamed words to the window, so it's skipped there. A
+            # failure never costs the transcription — keep the raw text.
+            if (
+                self.cfg.llm_enabled
+                and self.cfg.output_mode != "live"
+                and self.formatter.is_ready()
+            ):
+                try:
+                    formatted = self.formatter.format(text)
+                    if formatted and formatted.strip():
+                        text = formatted.strip()
+                except Exception as exc:  # noqa: BLE001 — keep the raw transcription
+                    logger.error("LLM formatting failed: %s", exc)
+                    self.toast("warn", f"LLM formatting failed: {exc}")
             self.emit("text", {"kind": "final", "text": text})
             if self.cfg.output_mode in ("type", "live"):
                 # Overlay hides on idle; give the compositor a beat before typing
@@ -837,6 +907,13 @@ class Engine:
             self._switch_model(cfg.model)
         if (cfg.hotkey_enabled, cfg.hotkey) != (old.hotkey_enabled, old.hotkey):
             self._start_hotkey()
+        # formatter follows model / prompt / key / endpoint changes
+        llm_now = (cfg.llm_model, cfg.llm_prompt, _llm_key(cfg), cfg.llm_base_url)
+        llm_was = (old.llm_model, old.llm_prompt, _llm_key(old), old.llm_base_url)
+        if llm_now != llm_was:
+            self.formatter.apply(*llm_now)
+        if cfg.llm_enabled and (llm_now != llm_was or not old.llm_enabled):
+            self._warm_formatter()
         self.emit("config", {"config": self.config_dict()})
 
     # ── models ───────────────────────────────────────────────────────
@@ -946,6 +1023,95 @@ class Engine:
             op["job"].cancel()
         return {"ok": True}
 
+    # ── llm formatting ───────────────────────────────────────────────
+
+    def llm_models_list(self) -> list[dict]:
+        cfg = self.cfg
+        cache = llm_hf_cache_sizes()
+        key = _llm_key(cfg)
+        out: list[dict] = []
+        for info in sorted(llm_list_models(), key=lambda m: (m.cloud, -m.rating)):
+            backend = llm_create_backend(info.id)
+            backend.configure(key, cfg.llm_base_url)
+            available = backend.available()
+            size = backend.disk_size(cache) if available and not info.cloud else 0
+            pros, cons, notes = _split_notes(info.notes)
+            out.append(
+                {
+                    "id": info.id,
+                    "backend": info.backend,
+                    "label": info.label,
+                    "size": info.size,
+                    "speed": info.speed,
+                    "cloud": info.cloud,
+                    "recommended": info.recommended,
+                    "extra": info.extra,
+                    "hardware": info.hardware,
+                    "vram": info.vram,
+                    "notes": notes,
+                    "pros": pros,
+                    "cons": cons,
+                    "rating": info.rating,
+                    "min_specs": info.min_specs,
+                    "rec_specs": info.rec_specs,
+                    "source_url": info.source_url,
+                    "repo": info.repo,
+                    "available": available,
+                    "installed": size > 0,
+                    "ready": backend.is_ready(cache),
+                    "active": info.id == cfg.llm_model,
+                    "disk_size": size,
+                    "api_key_set": bool(key),
+                }
+            )
+        return out
+
+    def _llm_require(self, model_id: str) -> None:
+        if llm_get_model_info(model_id) is None:
+            raise ValueError(f"unknown llm model: {model_id}")
+
+    def _llm_set_active(self, params: dict) -> dict:
+        self._llm_require(params["id"])
+        self._config_set({"patch": {"llm_model": params["id"]}})
+        self.emit("llm", {})
+        return {"ok": True}
+
+    def _llm_install(self, params: dict) -> dict:
+        if self._op is not None:
+            raise RuntimeError("another operation is in progress")
+        job = _InstallJob(self, params["extra"], event="llm")
+        self._op = {"kind": "install", "job": job}
+        job.start()
+        return {"started": True}
+
+    def _llm_download(self, params: dict) -> dict:
+        self._llm_require(params["id"])
+        if self._op is not None:
+            raise RuntimeError("another operation is in progress")
+        job = _DownloadJob(self, params["id"], create=llm_create_backend, event="llm")
+        self._op = {"kind": "download", "job": job}
+        job.start()
+        return {"started": True}
+
+    def _llm_delete(self, params: dict) -> dict:
+        self._llm_require(params["id"])
+        backend = llm_create_backend(params["id"])
+        if backend.model.id == self.formatter.model_id:
+            self.formatter.unload()
+        freed = backend.delete()
+        self.emit("llm", {})
+        return {"freed": freed}
+
+    def _llm_test(self, params: dict) -> dict:
+        """Format a sample string through the active formatter (for prompt
+        tuning in the LLM tab). Loads the model on demand."""
+        text = (params.get("text") or "").strip()
+        if not text:
+            return {"output": ""}
+        if not self.formatter.is_ready():
+            raise RuntimeError("no formatter model ready — pick and install one")
+        return {"output": self.formatter.format(text)}
+
     # ── RPC ──────────────────────────────────────────────────────────
 
     def _status(self) -> dict:
@@ -961,6 +1127,9 @@ class Engine:
             "version": _version(),
             "hotkey_ok": hotkey_ok,
             "typing_ok": auto_type_available(),
+            "llm_enabled": self.cfg.llm_enabled,
+            "llm_model": self.cfg.llm_model,
+            "llm_ready": self.formatter.is_ready(),
         }
 
     def _devices_list(self) -> list[dict]:
@@ -1023,6 +1192,18 @@ class Engine:
         if method == "quit":
             self.loop.call_later(0.1, self._request_stop)  # let the reply flush
             return {"ok": True}
+        if method == "llm.list":
+            return await asyncio.to_thread(self.llm_models_list)
+        if method == "llm.set_active":
+            return self._llm_set_active(params)
+        if method == "llm.install":
+            return self._llm_install(params)
+        if method == "llm.download":
+            return self._llm_download(params)
+        if method == "llm.delete":
+            return self._llm_delete(params)
+        if method == "llm.test":
+            return await asyncio.to_thread(self._llm_test, params)
         raise ValueError(f"unknown method: {method}")
 
     async def _client(self, ws) -> None:
@@ -1137,6 +1318,7 @@ class Engine:
         threading.Thread(target=self._stdin_watchdog, daemon=True).start()
         self._start_hotkey()
         self._preload_model()
+        self._warm_formatter()
         async with serve(self._client, "127.0.0.1", port):
             print(f"READY ws={port}", flush=True)
             await self._stop_event.wait()

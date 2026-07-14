@@ -67,6 +67,9 @@ export struct Cfg {
     proxy: string,
     ssl-verify: bool,
     autostart: bool,
+    llm-enabled: bool,
+    llm-prompt: string,
+    llm-base-url: string,
 }
 
 export component SettingsView inherits ScrollArea {

@@ -389,3 +389,44 @@ export component ScrollArea inherits Rectangle {
         }
     }
 }
+
+// Multi-line text editor (system-prompt box). Scrolls when the text overflows
+// the fixed height; placeholder shows while empty and unfocused.
+export component MultiField inherits Rectangle {
+    in-out property <string> text;
+    in property <string> placeholder;
+    callback edited(string);
+
+    min-height: 96px;
+    border-radius: Theme.radius;
+    background: Theme.pal.control;
+    border-width: 1px;
+    border-color: input.has-focus ? Theme.pal.accent : Theme.pal.border;
+    clip: true;
+
+    Flickable {
+        x: 10px;
+        y: 8px;
+        width: parent.width - 20px;
+        height: parent.height - 16px;
+        viewport-height: max(self.height, input.preferred-height);
+        input := TextInput {
+            width: parent.width;
+            text <=> root.text;
+            color: Theme.pal.fg;
+            font-size: 13px;
+            single-line: false;
+            wrap: word-wrap;
+            edited => { root.edited(self.text); }
+        }
+    }
+    if root.text == "" && !input.has-focus: Text {
+        x: 10px;
+        y: 8px;
+        width: parent.width - 20px;
+        text: root.placeholder;
+        color: Theme.pal.muted;
+        font-size: 13px;
+        wrap: word-wrap;
+    }
+}

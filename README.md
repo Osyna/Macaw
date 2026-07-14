@@ -110,6 +110,7 @@ The recording indicator is fully themeable — opacity, bar colours, icon colour
 - **Live typing (alpha)** — words appear as you speak, once two passes agree on them.
 - **Smart paste** — picks ydotool, wtype, or xdotool for you, and falls back per window when one misbehaves.
 - **Sound cues** for recording, processing, and done.
+- **Clean-up formatting** — optionally pass the result through a tiny local LLM (or a cloud one) that fixes punctuation, trims filler, and shapes it into an email, message or list. Smart mode detects the kind of text; the prompt is fully editable.
 
 ## Models
 
@@ -127,6 +128,18 @@ Every model installs on demand from the Model Manager (`macaw --models`), each i
 | GPT-4o Transcribe · mini | [OpenAI][openai-stt] | 99+ | cloud (API key) | Cloud | `macaw[openai]` |
 
 The default is `large-v3-turbo`: 99+ languages, about 1.6 GB, and the best speed-to-accuracy trade-off on a GPU. On a laptop with no GPU, `base` or `distil-small.en` keep things snappy.
+
+## Formatting (optional)
+
+Turn raw dictation into finished text. Enable it in the **LLM** tab and Macaw passes the final transcription through a small, fast model that fixes punctuation and capitalization, drops filler ("um", false starts) and formats the result to match what it is — an email, a chat reply, a list. *Smart mode* detects that on its own; the system prompt is fully editable if you'd rather it always format a certain way. Applies to Clipboard and Type output (live typing streams raw as you speak).
+
+| Model | Project | Runs on | Download | Install |
+|-------|---------|---------|----------|---------|
+| Qwen2.5 `0.5B` / `1.5B` | [Qwen](https://github.com/QwenLM/Qwen2.5) · [llama.cpp](https://github.com/abetlen/llama-cpp-python) | CPU or GPU | ~400 MB – 1.1 GB | `macaw[llm]` |
+| Llama 3.2 `1B` | [Meta Llama](https://www.llama.com) · [llama.cpp](https://github.com/abetlen/llama-cpp-python) | CPU or GPU | ~0.8 GB | `macaw[llm]` |
+| GPT-4o mini · GPT-4.1 mini | [OpenAI](https://platform.openai.com/docs/guides/text-generation) | Cloud | cloud (API key) | `macaw[openai]` |
+
+Local models run in their own sandbox via llama.cpp — near-instant on CPU, GPU-accelerated when a CUDA build is present. Cloud models need an API key (set it in the LLM tab) and speak the OpenAI-compatible API, so you can point **Base URL** at Groq, Together or a local Ollama.
 
 **Offline vs cloud.** sherpa-onnx and every other local engine run entirely on your machine; the GPT-4o models are cloud APIs — set an OpenAI key in the Model Manager (or `OPENAI_API_KEY`) to use them.
 

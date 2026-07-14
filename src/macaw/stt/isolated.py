@@ -63,17 +63,24 @@ def remove(extra: str) -> int:
     return size
 
 
-def install_commands(extra: str, packages: list[str]) -> list[list[str]]:
+def install_commands(
+    extra: str, packages: list[str], index_url: str | None = None
+) -> list[list[str]]:
     """Create the isolated venv and install the backend's packages into it.
 
     A fresh venv resolves independently, so these packages never conflict with
-    the main environment or with each other's native deps.
+    the main environment or with each other's native deps. ``index_url`` adds an
+    extra wheel index (e.g. the llama.cpp CUDA build); uv still falls back to
+    PyPI when nothing there matches the platform.
     """
     uv = _find_uv() or "uv"
     d = str(venv_dir(extra))
+    install = [uv, "pip", "install", "--python", str(venv_python(extra))]
+    if index_url:
+        install += ["--extra-index-url", index_url]
     return [
         [uv, "venv", "--python", _PY_RANGE, "--allow-existing", d],
-        [uv, "pip", "install", "--python", str(venv_python(extra)), *packages],
+        [*install, *packages],
     ]
 
 

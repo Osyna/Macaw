@@ -98,6 +98,15 @@ class Config:
     proxy: str = ""  # HTTP(S) proxy URL, e.g. http://host:port (blank = none)
     ssl_verify: bool = True  # False disables SSL certificate verification
     star_prompted: bool = False  # shown the GitHub-star nudge once
+    # LLM post-processing: pass final STT text through a small/fast model that
+    # fixes punctuation, trims dictation filler and formats to fit (see llm/).
+    llm_enabled: bool = False  # run final text through the formatter (not in live mode)
+    llm_model: str = ""  # llm model id ("" = none picked)
+    llm_prompt: str = ""  # custom system prompt ("" = built-in smart default)
+    llm_api_key: str = (
+        ""  # cloud LLM key; falls back to openai_api_key, then $OPENAI_API_KEY
+    )
+    llm_base_url: str = ""  # OpenAI-compatible endpoint ("" = OpenAI)
 
     def nudge_live_defaults(self, old_mode: str, patch: dict) -> None:
         """Switching to live typing: give speakers more breathing room — bump
@@ -177,6 +186,11 @@ class Config:
                 proxy=data.get("proxy") or "",
                 ssl_verify=bool(data.get("ssl_verify", True)),
                 star_prompted=bool(data.get("star_prompted", False)),
+                llm_enabled=bool(data.get("llm_enabled", False)),
+                llm_model=data.get("llm_model") or "",
+                llm_prompt=data.get("llm_prompt") or "",
+                llm_api_key=data.get("llm_api_key") or "",
+                llm_base_url=data.get("llm_base_url") or "",
             )
         return cls()
 
@@ -211,6 +225,12 @@ class Config:
             ).rstrip()
         else:
             themes = "custom_themes: {}"
+        prompt = yaml.safe_dump(
+            {"llm_prompt": self.llm_prompt},
+            default_flow_style=False,
+            sort_keys=False,
+            allow_unicode=True,
+        ).rstrip()
         return (
             "# macaw configuration\n"
             "# Edit by hand, via the Settings window, or `macaw --config edit`.\n"
@@ -312,6 +332,18 @@ class Config:
             "  # done check-mark colour, hex (blank = theme)\n"
             f"error_color: {_yv(self.error_color)}"
             "  # error flash colour, hex (blank = theme)\n"
+            "\n"
+            "# ── LLM formatting (post-processing) ─────────────────────\n"
+            f"llm_enabled: {_yv(self.llm_enabled)}"
+            "  # pass final text through a formatter model (clipboard / type modes)\n"
+            f"llm_model: {_yv(self.llm_model)}"
+            "  # formatter model id (set it in the LLM tab; blank = none)\n"
+            f"llm_api_key: {_yv(self.llm_api_key)}"
+            "  # cloud LLM key (blank = reuse openai_api_key / $OPENAI_API_KEY)\n"
+            f"llm_base_url: {_yv(self.llm_base_url)}"
+            "  # OpenAI-compatible endpoint, e.g. a local Ollama (blank = OpenAI)\n"
+            "# llm_prompt: system prompt for formatting (blank = built-in smart mode)\n"
+            f"{prompt}\n"
             "\n"
             "# ── Network (advanced) ───────────────────────────────────\n"
             f"proxy: {_yv(self.proxy)}"

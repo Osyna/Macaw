@@ -2,6 +2,25 @@
 
 Notable changes to Macaw. Older releases live on the [releases page](https://github.com/Osyna/Macaw/releases).
 
+## 0.9.0 — 2026-07-14
+
+- **New: LLM formatting.** A new **LLM** tab turns raw dictation into finished
+  text. Turn it on and Macaw passes the final transcription through a small,
+  fast model that fixes punctuation and capitalization, trims filler ("um",
+  false starts, spoken punctuation) and formats the result to match what it
+  is — an email, a chat reply, a list. *Smart mode* (the built-in prompt)
+  detects the kind of text automatically; the system prompt is fully editable,
+  and a Try-it box formats a sample so you can tune it.
+  - **Local, lightning-fast.** Qwen2.5 0.5B / 1.5B and Llama 3.2 1B run via
+    llama.cpp (`macaw[llm]`) in their own sandbox — sub-second on CPU,
+    GPU-accelerated when a CUDA build is present. The model stays warm between
+    dictations.
+  - **Cloud too.** GPT-4o mini / GPT-4.1 mini, or any OpenAI-compatible endpoint
+    via a custom Base URL (Groq, Together, a local Ollama).
+  - Applies to Clipboard and Type output; live typing streams raw as you speak.
+    A formatting failure never costs you the transcription — the raw text is
+    delivered instead.
+
 ## 0.8.2 — 2026-07-14
 
 - **The recording indicator can no longer vanish mid-session.** The pill
