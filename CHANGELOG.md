@@ -2,7 +2,7 @@
 
 Notable changes to Macaw. Older releases live on the [releases page](https://github.com/Osyna/Macaw/releases).
 
-## Unreleased
+## 0.8.0 — 2026-07-14
 
 - **Live typing now trusts streaming models.** Native streamers
   (Nemotron, Zipformer/Paraformer online, Moonshine v2) type their own
