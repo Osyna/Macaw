@@ -370,3 +370,37 @@ def test_live_native_follows_catalog_before_load():
     # (the UI badge and the engine's splitting gate both rely on it).
     assert Transcriber(model_size="sherpa-nemotron-streaming-en").live_native()
     assert not Transcriber(model_size="large-v3-turbo").live_native()
+
+
+def test_native_stream_text_is_confirmed_verbatim(monkeypatch):
+    # A native streamer's text is the model's own committed output: confirmed
+    # == full, immediately — no agreement lag, no withheld trailing word.
+    b = _StreamBackend()
+    t = _streaming(monkeypatch, b)
+    confirmed, full = t.transcribe_streaming(np.full(16_000, 0.1, dtype=np.float32))
+    assert confirmed == full == "partial after 16000"
+
+
+def test_native_stream_without_new_audio_echoes_prev(monkeypatch):
+    # Same buffer twice -> no new samples fed, nothing typed, prev preserved.
+    b = _StreamBackend()
+    t = _streaming(monkeypatch, b)
+    _, full = t.transcribe_streaming(np.full(16_000, 0.1, dtype=np.float32))
+    confirmed2, full2 = t.transcribe_streaming(
+        np.full(16_000, 0.1, dtype=np.float32), prev_text=full
+    )
+    assert (confirmed2, full2) == (full, full)
+    assert b.deltas == [16_000]  # the worker was not fed again
+
+
+def test_reset_stream_clears_worker_live_stream(monkeypatch):
+    # reset_stream must reach the worker ("R") — otherwise a cancelled live
+    # session replays its text into the next one.
+    b = _StreamBackend()
+    resets: list[int] = []
+    b.reset_live = lambda: resets.append(1)
+    t = _streaming(monkeypatch, b)
+    t.transcribe_streaming(np.full(16_000, 0.1, dtype=np.float32))
+    t.reset_stream()
+    assert resets == [1]
+    assert t._stream_fed == 0

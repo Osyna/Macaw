@@ -292,6 +292,25 @@ def test_worker_malformed_config_line_is_ignored():
     assert worker.CFG == before
 
 
+def test_worker_reset_line_is_fire_and_forget():
+    # "R" drops the loader's persistent live stream without a reply — a
+    # reply would desync the request/reply pairing.
+    worker = _import_worker()
+    resets: list[int] = []
+
+    def transcribe(audio):
+        return "x"
+
+    transcribe.reset = lambda: resets.append(1)
+    assert worker._handle_line(transcribe, "R") is None
+    assert resets == [1]
+
+
+def test_worker_reset_line_without_reset_hook_is_ignored():
+    worker = _import_worker()
+    assert worker._handle_line(lambda audio: "x", "R") is None
+
+
 # -- worker._SHERPA_MODELS stays consistent with the sherpa catalog -----------
 
 

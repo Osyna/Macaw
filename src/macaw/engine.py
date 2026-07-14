@@ -703,7 +703,10 @@ class Engine:
 
     async def _stream_loop(self) -> None:
         while self._streaming_active:
-            await asyncio.sleep(1.0)
+            # Native streams are cheap per tick (the worker eats only the new
+            # samples), so poll fast for instant words. Batch models re-decode
+            # the tail every tick — keep those at 1 Hz.
+            await asyncio.sleep(0.25 if self.transcriber.live_native() else 1.0)
             self._stream_tick()
 
     def _stream_tick(self) -> None:
@@ -726,8 +729,9 @@ class Engine:
             audio = audio[self._stream_drop :]
             self._stream_drop = 0
             self._stream_buffer = [audio]
-        if len(audio) < self.capture.sample_rate:
-            return  # need at least 1s of audio
+        min_s = 0.3 if self.transcriber.live_native() else 1.0
+        if len(audio) < int(min_s * self.capture.sample_rate):
+            return  # not enough audio to bother the decoder yet
         if self._stream_busy:
             return  # previous tick still decoding — never overlap worker calls
         self._stream_busy = True
@@ -776,11 +780,12 @@ class Engine:
         frozen = self._stream_frozen_text
         composed = (frozen + " " + confirmed).strip() if frozen else confirmed
         if composed and len(composed) > self._stream_confirmed_len:
+            # Type the EXACT delta of the composed text — it already carries
+            # its own spacing. (The old trailing-space injection doubled
+            # spaces between words and could split native tokens.)
             new_text = composed[self._stream_confirmed_len :]
-            if not new_text.endswith(" "):
-                new_text += " "  # so the next chunk appends cleanly
             self._stream_confirmed_len = len(composed)
-            logger.debug("Streaming: typing confirmed %r", new_text)
+            logger.debug("Streaming: typing %r", new_text)
             self.emit("text", {"kind": "partial", "text": new_text})
             self.desktop.type_into_window(new_text, self._saved_window_id)
 

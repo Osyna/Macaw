@@ -278,7 +278,18 @@ def _load_moonshine2(model: str, language: str):
         live["s"].add_audio(audio, 16_000)
         return _text(live["s"].update_transcription(MOONSHINE_FLAG_FORCE_UPDATE))
 
+    def _reset():
+        # fresh utterance: drop the live stream (a cancelled session must
+        # never replay into the next one)
+        if live["s"] is not None:
+            try:
+                live["s"].stop()
+            except Exception:  # noqa: BLE001
+                pass
+            live["s"] = None
+
     run.feed = _feed
+    run.reset = _reset
     return run
 
 
@@ -366,7 +377,11 @@ def _load_sherpa(model: str, language: str):
         _drain(live["s"])
         return _post(rec.get_result(live["s"]))
 
+    def _reset():
+        live["s"] = None  # fresh utterance for the next live session
+
     _online.feed = _feed
+    _online.reset = _reset
     return _online
 
 
@@ -523,8 +538,9 @@ def main() -> None:
 
 
 def _handle_line(transcribe, line: str) -> dict | None:
-    """One protocol request -> one reply dict (None for blank keep-alives and
-    fire-and-forget "C {json}" config updates)."""
+    """One protocol request -> one reply dict. None for blank keep-alives and
+    the fire-and-forget lines: "C {json}" config updates and "R" (drop the
+    persistent live stream — fresh utterance)."""
     if not line:
         return None
     if line.startswith("C "):
@@ -532,6 +548,14 @@ def _handle_line(transcribe, line: str) -> dict | None:
             CFG.update(json.loads(line[2:]))
         except (json.JSONDecodeError, TypeError):
             pass
+        return None
+    if line == "R":
+        reset = getattr(transcribe, "reset", None)
+        if reset is not None:
+            try:
+                reset()
+            except Exception:  # noqa: BLE001 — never kill the loop over a reset
+                pass
         return None
     try:
         if line.startswith("S "):

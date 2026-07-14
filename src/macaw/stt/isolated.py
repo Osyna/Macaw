@@ -212,6 +212,20 @@ class SubprocessBackend(Backend):
             return None
         return self._request(audio, prefix="S ")
 
+    def reset_live(self) -> None:
+        """Fire-and-forget "R": drop the worker's persistent live stream so
+        the next utterance starts fresh (a cancelled live session must never
+        replay into the following one). No-op when no worker is running."""
+        proc = self._proc
+        if proc is None or proc.poll() is not None or proc.stdin is None:
+            return
+        with self._lock:
+            try:
+                proc.stdin.write("R\n")
+                proc.stdin.flush()
+            except OSError:
+                pass
+
     def _config_line(self) -> str:
         """Language/punctuation/tunables snapshot, applied per-call by loaders
         that use them (whisper) and ignored by the rest."""

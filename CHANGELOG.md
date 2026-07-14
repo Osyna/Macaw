@@ -4,6 +4,18 @@ Notable changes to Macaw. Older releases live on the [releases page](https://git
 
 ## Unreleased
 
+- **Live typing now trusts streaming models.** Native streamers
+  (Nemotron, Zipformer/Paraformer online, Moonshine v2) type their own
+  committed text verbatim the moment it appears — the word-agreement
+  filter (built for re-decoding models) added a full tick of lag and
+  held back the last words of every sentence. Live ticks run at 4 Hz on
+  native models (they only eat new samples). Batch models keep the
+  agreement filter + smart splitting exactly as before.
+- Live typing no longer injects spaces between typed chunks (they doubled
+  spaces and could split words mid-token); deltas type verbatim.
+- New worker protocol line "R": cancelling a live session now clears the
+  model's persistent stream, so its text can never replay into the next
+  recording.
 - **First-launch wizard.** A fresh install now opens a friendly six-step
   setup: microphone (with a live level bar and an Advanced fold for boost
   and silence level), language, output style as three explained cards,
