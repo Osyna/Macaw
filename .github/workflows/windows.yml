@@ -58,16 +58,22 @@ jobs:
           Copy-Item macaw-slint/target/release/macaw-ui.exe out/Macaw/
           Copy-Item dist/macaw-engine.exe out/Macaw/
 
-      - name: Smoke-test the UI exe (headless --stop path)
+      - name: Smoke-test the UI exe (headless startup surface)
         shell: pwsh
         run: |
-          # --stop with no running instance exits before any window/backend
-          # init — proves the exe loads and its DLLs resolve on a bare box.
           # GUI-subsystem exe: it detaches from the console, so run it via
-          # Start-Process and read the real exit code.
-          $p = Start-Process -FilePath out/Macaw/macaw-ui.exe -ArgumentList "--stop" -Wait -PassThru
-          Write-Host "exit code: $($p.ExitCode)"
-          if ($p.ExitCode -ne 0) { exit 1 }
+          # Start-Process and read the real exit code. --selftest exercises
+          # the pre-window startup path (entropy, single-instance socket);
+          # --stop exercises argv forwarding. Panics land in ui-crash.log.
+          foreach ($flag in @("--selftest", "--stop")) {
+            $p = Start-Process -FilePath out/Macaw/macaw-ui.exe -ArgumentList $flag -Wait -PassThru
+            Write-Host "$flag exit code: $($p.ExitCode)"
+            if ($p.ExitCode -ne 0) {
+              $log = Join-Path $env:LOCALAPPDATA "Macaw/ui-crash.log"
+              if (Test-Path $log) { Get-Content $log }
+              exit 1
+            }
+          }
 
       - name: Resolve version
         shell: bash

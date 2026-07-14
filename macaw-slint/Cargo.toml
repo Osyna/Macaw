@@ -34,6 +34,7 @@ slint = { version = "1.17", default-features = false, features = [
 tungstenite = "0.28"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+getrandom = "0.4.3"
 
 [target.'cfg(unix)'.dependencies]
 slint = { version = "1.17", default-features = false, features = [

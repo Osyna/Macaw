@@ -61,9 +61,9 @@ fn with_app(f: impl FnOnce(&Rc<App>)) {
 
 fn token() -> String {
     let mut buf = [0u8; 16];
-    std::fs::File::open("/dev/urandom")
-        .and_then(|mut f| std::io::Read::read_exact(&mut f, &mut buf))
-        .expect("urandom");
+    // getrandom: OS entropy on every platform (BCryptGenRandom on Windows —
+    // the old /dev/urandom read panicked there before the first window).
+    getrandom::fill(&mut buf).expect("OS entropy");
     buf.iter().map(|b| format!("{b:02x}")).collect()
 }
 
@@ -1144,6 +1144,17 @@ fn main() {
     };
     if flag.as_deref() == Some("--stop") {
         single::release(); // nothing was running
+        return;
+    }
+    if flag.as_deref() == Some("--selftest") {
+        // CI runs this on a real Windows box: exercises the pre-window
+        // startup surface that differs per OS (entropy, single-instance
+        // socket) without needing a desktop session. A panic here aborts
+        // with a nonzero exit code and lands in ui-crash.log.
+        let tok = token();
+        assert_eq!(tok.len(), 32, "token must be 16 random bytes hex-encoded");
+        single::release();
+        println!("selftest ok");
         return;
     }
 

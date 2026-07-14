@@ -2,6 +2,18 @@
 
 Notable changes to Macaw. Older releases live on the [releases page](https://github.com/Osyna/Macaw/releases).
 
+## 0.7.2 — 2026-07-14
+
+- **Windows: fixed the last launch blocker.** The WebSocket auth token was
+  read from `/dev/urandom` — a path that doesn't exist on Windows, so the
+  UI died before its first window (the new `ui-crash.log` caught it
+  exactly). Entropy now comes from the OS RNG via `getrandom`
+  (BCryptGenRandom on Windows) on every platform.
+- CI now runs `macaw-ui.exe --selftest` on a real Windows runner: the
+  pre-window startup surface (entropy, single-instance socket) is
+  exercised on every build, and a failure prints the crash log right in
+  the job output.
+
 ## 0.7.1 — 2026-07-14
 
 - **Windows: the GUI now actually launches.** 0.7.0's window died before

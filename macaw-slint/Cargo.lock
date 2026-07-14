@@ -2933,6 +2933,7 @@ dependencies = [
 name = "macaw-ui"
 version = "0.7.1"
 dependencies = [
+ "getrandom 0.4.3",
  "ksni",
  "serde",
  "serde_json",
