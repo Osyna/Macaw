@@ -40,8 +40,10 @@ from macaw.desktop import DesktopHelper, auto_type_available
 from macaw.llm import create_backend as llm_create_backend
 from macaw.llm import get_model_info as llm_get_model_info
 from macaw.llm import list_models as llm_list_models
+from macaw.llm import providers as llm_providers
 from macaw.llm.base import hf_cache_sizes as llm_hf_cache_sizes
 from macaw.llm.formatter import Formatter
+from macaw.llm.prompts import SMART_SYSTEM
 from macaw.stt import create_backend, get_model_info, list_models
 from macaw.stt.base import hf_cache_sizes
 from macaw.stt.deps import ensure_uv, packages_for_extra
@@ -67,13 +69,22 @@ def _lang_for(cfg: Config) -> str:
     return cfg.model_languages.get(cfg.model) or cfg.language or "en"
 
 
-def _llm_key(cfg: Config) -> str:
-    """Cloud-LLM key: the dedicated field, else the STT cloud key, else env."""
-    return cfg.llm_api_key or cfg.openai_api_key or os.environ.get("OPENAI_API_KEY", "")
+def _resolve_provider(cfg: Config) -> dict | None:
+    """The active provider's resolved config (preset ⊕ overrides ⊕ key) when
+    llm_model is a ``provider:<id>``; None for a local model."""
+    if not cfg.llm_model.startswith("provider:"):
+        return None
+    pid = cfg.llm_model.split(":", 1)[1]
+    try:
+        return llm_providers.resolve(pid, cfg.providers.get(pid))
+    except ValueError:
+        return None
 
 
 def _make_formatter(cfg: Config) -> Formatter:
-    return Formatter(cfg.llm_model, cfg.llm_prompt, _llm_key(cfg), cfg.llm_base_url)
+    return Formatter(
+        cfg.llm_model, cfg.llm_prompt, _resolve_provider(cfg), cfg.ssl_verify
+    )
 
 
 def _split_notes(text: str) -> tuple[list[str], list[str], str]:
@@ -276,6 +287,8 @@ class Engine:
 
         # Post-STT text formatting (optional). Its own warm worker so the model
         # stays loaded between dictations.
+        if self.cfg.migrate_secrets():  # lift legacy plaintext keys → secrets
+            self.cfg.save()
         self.formatter = _make_formatter(self.cfg)
         self._llm_load_thread: threading.Thread | None = None
 
@@ -410,8 +423,8 @@ class Engine:
         instant. Cloud needs no warming; a not-ready model is left alone."""
         if not (self.cfg.llm_enabled and self.formatter.is_ready()):
             return
-        if self.formatter._info() and self.formatter._info().cloud:
-            return
+        if self.formatter.is_provider():
+            return  # cloud providers need no warm-up
         if self._llm_load_thread is not None and self._llm_load_thread.is_alive():
             return
 
@@ -426,6 +439,18 @@ class Engine:
 
         self._llm_load_thread = threading.Thread(target=_load, daemon=True)
         self._llm_load_thread.start()
+
+    def _refresh_formatter(self) -> None:
+        """Re-resolve the formatter after a provider/key change (which doesn't
+        flow through config.set) and re-warm if enabled."""
+        self.formatter.apply(
+            self.cfg.llm_model,
+            self.cfg.llm_prompt,
+            _resolve_provider(self.cfg),
+            self.cfg.ssl_verify,
+        )
+        if self.cfg.llm_enabled:
+            self._warm_formatter()
 
     def _switch_model(self, model_name: str) -> None:
         """(Re)load a newly-selected model in the background."""
@@ -887,7 +912,11 @@ class Engine:
         cfg.nudge_live_defaults(old_mode, patch)
         cfg.save()
         self._apply_config(cfg)
-        return {"config": self.config_dict(), "path": str(config_path())}
+        return {
+            "config": self.config_dict(),
+            "path": str(config_path()),
+            "llm_default_prompt": SMART_SYSTEM,
+        }
 
     def _apply_config(self, cfg: Config) -> None:
         """Live-apply: device/hotkey/model/proxy changes take effect now."""
@@ -907,11 +936,13 @@ class Engine:
             self._switch_model(cfg.model)
         if (cfg.hotkey_enabled, cfg.hotkey) != (old.hotkey_enabled, old.hotkey):
             self._start_hotkey()
-        # formatter follows model / prompt / key / endpoint changes
-        llm_now = (cfg.llm_model, cfg.llm_prompt, _llm_key(cfg), cfg.llm_base_url)
-        llm_was = (old.llm_model, old.llm_prompt, _llm_key(old), old.llm_base_url)
+        # formatter follows model / prompt / provider / ssl changes
+        llm_now = (cfg.llm_model, cfg.llm_prompt, cfg.providers, cfg.ssl_verify)
+        llm_was = (old.llm_model, old.llm_prompt, old.providers, old.ssl_verify)
         if llm_now != llm_was:
-            self.formatter.apply(*llm_now)
+            self.formatter.apply(
+                cfg.llm_model, cfg.llm_prompt, _resolve_provider(cfg), cfg.ssl_verify
+            )
         if cfg.llm_enabled and (llm_now != llm_was or not old.llm_enabled):
             self._warm_formatter()
         self.emit("config", {"config": self.config_dict()})
@@ -1028,13 +1059,14 @@ class Engine:
     def llm_models_list(self) -> list[dict]:
         cfg = self.cfg
         cache = llm_hf_cache_sizes()
-        key = _llm_key(cfg)
         out: list[dict] = []
         for info in sorted(llm_list_models(), key=lambda m: (m.cloud, -m.rating)):
             backend = llm_create_backend(info.id)
-            backend.configure(key, cfg.llm_base_url)
             available = backend.available()
             size = backend.disk_size(cache) if available and not info.cloud else 0
+            # "installed" = weights on disk (not the shared runtime venv, which
+            # dir_size folds into disk_size for every model sharing it).
+            weights = sum(cache.get(r, 0) for r in backend.hf_repos())
             pros, cons, notes = _split_notes(info.notes)
             out.append(
                 {
@@ -1051,28 +1083,84 @@ class Engine:
                     "notes": notes,
                     "pros": pros,
                     "cons": cons,
+                    # compact one-liner for the LLM tab card
+                    "desc": notes or (pros[0] if pros else ""),
                     "rating": info.rating,
                     "min_specs": info.min_specs,
                     "rec_specs": info.rec_specs,
                     "source_url": info.source_url,
                     "repo": info.repo,
                     "available": available,
-                    "installed": size > 0,
+                    "installed": weights > 0,
                     "ready": backend.is_ready(cache),
                     "active": info.id == cfg.llm_model,
                     "disk_size": size,
-                    "api_key_set": bool(key),
+                    "api_key_set": False,
+                    "provider": False,
+                }
+            )
+        # configured cloud providers appear as pickable formatters too
+        for preset in llm_providers.PRESETS:
+            r = llm_providers.resolve(preset.id, cfg.providers.get(preset.id))
+            if not r["enabled"]:
+                continue
+            mid = f"provider:{preset.id}"
+            out.append(
+                {
+                    "id": mid,
+                    "backend": r["kind"],
+                    "label": f"{preset.label} · {r['model']}"
+                    if r["model"]
+                    else preset.label,
+                    "size": "cloud",
+                    "speed": "cloud",
+                    "cloud": True,
+                    "provider": True,
+                    "recommended": False,
+                    "extra": None,
+                    "hardware": "Cloud",
+                    "vram": "—",
+                    "notes": preset.note,
+                    "pros": [],
+                    "cons": [],
+                    "desc": preset.note or f"{preset.label} — {r['model']}",
+                    "rating": 0,
+                    "min_specs": "",
+                    "rec_specs": "",
+                    "source_url": r["docs_url"],
+                    "repo": "",
+                    "available": True,
+                    "installed": True,
+                    "ready": llm_providers.is_ready(r),
+                    "active": mid == cfg.llm_model,
+                    "disk_size": 0,
+                    "api_key_set": r["key_set"],
                 }
             )
         return out
 
     def _llm_require(self, model_id: str) -> None:
+        if model_id.startswith("provider:"):
+            pid = model_id.split(":", 1)[1]
+            if pid not in llm_providers.PRESET_BY_ID:
+                raise ValueError(f"unknown provider: {pid}")
+            return
         if llm_get_model_info(model_id) is None:
             raise ValueError(f"unknown llm model: {model_id}")
 
     def _llm_set_active(self, params: dict) -> dict:
-        self._llm_require(params["id"])
-        self._config_set({"patch": {"llm_model": params["id"]}})
+        mid = params["id"]
+        self._llm_require(mid)
+        patch: dict = {"llm_model": mid}
+        if mid.startswith("provider:"):
+            # "use as formatter" enables the provider too
+            pid = mid.split(":", 1)[1]
+            provs = {k: dict(v) for k, v in self.cfg.providers.items()}
+            prov = dict(provs.get(pid) or {})
+            prov["enabled"] = True
+            provs[pid] = prov
+            patch["providers"] = provs
+        self._config_set({"patch": patch})
         self.emit("llm", {})
         return {"ok": True}
 
@@ -1111,6 +1199,76 @@ class Engine:
         if not self.formatter.is_ready():
             raise RuntimeError("no formatter model ready — pick and install one")
         return {"output": self.formatter.format(text)}
+
+    # ── cloud providers ──────────────────────────────────────────────
+
+    def providers_list(self) -> list[dict]:
+        cfg = self.cfg
+        out: list[dict] = []
+        for preset in llm_providers.PRESETS:
+            r = llm_providers.resolve(preset.id, cfg.providers.get(preset.id))
+            out.append(
+                {
+                    "id": r["id"],
+                    "label": r["label"],
+                    "kind": r["kind"],
+                    "base_url": r["base_url"],
+                    "model": r["model"],
+                    "enabled": r["enabled"],
+                    "needs_key": r["needs_key"],
+                    "key_set": r["key_set"],
+                    "models": r["models"],
+                    "docs_url": r["docs_url"],
+                    "note": r["note"],
+                    "env": r["env"],
+                    "ready": llm_providers.is_ready(r),
+                    "active": cfg.llm_model == f"provider:{r['id']}",
+                }
+            )
+        return out
+
+    def _providers_require(self, pid: str) -> None:
+        if pid not in llm_providers.PRESET_BY_ID:
+            raise ValueError(f"unknown provider: {pid}")
+
+    def _providers_set(self, params: dict) -> dict:
+        pid = params["id"]
+        self._providers_require(pid)
+        cfg = Config.load()
+        prov = dict(cfg.providers.get(pid) or {})
+        for k in ("base_url", "model", "enabled"):
+            if k in params:
+                prov[k] = params[k]
+        cfg.providers[pid] = prov
+        cfg.save()
+        self._apply_config(cfg)  # re-resolves the formatter + echoes config
+        self.emit("llm", {})
+        return {"ok": True}
+
+    def _providers_set_key(self, params: dict) -> dict:
+        from macaw import secrets
+
+        pid = params["id"]
+        self._providers_require(pid)
+        secrets.set(llm_providers.secret_name(pid), params.get("key", ""))
+        self._refresh_formatter()  # key lives outside config — refresh explicitly
+        self.emit("llm", {})
+        return {"ok": True}
+
+    def _providers_test(self, params: dict) -> dict:
+        pid = params["id"]
+        self._providers_require(pid)
+        r = llm_providers.resolve(pid, self.cfg.providers.get(pid))
+        if not llm_providers.is_ready(r):
+            raise RuntimeError("not configured — set a model (and API key)")
+        reply = llm_providers.chat(
+            r,
+            "Reply with exactly: OK",
+            "ping",
+            ssl_verify=self.cfg.ssl_verify,
+            timeout=60,
+        )
+        return {"ok": True, "reply": reply[:200]}
 
     # ── RPC ──────────────────────────────────────────────────────────
 
@@ -1153,7 +1311,11 @@ class Engine:
         if method == "status":
             return await asyncio.to_thread(self._status)
         if method == "config.get":
-            return {"config": self.config_dict(), "path": str(config_path())}
+            return {
+                "config": self.config_dict(),
+                "path": str(config_path()),
+                "llm_default_prompt": SMART_SYSTEM,
+            }
         if method == "system.info":
             return {"summary": hardware.summary(self._hw), "hw": self._hw}
         if method == "config.set":
@@ -1204,6 +1366,14 @@ class Engine:
             return self._llm_delete(params)
         if method == "llm.test":
             return await asyncio.to_thread(self._llm_test, params)
+        if method == "providers.list":
+            return await asyncio.to_thread(self.providers_list)
+        if method == "providers.set":
+            return self._providers_set(params)
+        if method == "providers.set_key":
+            return self._providers_set_key(params)
+        if method == "providers.test":
+            return await asyncio.to_thread(self._providers_test, params)
         raise ValueError(f"unknown method: {method}")
 
     async def _client(self, ws) -> None:

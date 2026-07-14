@@ -61,6 +61,9 @@ a = Analysis(
         "yaml",
         "numpy",
         "huggingface_hub",
+        # secrets.py imports Fernet lazily — name it so PyInstaller bundles the
+        # cryptography backend into the frozen engine (encrypted API-key store).
+        "cryptography.fernet",
     ],
     # The STT backends (faster-whisper included) live in on-demand isolated
     # venvs — none of their heavy deps may leak into the frozen engine.

@@ -133,13 +133,14 @@ The default is `large-v3-turbo`: 99+ languages, about 1.6 GB, and the best speed
 
 Turn raw dictation into finished text. Enable it in the **LLM** tab and Macaw passes the final transcription through a small, fast model that fixes punctuation and capitalization, drops filler ("um", false starts) and formats the result to match what it is — an email, a chat reply, a list. *Smart mode* detects that on its own; the system prompt is fully editable if you'd rather it always format a certain way. Applies to Clipboard and Type output (live typing streams raw as you speak).
 
+**Local models** run in their own sandbox via llama.cpp — near-instant on CPU, GPU-accelerated when a CUDA build is present:
+
 | Model | Project | Runs on | Download | Install |
 |-------|---------|---------|----------|---------|
 | Qwen2.5 `0.5B` / `1.5B` | [Qwen](https://github.com/QwenLM/Qwen2.5) · [llama.cpp](https://github.com/abetlen/llama-cpp-python) | CPU or GPU | ~400 MB – 1.1 GB | `macaw[llm]` |
 | Llama 3.2 `1B` | [Meta Llama](https://www.llama.com) · [llama.cpp](https://github.com/abetlen/llama-cpp-python) | CPU or GPU | ~0.8 GB | `macaw[llm]` |
-| GPT-4o mini · GPT-4.1 mini | [OpenAI](https://platform.openai.com/docs/guides/text-generation) | Cloud | cloud (API key) | `macaw[openai]` |
 
-Local models run in their own sandbox via llama.cpp — near-instant on CPU, GPU-accelerated when a CUDA build is present. Cloud models need an API key (set it in the LLM tab) and speak the OpenAI-compatible API, so you can point **Base URL** at Groq, Together or a local Ollama.
+**Cloud providers** — bring your own key in the **Cloud Providers** window (Settings → Manage providers, or the LLM tab). Built-in presets for OpenAI, Anthropic (Claude), Google Gemini, xAI (Grok), OpenRouter, Groq, Mistral, DeepSeek, Together, a local **Ollama** server, and any OpenAI-compatible endpoint (set a custom Base URL). Two protocols — OpenAI chat and Anthropic messages — cover them all, over a tiny built-in HTTP client (no SDK needed). **API keys are encrypted at rest** (`secrets.enc` + a 0600 key file) — never written to your config.
 
 **Offline vs cloud.** sherpa-onnx and every other local engine run entirely on your machine; the GPT-4o models are cloud APIs — set an OpenAI key in the Model Manager (or `OPENAI_API_KEY`) to use them.
 

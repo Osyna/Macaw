@@ -113,6 +113,8 @@ enum Msg {
     ModelsLoaded(Vec<Value>),
     LlmModelsLoaded(Vec<Value>),
     LlmTest(String),
+    ProvidersLoaded(Vec<Value>),
+    ProviderTest(String),
     Cmd(single::Cmd),
 }
 
@@ -131,6 +133,8 @@ struct App {
     devices: RefCell<Vec<(Option<i64>, String)>>, // (device_index, label)
     models_raw: RefCell<Vec<Value>>,
     llm_models_raw: RefCell<Vec<Value>>,
+    providers_raw: RefCell<Vec<Value>>,
+    provider_sel: Cell<i32>,
     op: RefCell<Option<(String, String, String, f32)>>, // op, key, msg, pct(-1 = indet)
     toasts: Rc<VecModel<Toast>>,
     levels: Rc<VecModel<f32>>,
@@ -528,6 +532,62 @@ impl App {
         );
     }
 
+    fn refresh_providers(&self) {
+        let tx = self.msg_tx.clone();
+        self.client.call(
+            "providers.list",
+            json!({}),
+            Some(Box::new(move |res| {
+                if let Ok(Value::Array(list)) = res {
+                    let _ = tx.send(Msg::ProvidersLoaded(list));
+                }
+            })),
+        );
+    }
+
+    fn render_providers(&self) {
+        let raw = self.providers_raw.borrow();
+        let s = |m: &Value, k: &str| SharedString::from(m[k].as_str().unwrap_or_default());
+        let rows: Vec<ProviderRow> = raw
+            .iter()
+            .map(|m| {
+                let models: Vec<SharedString> = m["models"]
+                    .as_array()
+                    .map(|a| {
+                        a.iter()
+                            .filter_map(Value::as_str)
+                            .map(SharedString::from)
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                ProviderRow {
+                    id: s(m, "id"),
+                    label: s(m, "label"),
+                    kind: s(m, "kind"),
+                    base_url: s(m, "base_url"),
+                    model: s(m, "model"),
+                    note: s(m, "note"),
+                    docs_url: s(m, "docs_url"),
+                    env: s(m, "env"),
+                    models: ModelRc::from(models.as_slice()),
+                    needs_key: m["needs_key"].as_bool().unwrap_or(true),
+                    key_set: m["key_set"].as_bool().unwrap_or(false),
+                    enabled: m["enabled"].as_bool().unwrap_or(false),
+                    ready: m["ready"].as_bool().unwrap_or(false),
+                    active: m["active"].as_bool().unwrap_or(false),
+                }
+            })
+            .collect();
+        let n = rows.len() as i32;
+        let idx = self.provider_sel.get().clamp(0, (n - 1).max(0));
+        self.provider_sel.set(idx);
+        if let Some(r) = rows.get(idx as usize) {
+            self.ui.set_provider_sel(r.clone());
+        }
+        self.ui.set_provider_sel_index(idx);
+        self.ui.set_providers(ModelRc::from(rows.as_slice()));
+    }
+
     fn render_llm_models(&self) {
         let raw = self.llm_models_raw.borrow();
         let op = self.op.borrow();
@@ -566,7 +626,9 @@ impl App {
                     speed: s(m, "speed"),
                     cloud: m["cloud"].as_bool().unwrap_or(false),
                     recommended: m["recommended"].as_bool().unwrap_or(false),
+                    desc: s(m, "desc"),
                     notes: s(m, "notes"),
+                    provider: m["provider"].as_bool().unwrap_or(false),
                     rating: m["rating"].as_i64().unwrap_or(0) as i32,
                     source_url: s(m, "source_url"),
                     repo_url: SharedString::from(repo_url(m)),
@@ -986,6 +1048,9 @@ impl App {
             Msg::Ws(ev) => self.on_event(ev),
             Msg::ConfigLoaded(v) => {
                 self.cfg.replace(v["config"].clone());
+                if let Some(p) = v["llm_default_prompt"].as_str() {
+                    self.ui.set_llm_default_prompt(SharedString::from(p));
+                }
                 self.apply_config();
                 self.sync_live_native();
                 self.sync_mic_monitor(); // wizard visibility follows onboarded
@@ -1031,7 +1096,18 @@ impl App {
                 self.llm_models_raw.replace(list);
                 self.render_llm_models();
             }
-            Msg::LlmTest(out) => self.ui.set_llm_test_output(SharedString::from(out)),
+            Msg::LlmTest(out) => {
+                self.ui.set_llm_test_busy(false);
+                self.ui.set_llm_test_output(SharedString::from(out));
+            }
+            Msg::ProvidersLoaded(list) => {
+                self.providers_raw.replace(list);
+                self.render_providers();
+            }
+            Msg::ProviderTest(out) => {
+                self.ui.set_provider_testing(false);
+                self.ui.set_provider_test_result(SharedString::from(out));
+            }
             Msg::Cmd(cmd) => self.on_cmd(cmd),
         }
     }
@@ -1075,6 +1151,7 @@ impl App {
                 );
                 self.refresh_models();
                 self.refresh_llm_models();
+                self.refresh_providers();
             }
             ws::Event::Disconnected => self.ui.set_engine_connected(false),
             ws::Event::State { state, detail } => {
@@ -1114,6 +1191,7 @@ impl App {
             ws::Event::Models => {
                 self.refresh_models();
                 self.refresh_llm_models();
+                self.refresh_providers();
             }
             ws::Event::Progress {
                 op,
@@ -1395,6 +1473,8 @@ fn main() {
         devices: RefCell::new(vec![(None, "System default".into())]),
         models_raw: RefCell::new(vec![]),
         llm_models_raw: RefCell::new(vec![]),
+        providers_raw: RefCell::new(vec![]),
+        provider_sel: Cell::new(0),
         op: RefCell::new(None),
         toasts,
         levels,
@@ -1583,11 +1663,6 @@ fn main() {
     app.ui.on_set_autostart(set_autostart);
     {
         let a = Rc::clone(&app);
-        app.ui
-            .on_set_api_key(move |v| a.patch(kv("openai_api_key", json!(v.to_string()))));
-    }
-    {
-        let a = Rc::clone(&app);
         app.ui.on_pick_default_lang(move |i| {
             let code = LANGS.get(i as usize).map(|(_, c)| *c).unwrap_or("en");
             a.patch(kv("language", json!(code)));
@@ -1636,8 +1711,87 @@ fn main() {
     }
     {
         let a = Rc::clone(&app);
-        app.ui
-            .on_set_llm_key(move |v| a.patch(kv("llm_api_key", json!(v.to_string()))));
+        app.ui.on_manage_providers(move || {
+            a.ui.set_show_providers(true);
+            a.ui.set_provider_test_result(SharedString::new());
+            a.refresh_providers();
+        });
+    }
+    {
+        let a = Rc::clone(&app);
+        app.ui.on_provider_select(move |i| {
+            a.provider_sel.set(i);
+            a.render_providers();
+        });
+    }
+    {
+        let a = Rc::clone(&app);
+        app.ui.on_provider_set_enabled(move |id, v| {
+            a.client.call(
+                "providers.set",
+                json!({ "id": id.to_string(), "enabled": v }),
+                None,
+            );
+        });
+    }
+    {
+        let a = Rc::clone(&app);
+        app.ui.on_provider_save_config(move |id, base, model| {
+            a.client.call(
+                "providers.set",
+                json!({ "id": id.to_string(), "base_url": base.to_string(), "model": model.to_string() }),
+                None,
+            );
+        });
+    }
+    {
+        let a = Rc::clone(&app);
+        app.ui.on_provider_save_key(move |id, key| {
+            a.client.call(
+                "providers.set_key",
+                json!({ "id": id.to_string(), "key": key.to_string() }),
+                None,
+            );
+        });
+    }
+    {
+        let a = Rc::clone(&app);
+        app.ui.on_provider_clear_key(move |id| {
+            a.client
+                .call("providers.set_key", json!({ "id": id.to_string(), "key": "" }), None);
+        });
+    }
+    {
+        let a = Rc::clone(&app);
+        app.ui.on_provider_test(move |id| {
+            a.ui.set_provider_testing(true);
+            a.ui.set_provider_test_result(SharedString::from("Testing…"));
+            let tx = a.msg_tx.clone();
+            a.client.call(
+                "providers.test",
+                json!({ "id": id.to_string() }),
+                Some(Box::new(move |res| {
+                    let out = match res {
+                        Ok(v) => format!(
+                            "✓ Connected — replied: {}",
+                            v["reply"].as_str().unwrap_or("")
+                        ),
+                        Err(e) => format!("✗ {e}"),
+                    };
+                    let _ = tx.send(Msg::ProviderTest(out));
+                })),
+            );
+        });
+    }
+    {
+        let a = Rc::clone(&app);
+        app.ui.on_provider_use(move |id| {
+            a.client.call(
+                "llm.set_active",
+                json!({ "id": format!("provider:{}", id) }),
+                None,
+            );
+        });
     }
     {
         let a = Rc::clone(&app);
@@ -1675,16 +1829,18 @@ fn main() {
     {
         let a = Rc::clone(&app);
         app.ui.on_llm_test(move |t| {
+            a.ui.set_llm_test_busy(true);
+            a.ui.set_llm_test_output(SharedString::new());
             let tx = a.msg_tx.clone();
             a.client.call(
                 "llm.test",
                 json!({ "text": t.to_string() }),
                 Some(Box::new(move |res| {
-                    if let Ok(v) = res {
-                        let _ = tx.send(Msg::LlmTest(
-                            v["output"].as_str().unwrap_or_default().to_string(),
-                        ));
-                    }
+                    let out = match res {
+                        Ok(v) => v["output"].as_str().unwrap_or_default().to_string(),
+                        Err(e) => format!("Error: {e}"),
+                    };
+                    let _ = tx.send(Msg::LlmTest(out));
                 })),
             );
         });

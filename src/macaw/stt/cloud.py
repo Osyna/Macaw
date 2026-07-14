@@ -37,10 +37,17 @@ class OpenAICloudBackend(Backend):
     key = "openai"
 
     def api_key(self) -> str:
-        """API key from config (openai_api_key) or the OPENAI_API_KEY env var."""
+        """API key: the encrypted OpenAI provider secret, else the legacy config
+        field (pre-encryption configs), else the OPENAI_API_KEY env var."""
+        from macaw import secrets
         from macaw.config import Config
+        from macaw.llm.providers import secret_name
 
-        return Config.load().openai_api_key or os.environ.get("OPENAI_API_KEY", "")
+        return (
+            secrets.get(secret_name("openai"))
+            or Config.load().openai_api_key
+            or os.environ.get("OPENAI_API_KEY", "")
+        )
 
     # -- capability / weight management --------------------------------
 

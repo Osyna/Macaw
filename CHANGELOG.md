@@ -2,6 +2,27 @@
 
 Notable changes to Macaw. Older releases live on the [releases page](https://github.com/Osyna/Macaw/releases).
 
+## 0.10.0 — 2026-07-14
+
+- **Cloud LLM providers — bring your own key.** A new **Cloud Providers**
+  window (Settings → Manage providers, or the LLM tab) configures OpenAI,
+  Anthropic (Claude), Google Gemini, xAI (Grok), OpenRouter, Groq, Mistral,
+  DeepSeek, Together, a local **Ollama** server, and any OpenAI-compatible
+  endpoint via a custom Base URL. Per-provider key, endpoint, model (with
+  suggestions) and a one-click **Test**. Two protocols — OpenAI chat and
+  Anthropic messages — cover them all over a tiny built-in HTTP client, so
+  cloud formatting works in the packaged app with no extra install.
+- **API keys are encrypted at rest.** Keys now live in an encrypted
+  `secrets.enc` (Fernet, with a 0600 key file) instead of plaintext in
+  `config.yaml` — sharing or syncing your config leaks nothing. Existing keys
+  migrate automatically on first launch.
+- **LLM tab, reworked.** The model picker is a compact dropdown with a live
+  detail card (size, speed, status); the system prompt box now shows the real
+  built-in *smart* prompt so you can see and edit exactly what's sent; and the
+  **Format sample** box shows its result inline (it was rendering off-screen).
+- **"Models" is now "Voice Models"** in the top nav, to sit alongside the LLM
+  formatter models.
+
 ## 0.9.1 — 2026-07-14
 
 - **Fix: the LLM tab is empty in the packaged build.** The frozen engine

@@ -7,6 +7,7 @@ license = "MIT"
 requires-python = ">=3.10,<3.14"  # CUDA wheels in backend venvs lag new CPython; raise ceiling when 3.14 wheels ship
 dependencies = [
     "huggingface-hub>=0.20",  # model downloads + shared-cache accounting
+    "cryptography>=42.0",  # local at-rest encryption of API keys (see secrets.py)
     "numpy>=2.0.0",
     "pyperclip>=1.9.0",
     "pyzmq>=26.0.0",

@@ -1,0 +1,316 @@
+// Cloud providers manager — a full-window sheet (opened from Settings or the
+// LLM tab). Configure OpenAI, Anthropic (Claude), Gemini, x.ai, OpenRouter,
+// Groq, Ollama and any OpenAI-compatible endpoint: API key (encrypted at rest),
+// base URL, model, then enable + test. Network (proxy / SSL) lives here too.
+
+import { Theme } from "theme.slint";
+import { Btn, Badge, Toggle, Field, Select, ScrollArea, Card, Row } from "widgets.slint";
+import { Cfg } from "settings.slint";
+
+export struct ProviderRow {
+    id: string,
+    label: string,
+    kind: string,        // openai | anthropic
+    base-url: string,
+    model: string,
+    note: string,
+    docs-url: string,
+    env: string,         // env var the key falls back to
+    models: [string],    // suggested model ids
+    needs-key: bool,
+    key-set: bool,
+    enabled: bool,
+    ready: bool,
+    active: bool,        // the current formatter
+}
+
+component ProviderItem inherits Rectangle {
+    in property <ProviderRow> p;
+    in property <bool> selected;
+    callback clicked;
+    height: 46px;
+    border-radius: Theme.radius;
+    background: selected ? Theme.pal.control : (ta.has-hover ? Theme.pal.control.with-alpha(0.5) : transparent);
+    border-width: p.active ? 2px : (selected ? 1px : 0px);
+    border-color: p.active ? Theme.pal.ok : Theme.pal.border;
+    HorizontalLayout {
+        x: 10px;
+        width: parent.width - 20px;
+        spacing: 8px;
+        Rectangle { // status dot
+            width: 8px;
+            y: parent.height / 2 - 4px;
+            height: 8px;
+            border-radius: 4px;
+            background: p.ready ? Theme.pal.ok : (p.enabled ? Theme.pal.warn : Theme.pal.border);
+        }
+        Text {
+            text: p.label;
+            color: Theme.pal.fg;
+            font-size: 13px;
+            font-weight: selected ? 700 : 500;
+            vertical-alignment: center;
+            overflow: elide;
+            horizontal-stretch: 1;
+        }
+        if p.active: Badge { text: "IN USE"; tint: Theme.pal.ok; }
+    }
+    ta := TouchArea {
+        clicked => { root.clicked(); }
+        mouse-cursor: MouseCursor.pointer;
+    }
+}
+
+export component ProvidersWindow inherits Rectangle {
+    in property <[ProviderRow]> providers;
+    in property <ProviderRow> sel;
+    in property <int> sel-index: 0;
+    in property <string> test-result;
+    in property <bool> testing;
+    in property <Cfg> cfg;
+
+    callback select(int);
+    callback set-enabled(string, bool);
+    callback save-config(string, string, string); // id, base-url, model
+    callback save-key(string, string);            // id, key
+    callback clear-key(string);
+    callback test(string);
+    callback use-provider(string);                // set as the active formatter
+    callback open-url(string);
+    callback set-str(string, string);
+    callback set-bool(string, bool);
+    callback close();
+
+    background: #000000C8;
+    TouchArea {} // swallow clicks on the backdrop (no accidental close)
+
+    Rectangle {
+        x: 24px;
+        y: 20px;
+        width: parent.width - 48px;
+        height: parent.height - 40px;
+        background: Theme.pal.bg;
+        border-radius: Theme.radius;
+        border-width: 1px;
+        border-color: Theme.pal.border;
+
+        VerticalLayout {
+            padding: 22px;
+            spacing: 14px;
+
+            // ── header ───────────────────────────────────────────────
+            HorizontalLayout {
+                spacing: 10px;
+                vertical-stretch: 0;
+                VerticalLayout {
+                    horizontal-stretch: 1;
+                    Text {
+                        text: "Cloud Providers";
+                        color: Theme.pal.accent;
+                        font-size: 20px;
+                        font-weight: 800;
+                    }
+                    Text {
+                        text: "Bring your own key. Configure a provider, then pick it as the formatter in the LLM tab. Keys are encrypted on this machine.";
+                        color: Theme.pal.muted;
+                        font-size: 12px;
+                        wrap: word-wrap;
+                    }
+                }
+                Btn { text: "✕ Close"; clicked => { root.close(); } }
+            }
+
+            // ── body: list | form ────────────────────────────────────
+            HorizontalLayout {
+                spacing: 16px;
+                vertical-stretch: 1;
+
+                // provider list
+                Rectangle {
+                    width: 240px;
+                    ScrollArea {
+                        viewport-height: list.preferred-height;
+                        list := VerticalLayout {
+                            alignment: start;
+                            spacing: 3px;
+                            for p[i] in root.providers: ProviderItem {
+                                p: p;
+                                selected: i == root.sel-index;
+                                clicked => { root.select(i); }
+                            }
+                        }
+                    }
+                }
+                Rectangle { width: 1px; background: Theme.pal.border; }
+
+                // provider config form
+                ScrollArea {
+                    horizontal-stretch: 1;
+                    viewport-height: form.preferred-height;
+                    form := VerticalLayout {
+                        alignment: start;
+                        spacing: 12px;
+
+                        HorizontalLayout {
+                            spacing: 8px;
+                            Text {
+                                text: sel.label;
+                                color: Theme.pal.fg;
+                                font-size: 17px;
+                                font-weight: 800;
+                                vertical-alignment: center;
+                            }
+                            Badge { text: sel.kind == "anthropic" ? "ANTHROPIC" : "OPENAI-API"; }
+                            if sel.ready: Badge { text: "READY"; tint: Theme.pal.ok; }
+                            if sel.active: Badge { text: "IN USE"; tint: Theme.pal.ok; }
+                            Rectangle { horizontal-stretch: 1; }
+                            if sel.docs-url != "": Btn {
+                                text: "Get key ↗";
+                                clicked => { root.open-url(sel.docs-url); }
+                            }
+                        }
+                        if sel.note != "": Text {
+                            text: sel.note;
+                            color: Theme.pal.muted;
+                            font-size: 12px;
+                            wrap: word-wrap;
+                        }
+
+                        Row {
+                            label: "Enabled";
+                            hint: "Show this provider as a formatter option in the LLM tab.";
+                            Toggle {
+                                checked: sel.enabled;
+                                toggled(v) => { root.set-enabled(sel.id, v); }
+                            }
+                        }
+
+                        // API key (only when the provider needs one)
+                        if sel.needs-key: Row {
+                            label: "API key";
+                            hint: "Stored encrypted in secrets.enc — never in the config file. Falls back to the provider's env var if unset.";
+                            key-field := Field {
+                                secret: true;
+                                placeholder: sel.key-set ? "•••••••••••• (saved)" : (sel.env != "" ? "paste key, or set $" + sel.env : "paste your API key");
+                                horizontal-stretch: 1;
+                            }
+                            Btn {
+                                text: "Save key";
+                                primary: true;
+                                clicked => { root.save-key(sel.id, key-field.text); key-field.text = ""; }
+                            }
+                            if sel.key-set: Btn {
+                                text: "Clear";
+                                danger: true;
+                                clicked => { root.clear-key(sel.id); }
+                            }
+                        }
+
+                        Row {
+                            label: "Base URL";
+                            hint: "The API endpoint. Pre-filled with the provider default; change it for a self-hosted or proxied server.";
+                            base-field := Field {
+                                text: sel.base-url;
+                                placeholder: "https://…/v1";
+                                horizontal-stretch: 1;
+                            }
+                        }
+
+                        Row {
+                            label: "Model";
+                            hint: "The model id to send. Type any the provider supports, or pick a suggestion below.";
+                            model-field := Field {
+                                text: sel.model;
+                                placeholder: "model id";
+                                horizontal-stretch: 1;
+                            }
+                        }
+                        if sel.models.length > 0: HorizontalLayout {
+                            spacing: 6px;
+                            alignment: start;
+                            Text {
+                                text: "Suggested:";
+                                color: Theme.pal.muted;
+                                font-size: 11px;
+                                vertical-alignment: center;
+                            }
+                            for m in sel.models: Rectangle {
+                                width: chip.preferred-width + 14px;
+                                height: 22px;
+                                border-radius: Theme.radius;
+                                background: chipta.has-hover ? Theme.pal.accent.with-alpha(0.2) : Theme.pal.control;
+                                border-width: 1px;
+                                border-color: Theme.pal.border;
+                                chip := Text {
+                                    text: m;
+                                    color: Theme.pal.fg;
+                                    font-size: 11px;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                }
+                                chipta := TouchArea {
+                                    clicked => { model-field.text = m; }
+                                    mouse-cursor: MouseCursor.pointer;
+                                }
+                            }
+                        }
+
+                        HorizontalLayout {
+                            spacing: 8px;
+                            alignment: start;
+                            Btn {
+                                text: "Save";
+                                primary: true;
+                                clicked => { root.save-config(sel.id, base-field.text, model-field.text); }
+                            }
+                            Btn {
+                                text: root.testing ? "Testing…" : "Test";
+                                enabled: !root.testing;
+                                clicked => { root.test(sel.id); }
+                            }
+                            Btn {
+                                text: sel.active ? "In use ✓" : "Use as formatter";
+                                enabled: !sel.active;
+                                clicked => { root.use-provider(sel.id); }
+                            }
+                        }
+                        if root.test-result != "": Rectangle {
+                            height: max(40px, tr.preferred-height + 18px);
+                            border-radius: Theme.radius;
+                            background: Theme.pal.control;
+                            tr := Text {
+                                x: 10px;
+                                y: 9px;
+                                width: parent.width - 20px;
+                                text: root.test-result;
+                                color: Theme.pal.fg;
+                                font-size: 12px;
+                                wrap: word-wrap;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ── network (moved out of Settings) ──────────────────────
+            Card {
+                title: "NETWORK";
+                vertical-stretch: 0;
+                Row {
+                    label: "HTTP(S) proxy";
+                    hint: "Route model downloads and cloud API calls through a proxy.";
+                    Field {
+                        text: cfg.proxy;
+                        placeholder: "http://host:port";
+                        submitted(v) => { root.set-str("proxy", v); }
+                    }
+                }
+                Row {
+                    label: "Verify SSL";
+                    hint: "Disable only behind a corporate TLS-intercepting proxy.";
+                    Toggle { checked: cfg.ssl-verify; toggled(v) => { root.set-bool("ssl_verify", v); } }
+                }
+            }
+        }
+    }
+}

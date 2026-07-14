@@ -156,13 +156,16 @@ def test_openai_load_requires_key():
 # -- Config: the new openai_api_key field survives save/load ------------------
 
 
-def test_config_openai_api_key_roundtrips():
+def test_config_never_writes_api_keys_to_disk():
+    # API keys are encrypted in secrets.enc — never rendered into config.yaml,
+    # so sharing/syncing the config file leaks nothing.
     from macaw.config import Config
 
     with tempfile.TemporaryDirectory() as d:
         p = Path(d) / "config.yaml"
         Config(openai_api_key="sk-roundtrip-abc123").save(p)
-        assert Config.load(p).openai_api_key == "sk-roundtrip-abc123"
+        assert "sk-roundtrip-abc123" not in p.read_text()
+        assert Config.load(p).openai_api_key == ""
 
 
 # -- Catalog flags exposed through list_models() / create_backend() -----------

@@ -101,12 +101,16 @@ class Config:
     # LLM post-processing: pass final STT text through a small/fast model that
     # fixes punctuation, trims dictation filler and formats to fit (see llm/).
     llm_enabled: bool = False  # run final text through the formatter (not in live mode)
-    llm_model: str = ""  # llm model id ("" = none picked)
+    llm_model: str = ""  # llm model id, or "provider:<id>" for a cloud provider
     llm_prompt: str = ""  # custom system prompt ("" = built-in smart default)
     llm_api_key: str = (
         ""  # cloud LLM key; falls back to openai_api_key, then $OPENAI_API_KEY
     )
     llm_base_url: str = ""  # OpenAI-compatible endpoint ("" = OpenAI)
+    # Cloud LLM providers the user has configured: {provider_id: {base_url?,
+    # model?, enabled}}. API keys are NOT here — they live in the encrypted
+    # secret store (see macaw/secrets.py + macaw/llm/providers.py).
+    providers: dict = field(default_factory=dict)
 
     def nudge_live_defaults(self, old_mode: str, patch: dict) -> None:
         """Switching to live typing: give speakers more breathing room — bump
@@ -119,6 +123,32 @@ class Config:
             and self.silence_timeout == 3.0
         ):
             self.silence_timeout = 5.0
+
+    def migrate_secrets(self) -> bool:
+        """One-shot: lift legacy plaintext API keys out of the config into the
+        encrypted store, and map an old cloud llm_model onto a provider. Returns
+        True if the config changed and should be re-saved."""
+        from macaw import secrets
+        from macaw.llm.providers import secret_name
+
+        changed = False
+        legacy_key = self.openai_api_key or self.llm_api_key
+        if legacy_key:
+            if not secrets.has(secret_name("openai")):
+                secrets.set(secret_name("openai"), legacy_key)
+            self.openai_api_key = ""
+            self.llm_api_key = ""
+            changed = True
+        if self.llm_model in ("gpt-4o-mini", "gpt-4.1-mini"):
+            prov = self.providers.setdefault("openai", {})
+            prov["enabled"] = True
+            prov["model"] = self.llm_model
+            self.llm_model = "provider:openai"
+            changed = True
+        if self.llm_base_url:
+            self.llm_base_url = ""
+            changed = True
+        return changed
 
     @classmethod
     def load(cls, path: Path | None = None) -> Config:
@@ -191,6 +221,7 @@ class Config:
                 llm_prompt=data.get("llm_prompt") or "",
                 llm_api_key=data.get("llm_api_key") or "",
                 llm_base_url=data.get("llm_base_url") or "",
+                providers=data.get("providers") or {},
             )
         return cls()
 
@@ -225,6 +256,14 @@ class Config:
             ).rstrip()
         else:
             themes = "custom_themes: {}"
+        if self.providers:
+            providers = yaml.safe_dump(
+                {"providers": self.providers},
+                default_flow_style=False,
+                sort_keys=True,
+            ).rstrip()
+        else:
+            providers = "providers: {}"
         prompt = yaml.safe_dump(
             {"llm_prompt": self.llm_prompt},
             default_flow_style=False,
@@ -238,8 +277,7 @@ class Config:
             "\n"
             "# ── Model ────────────────────────────────────────────────\n"
             f"model: {_yv(self.model)}\n"
-            f"openai_api_key: {_yv(self.openai_api_key)}"
-            "  # for GPT-4o cloud models (or set $OPENAI_API_KEY)\n"
+            "# (API keys are stored encrypted in secrets.enc — never in this file)\n"
             "\n"
             "# ── Audio ────────────────────────────────────────────────\n"
             f"device_index: {_yv(self.device_index)}"
@@ -338,10 +376,7 @@ class Config:
             "  # pass final text through a formatter model (clipboard / type modes)\n"
             f"llm_model: {_yv(self.llm_model)}"
             "  # formatter model id (set it in the LLM tab; blank = none)\n"
-            f"llm_api_key: {_yv(self.llm_api_key)}"
-            "  # cloud LLM key (blank = reuse openai_api_key / $OPENAI_API_KEY)\n"
-            f"llm_base_url: {_yv(self.llm_base_url)}"
-            "  # OpenAI-compatible endpoint, e.g. a local Ollama (blank = OpenAI)\n"
+            "# (cloud provider keys + endpoints are managed in the Providers window)\n"
             "# llm_prompt: system prompt for formatting (blank = built-in smart mode)\n"
             f"{prompt}\n"
             "\n"
@@ -356,5 +391,5 @@ class Config:
             "  # whether the GitHub-star nudge has been shown\n"
             "\n"
             "# ── Per-model tunables (set from the Model Manager) ──────\n"
-            f"{params}\n{langs}\n{themes}\n"
+            f"{params}\n{langs}\n{themes}\n{providers}\n"
         )

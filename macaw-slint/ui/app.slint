@@ -16,10 +16,11 @@ import { SettingsView, Cfg } from "settings.slint";
 import { AppearanceView } from "appearance.slint";
 import { ModelsView, ModelRow, ParamRow } from "models.slint";
 import { LlmView, LlmModelRow } from "llm.slint";
+import { ProvidersWindow, ProviderRow } from "providers.slint";
 import { OverlayWindow } from "overlay.slint";
 import { OnboardingWizard } from "onboarding.slint";
 
-export { OverlayWindow, Cfg, ModelRow, ParamRow, LlmModelRow, Palette, Theme, Look, Tip }
+export { OverlayWindow, Cfg, ModelRow, ParamRow, LlmModelRow, ProviderRow, Palette, Theme, Look, Tip }
 
 export struct Toast {
     level: string, // info | error | success
@@ -97,7 +98,19 @@ export component MainWindow inherits Window {
     callback pick-device(int);
     callback capture-hotkey();
     callback set-autostart(bool);
-    callback set-api-key(string);
+    // providers plumbing (forwarded)
+    in property <[ProviderRow]> providers;
+    in property <ProviderRow> provider-sel;
+    in property <int> provider-sel-index;
+    in property <string> provider-test-result;
+    in property <bool> provider-testing;
+    callback provider-select(int);
+    callback provider-set-enabled(string, bool);
+    callback provider-save-config(string, string, string);
+    callback provider-save-key(string, string);
+    callback provider-clear-key(string);
+    callback provider-test(string);
+    callback provider-use(string);
     callback eq-set(int, color);
     callback eq-add();
     callback eq-remove(int);
@@ -156,13 +169,16 @@ export component MainWindow inherits Window {
     in property <LlmModelRow> llm-sel;
     in property <bool> llm-have-sel;
     in property <string> llm-test-output;
-    callback set-llm-key(string);
+    in property <bool> llm-test-busy;
+    in property <string> llm-default-prompt;
+    in-out property <bool> show-providers;
     callback llm-activate(string);
     callback llm-install(string);
     callback llm-download(string);
     callback llm-delete(string);
     callback llm-cancel();
     callback llm-test(string);
+    callback manage-providers();
 
     callback toggle-recording();
     callback close-window();
@@ -210,7 +226,7 @@ export component MainWindow inherits Window {
                 TabBtn {
                     y: 12px;
                     icon: "◆";
-                    text: "Models";
+                    text: "Voice Models";
                     active: root.tab == "models";
                     clicked => { root.tab = "models"; }
                 }
@@ -283,7 +299,7 @@ export component MainWindow inherits Window {
             pick-device(i) => { root.pick-device(i); }
             capture-hotkey => { root.capture-hotkey(); }
             set-autostart(v) => { root.set-autostart(v); }
-            set-api-key(v) => { root.set-api-key(v); }
+            manage-providers => { root.manage-providers(); }
             mic-level: root.mic-level;
             engine-connected: root.engine-connected;
             engine-state: root.engine-state;
@@ -354,10 +370,11 @@ export component MainWindow inherits Window {
             sel: root.llm-sel;
             have-sel: root.llm-have-sel;
             test-output: root.llm-test-output;
+            test-busy: root.llm-test-busy;
+            default-prompt: root.llm-default-prompt;
             op-running: root.op-running;
             set-bool(k, v) => { root.set-bool(k, v); }
             set-str(k, v) => { root.set-str(k, v); }
-            set-llm-key(v) => { root.set-llm-key(v); }
             activate(id) => { root.llm-activate(id); }
             install(e) => { root.llm-install(e); }
             download(id) => { root.llm-download(id); }
@@ -365,6 +382,7 @@ export component MainWindow inherits Window {
             cancel => { root.llm-cancel(); }
             run-test(t) => { root.llm-test(t); }
             open-url(u) => { root.open-url(u); }
+            manage-providers => { root.manage-providers(); }
         }
     }
 
@@ -414,6 +432,29 @@ export component MainWindow inherits Window {
         pick-device(i) => { root.pick-device(i); }
         pick-default-lang(i) => { root.pick-default-lang(i); }
         capture-hotkey => { root.capture-hotkey(); }
+    }
+
+    // ── cloud providers manager (opened from Settings / LLM tab) ────
+    if root.show-providers: ProvidersWindow {
+        width: 100%;
+        height: 100%;
+        providers: root.providers;
+        sel: root.provider-sel;
+        sel-index: root.provider-sel-index;
+        test-result: root.provider-test-result;
+        testing: root.provider-testing;
+        cfg: root.cfg;
+        select(i) => { root.provider-select(i); }
+        set-enabled(id, v) => { root.provider-set-enabled(id, v); }
+        save-config(id, b, m) => { root.provider-save-config(id, b, m); }
+        save-key(id, k) => { root.provider-save-key(id, k); }
+        clear-key(id) => { root.provider-clear-key(id); }
+        test(id) => { root.provider-test(id); }
+        use-provider(id) => { root.provider-use(id); }
+        open-url(u) => { root.open-url(u); }
+        set-str(k, v) => { root.set-str(k, v); }
+        set-bool(k, v) => { root.set-bool(k, v); }
+        close => { root.show-providers = false; }
     }
 
     // ── hover hint (fed by settings rows via the Tip global) ────────

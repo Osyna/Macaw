@@ -87,7 +87,7 @@ export component SettingsView inherits ScrollArea {
     callback pick-device(int);
     callback capture-hotkey();
     callback set-autostart(bool);
-    callback set-api-key(string);
+    callback manage-providers();
     callback pick-default-lang(int);
     in property <float> mic-level: 0;    // live input level (Settings-visible)
     in property <bool> engine-connected: false;
@@ -300,26 +300,16 @@ export component SettingsView inherits ScrollArea {
             spacing: 14px;
 
             Card {
-                title: "CLOUD & NETWORK";
+                title: "CLOUD & PROVIDERS";
                 Row {
-                    label: "OpenAI API key";
-                    hint: "Only needed for the GPT-4o cloud models. Stored in your local config file.";
-                    Field {
-                        text: "";
-                        secret: true;
-                        placeholder: cfg.api-key-set ? "•••••••• (set)" : "sk-…";
-                        submitted(v) => { root.set-api-key(v); }
+                    label: "LLM providers";
+                    hint: "Configure OpenAI, Claude, Gemini, x.ai, OpenRouter, Groq, a local Ollama server and more — API keys, endpoints and models — plus network/proxy settings. Keys are encrypted on this machine.";
+                    Rectangle { horizontal-stretch: 1; }
+                    Btn {
+                        text: "Manage providers →";
+                        primary: true;
+                        clicked => { root.manage-providers(); }
                     }
-                }
-                Row {
-                    label: "HTTP(S) proxy";
-                    hint: "Route model downloads and cloud calls through a proxy.";
-                    Field { text: cfg.proxy; placeholder: "http://host:port"; submitted(v) => { root.set-str("proxy", v); } }
-                }
-                Row {
-                    label: "Verify SSL";
-                    hint: "Disable only behind a corporate TLS-intercepting proxy.";
-                    Toggle { checked: cfg.ssl-verify; toggled(v) => { root.set-bool("ssl_verify", v); } }
                 }
             }
 
