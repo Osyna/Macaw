@@ -2,6 +2,14 @@
 
 Notable changes to Macaw. Older releases live on the [releases page](https://github.com/Osyna/Macaw/releases).
 
+## 0.15.0 — 2026-07-14
+
+- **Recording settings adapt to the animation.** The controls under RECORDING
+  now match the chosen animation: the bar animations keep bar count / width /
+  rounding / fade, while the **Orb** shows its own controls instead —
+  **Size** (how big the circle is) and **React to voice** (dynamic: swells as
+  you speak, or a still static circle). No more bar-count slider for a circle.
+
 ## 0.14.1 — 2026-07-14
 
 - **Fix: Appearance state chips no longer clip.** With five states the last

@@ -80,6 +80,8 @@ class Config:
     record_anim: str = "bars"  # recording: bars|mirror|dots|wave|blocks|orb
     transcribe_anim: str = "waves"  # transcribing: waves|sweep|pulse|dots|scan|cascade|shimmer|orbit|typewriter|bounce|heartbeat
     format_anim: str = "shimmer"  # formatting step: loader anim (waves|sweep|…)
+    orb_size: float = 0.55  # orb circle size, fraction of the pill (0.2-1.0)
+    orb_dynamic: bool = False  # orb swells with the voice (else static)
     anim_speed: float = 1.0  # transcribing animation speed multiplier (0.25-3)
     trans_link: bool = True  # transcribing uses the recording (eq) colors
     trans_colors: list = field(default_factory=list)  # own stops when unlinked
@@ -211,6 +213,8 @@ class Config:
                 ),
                 transcribe_anim=data.get("transcribe_anim") or "waves",
                 format_anim=data.get("format_anim") or "shimmer",
+                orb_size=float(data.get("orb_size", 0.55)),
+                orb_dynamic=bool(data.get("orb_dynamic", False)),
                 anim_speed=float(data.get("anim_speed", 1.0)),
                 trans_link=bool(data.get("trans_link", True)),
                 trans_colors=list(data.get("trans_colors") or []),
@@ -378,6 +382,10 @@ class Config:
             "  # transcribing: waves | sweep | pulse | dots | scan | cascade | shimmer | orbit | typewriter | bounce | heartbeat\n"
             f"format_anim: {_yv(self.format_anim)}"
             "  # formatting step: loader anim (waves | sweep | pulse | shimmer | …)\n"
+            f"orb_size: {_yv(self.orb_size)}"
+            "  # orb circle size, fraction of the pill (0.2-1.0)\n"
+            f"orb_dynamic: {_yv(self.orb_dynamic)}"
+            "  # orb swells with the voice (false = static)\n"
             f"done_anim: {_yv(self.done_anim)}"
             "  # done entrance animation: pop | flash | none\n"
             f"done_ring: {_yv(self.done_ring)}"

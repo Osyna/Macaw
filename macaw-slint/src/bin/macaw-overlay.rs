@@ -208,6 +208,8 @@ impl Overlay {
         ui.set_bar_spacing(f("bar_spacing", -1.0));
         ui.set_bar_radius(f("bar_radius", 0.0));
         ui.set_bar_fade(v["bar_fade"].as_bool().unwrap_or(true));
+        ui.set_orb_size(f("orb_size", 0.55));
+        ui.set_orb_dynamic(v["orb_dynamic"].as_bool().unwrap_or(false));
         ui.set_record_anim(v["record_anim"].as_str().unwrap_or("bars").into());
         ui.set_anim(v["anim"].as_str().unwrap_or("waves").into());
         ui.set_done_anim(v["done_anim"].as_str().unwrap_or("pop").into());

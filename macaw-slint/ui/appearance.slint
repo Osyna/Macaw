@@ -57,6 +57,8 @@ component AnimTile inherits Rectangle {
                 r-br: 8px;
                 r-bl: 8px;
                 bar-fade: Look.bar-fade;
+                orb-size: Look.orb-size;
+                orb-dynamic: Look.orb-dynamic;
             }
         }
         Text {
@@ -184,6 +186,8 @@ export component AppearanceView inherits Rectangle {
                         bar-spacing: Look.bar-spacing;
                         bar-radius: Look.bar-radius;
                         bar-fade: Look.bar-fade;
+                        orb-size: Look.orb-size;
+                        orb-dynamic: Look.orb-dynamic;
                     }
                 }
                 // state chips: scope the editor AND the preview
@@ -395,27 +399,38 @@ export component AppearanceView inherits Rectangle {
                         tile-mode: "eq";
                         chosen(id) => { root.set-str("record_anim", id); }
                     }
-                    Row {
+                    if cfg.record-anim != "orb": Row {
                         label: "Bar count";
                         hint: "How many bars (or dots) the pill renders.";
                         SliderX { value: cfg.bar-count; minimum: 8; maximum: 48; step: 1; changed(v) => { root.set-num("bar_count", v); } }
                         Text { text: "\{Math.round(cfg.bar-count)}"; color: Theme.pal.muted; font-size: 12px; vertical-alignment: center; }
                     }
-                    Row {
+                    if cfg.record-anim != "orb": Row {
                         label: "Width / gap";
                         hint: "Bar thickness and spacing in pixels; -1 sizes them automatically.";
                         SliderX { value: cfg.bar-width; minimum: -1; maximum: 16; step: 1; changed(v) => { root.set-num("bar_width", v); } }
                         SliderX { value: cfg.bar-spacing; minimum: -1; maximum: 16; step: 1; changed(v) => { root.set-num("bar_spacing", v); } }
                     }
-                    Row {
+                    if cfg.record-anim != "orb": Row {
                         label: "Bar rounding";
                         hint: "Rounds the bar caps.";
                         SliderX { value: cfg.bar-radius; minimum: 0; maximum: 16; step: 1; changed(v) => { root.set-num("bar_radius", v); } }
                     }
-                    Row {
+                    if cfg.record-anim != "orb": Row {
                         label: "Quiet bars fade";
                         hint: "Quiet bars turn translucent instead of staying solid.";
                         Toggle { checked: cfg.bar-fade; toggled(v) => { root.set-bool("bar_fade", v); } }
+                    }
+                    if cfg.record-anim == "orb": Row {
+                        label: "Size";
+                        hint: "Diameter of the orb, relative to the pill.";
+                        SliderX { value: cfg.orb-size; minimum: 0.2; maximum: 1.0; step: 0.05; changed(v) => { root.set-num("orb_size", v); } }
+                        Text { text: "\{Math.round(cfg.orb-size * 100)}%"; color: Theme.pal.muted; font-size: 12px; vertical-alignment: center; }
+                    }
+                    if cfg.record-anim == "orb": Row {
+                        label: "React to voice";
+                        hint: "Dynamic: the orb swells while you speak. Off: a still, static circle.";
+                        Toggle { checked: cfg.orb-dynamic; toggled(v) => { root.set-bool("orb_dynamic", v); } }
                     }
                     SectionTitle { text: "GRADIENT"; }
                     GradientEditor {

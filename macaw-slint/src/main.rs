@@ -210,6 +210,8 @@ impl App {
         let opacity = cfg["overlay_opacity"].as_f64().unwrap_or(0.94) as f32;
         let bar_radius = cfg["bar_radius"].as_i64().unwrap_or(di("bar_radius")) as f32;
         let bar_fade = cfg["bar_fade"].as_bool().unwrap_or(db("bar_fade"));
+        let orb_size = cfg["orb_size"].as_f64().unwrap_or(0.55) as f32;
+        let orb_dynamic = cfg["orb_dynamic"].as_bool().unwrap_or(false);
         let anim = cfg["transcribe_anim"]
             .as_str()
             .unwrap_or("waves")
@@ -293,6 +295,8 @@ impl App {
             set_bar_spacing(bar_s);
             set_bar_radius(bar_radius);
             set_bar_fade(bar_fade);
+            set_orb_size(orb_size);
+            set_orb_dynamic(orb_dynamic);
         }
         look.set_pv_w(cfg["overlay_width"].as_f64().unwrap_or(210.0) as f32);
         look.set_pv_h(cfg["overlay_height"].as_f64().unwrap_or(52.0) as f32);
@@ -313,6 +317,7 @@ impl App {
             "r_tl": c[0], "r_tr": c[1], "r_br": c[2], "r_bl": c[3],
             "bar_width": bar_w, "bar_spacing": bar_s, "bar_radius": bar_radius,
             "bar_fade": bar_fade,
+            "orb_size": orb_size, "orb_dynamic": orb_dynamic,
             "record_anim": record_anim,
             "anim": anim,
             "done_anim": done_anim,
@@ -398,6 +403,8 @@ impl App {
             bar_width: f("bar_width", tdf("bar_width") as f64),
             bar_radius: f("bar_radius", tdf("bar_radius") as f64),
             bar_fade: b("bar_fade", td["bar_fade"].as_bool().unwrap_or(true)),
+            orb_size: f("orb_size", 0.55),
+            orb_dynamic: b("orb_dynamic", false),
             bar_count: f("bar_count", tdf("bar_count") as f64),
             record_anim: if s("record_anim").is_empty() {
                 SharedString::from(td["record_anim"].as_str().unwrap_or("bars"))

@@ -39,6 +39,8 @@ export component OverlayPill inherits Rectangle {
     in property <float> bar-spacing: -1; // px, -1 = auto
     in property <length> bar-radius: 0px;
     in property <bool> bar-fade: true;
+    in property <float> orb-size: 0.55;    // orb diameter, fraction of the pill
+    in property <bool> orb-dynamic: false; // orb swells with the voice (else static)
 
     // ── shared bar layout (overlay.ts barLayout) ─────────────────────
     property <int> n: max(1, levels.length);
@@ -153,17 +155,20 @@ export component OverlayPill inherits Rectangle {
             }
         }
     }
-    // orb: a single static, soft gradient circle. The gradient fades to
-    // transparent well before the element's edges, so it always reads as a
-    // clean circle (never a square) and never moves.
+    // orb: a soft gradient circle. `orb-size` sets the diameter; when
+    // `orb-dynamic` it swells with the voice, otherwise it stays put. The
+    // gradient fades to transparent before the edges so it's always a circle.
     if root.mode == "eq" && root.record-anim == "orb": Rectangle {
         Rectangle {
-            property <length> d: min(root.height * 0.86, root.width * 0.5);
-            x: (parent.width - self.d) / 2;
-            y: (parent.height - self.d) / 2;
+            property <length> cap: min(root.height * 0.92, root.width * 0.55);
+            property <float> swell: root.orb-dynamic ? 0.55 + 0.45 * root.heard : 1.0;
+            property <length> d: self.cap * clamp(root.orb-size, 0.15, 1.0) * self.swell;
             width: self.d;
             height: self.d;
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
             border-radius: self.d / 2;
+            animate width, height, x, y { duration: 90ms; easing: ease-out; }
             background: @radial-gradient(circle,
                 root.pal(0.1) 0%,
                 root.pal(0.5) 36%,
