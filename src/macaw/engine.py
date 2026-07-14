@@ -804,6 +804,8 @@ class Engine:
                 and self.cfg.output_mode != "live"
                 and self.formatter.is_ready()
             ):
+                # distinct overlay step while the formatter (LLM/NLP/rules) runs
+                self.set_state("formatting")
                 try:
                     formatted = self.formatter.format(text)
                     if formatted and formatted.strip():

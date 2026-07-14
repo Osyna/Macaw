@@ -81,7 +81,7 @@ export component OverlayPill inherits Rectangle {
     // bars (classic, bottom-anchored) — also the fallback for any unknown
     // record-anim value (e.g. a config saved by a build with more variants)
     if root.mode == "eq" && root.record-anim != "dots" && root.record-anim != "wave"
-        && root.record-anim != "blocks" && root.record-anim != "ripple": Rectangle {
+        && root.record-anim != "blocks" && root.record-anim != "orb": Rectangle {
         property <length> vpad: max(8px, root.height * 0.18);
         property <length> maxh: root.height - 2 * self.vpad;
         property <bool> mirror: root.record-anim == "mirror";
@@ -153,28 +153,32 @@ export component OverlayPill inherits Rectangle {
             }
         }
     }
-    // ripple: rings expand from the center, intensity follows the energy
-    if root.mode == "eq" && root.record-anim == "ripple": Rectangle {
-        // resting core
+    // orb: a soft gradient circle that swells with the voice and gently waves
+    if root.mode == "eq" && root.record-anim == "orb": Rectangle {
+        property <float> breath: 0.5 + 0.5 * sin(root.t * 0.5 * 1rad);
+        property <length> base: min(root.width * 0.5, root.height * 1.75);
+        // soft outer halo — waves outward with the energy plus a slow breath
         Rectangle {
-            property <length> d: root.height * 0.16;
+            property <float> k: clamp(0.5 + 0.4 * root.heard + 0.1 * parent.breath, 0, 1);
+            property <length> d: parent.base * self.k;
             x: (root.width - self.d) / 2;
             y: (root.height - self.d) / 2;
             width: self.d;
             height: self.d;
             border-radius: self.d / 2;
-            background: root.idle-color.mix(root.pal(0.5), 1 - root.heard);
+            background: @radial-gradient(circle, root.pal(0.25).with-alpha(0.5) 0%,
+                                                 root.pal(0.85).with-alpha(0.0) 72%);
         }
-        for r in 3: Rectangle {
-            property <float> ph: Math.mod(root.t * 0.22 + r / 3.0, 1.0);
-            property <length> d: self.ph * min(root.width * 0.55, root.height * 1.8);
+        // core gradient circle — brighter, grows with the level
+        Rectangle {
+            property <length> d: parent.base * (0.32 + 0.3 * root.heard + 0.05 * parent.breath);
             x: (root.width - self.d) / 2;
             y: (root.height - self.d) / 2;
             width: self.d;
             height: self.d;
             border-radius: self.d / 2;
-            border-width: 2px;
-            border-color: root.pal(self.ph).with-alpha((1 - self.ph) * (0.2 + 0.8 * root.heard));
+            background: @radial-gradient(circle, root.pal(0.1) 0%, root.pal(0.55) 55%,
+                                                 root.pal(0.95) 100%);
         }
     }
 

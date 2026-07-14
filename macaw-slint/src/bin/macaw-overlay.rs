@@ -257,6 +257,10 @@ impl Overlay {
                 if let Some(m) = v["mode"].as_str() {
                     self.ui.set_mode(m.into());
                 }
+                // formatting step reuses the loader with its own animation
+                if let Some(a) = v["anim"].as_str() {
+                    self.ui.set_anim(a.into());
+                }
                 // preview shows loop the done entrance; real dictation
                 // plays it once
                 self.ui.set_demo_loop(v["demo"].as_bool().unwrap_or(false));

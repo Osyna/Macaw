@@ -157,9 +157,9 @@ export component AppearanceView inherits Rectangle {
                         y: (parent.height - self.height) / 2;
                         width: min(Look.pv-w, parent.width - 24px);
                         height: min(Look.pv-h, parent.height - 16px);
-                        mode: root.preview-mode;
+                        mode: root.preview-mode == "format" ? "loader" : root.preview-mode;
                         record-anim: Look.record-anim;
-                        anim: Look.anim;
+                        anim: root.preview-mode == "format" ? cfg.format-anim : Look.anim;
                         done-anim: Look.done-anim;
                         ring-color: Look.ring-color;
                         demo-loop: true; // it is a preview: entrances loop
@@ -188,18 +188,18 @@ export component AppearanceView inherits Rectangle {
                 }
                 // state chips: scope the editor AND the preview
                 HorizontalLayout {
-                    spacing: 6px;
+                    spacing: 4px;
                     alignment: start;
                     height: 34px;
-                    for m in ["eq", "loader", "done", "error"]: Rectangle {
-                        width: t.preferred-width + 18px;
+                    for m in ["eq", "loader", "format", "done", "error"]: Rectangle {
+                        width: t.preferred-width + 10px;
                         height: 28px;
                         border-radius: Theme.radius;
                         background: root.preview-mode == m ? Theme.pal.accent : Theme.pal.control;
                         border-width: 1px;
                         border-color: root.preview-mode == m ? transparent : Theme.pal.border;
                         t := Text {
-                            text: m == "eq" ? "Recording" : m == "loader" ? "Transcribing" : m == "done" ? "Done" : "Error";
+                            text: m == "eq" ? "Recording" : m == "loader" ? "Transcribing" : m == "format" ? "Formatting" : m == "done" ? "Done" : "Error";
                             color: root.preview-mode == m ? Theme.pal.accent-fg : Theme.pal.fg;
                             font-size: 12px;
                             font-weight: 600;
@@ -387,7 +387,7 @@ export component AppearanceView inherits Rectangle {
                             { label: "Dots", id: "dots" },
                             { label: "Wave", id: "wave" },
                             { label: "Blocks (VU)", id: "blocks" },
-                            { label: "Ripple", id: "ripple" },
+                            { label: "Orb", id: "orb" },
                         ];
                         current: cfg.record-anim;
                         tile-mode: "eq";
@@ -465,6 +465,35 @@ export component AppearanceView inherits Rectangle {
                             stop-removed(i) => { root.trans-remove(i); }
                             stop-added => { root.trans-add(); }
                         }
+                    }
+                }
+
+                // ── FORMATTING ────────────────────────────────────────
+                if root.preview-mode == "format": Card {
+                    title: "FORMATTING — ANIMATION";
+                    Text {
+                        text: "Shown while the finished text runs through the formatter (rules, NLP or an LLM) — in Clipboard and Type modes. Colors follow Transcribing.";
+                        color: Theme.pal.muted;
+                        font-size: 12px;
+                        wrap: word-wrap;
+                    }
+                    AnimGallery {
+                        items: [
+                            { label: "Waves", id: "waves" },
+                            { label: "Sweep", id: "sweep" },
+                            { label: "Pulse", id: "pulse" },
+                            { label: "Dots", id: "dots" },
+                            { label: "Scan", id: "scan" },
+                            { label: "Cascade", id: "cascade" },
+                            { label: "Shimmer", id: "shimmer" },
+                            { label: "Orbit", id: "orbit" },
+                            { label: "Typewriter", id: "typewriter" },
+                            { label: "Bounce", id: "bounce" },
+                            { label: "Heartbeat", id: "heartbeat" },
+                        ];
+                        current: cfg.format-anim;
+                        tile-mode: "loader";
+                        chosen(id) => { root.set-str("format_anim", id); }
                     }
                 }
 

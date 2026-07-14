@@ -77,8 +77,9 @@ class Config:
     bar_fade: bool = True  # quiet bars fade out (False = solid)
     bar_count: int = 24  # number of equaliser bars (8-48)
     overlay_bg: str = ""  # overlay pill background, hex (blank = theme)
-    record_anim: str = "bars"  # recording: bars|mirror|dots|wave|blocks|ripple
+    record_anim: str = "bars"  # recording: bars|mirror|dots|wave|blocks|orb
     transcribe_anim: str = "waves"  # transcribing: waves|sweep|pulse|dots|scan|cascade|shimmer|orbit|typewriter|bounce|heartbeat
+    format_anim: str = "shimmer"  # formatting step: loader anim (waves|sweep|…)
     anim_speed: float = 1.0  # transcribing animation speed multiplier (0.25-3)
     trans_link: bool = True  # transcribing uses the recording (eq) colors
     trans_colors: list = field(default_factory=list)  # own stops when unlinked
@@ -205,8 +206,11 @@ class Config:
                 bar_fade=bool(data.get("bar_fade", True)),
                 bar_count=int(data.get("bar_count", 24)),
                 overlay_bg=data.get("overlay_bg") or "",
-                record_anim=data.get("record_anim") or "bars",
+                record_anim=(data.get("record_anim") or "bars").replace(
+                    "ripple", "orb"
+                ),
                 transcribe_anim=data.get("transcribe_anim") or "waves",
+                format_anim=data.get("format_anim") or "shimmer",
                 anim_speed=float(data.get("anim_speed", 1.0)),
                 trans_link=bool(data.get("trans_link", True)),
                 trans_colors=list(data.get("trans_colors") or []),
@@ -369,9 +373,11 @@ class Config:
             f"overlay_bg: {_yv(self.overlay_bg)}"
             "  # overlay pill background colour, hex (blank = theme)\n"
             f"record_anim: {_yv(self.record_anim)}"
-            "  # recording: bars | mirror | dots | wave | blocks | ripple\n"
+            "  # recording: bars | mirror | dots | wave | blocks | orb\n"
             f"transcribe_anim: {_yv(self.transcribe_anim)}"
             "  # transcribing: waves | sweep | pulse | dots | scan | cascade | shimmer | orbit | typewriter | bounce | heartbeat\n"
+            f"format_anim: {_yv(self.format_anim)}"
+            "  # formatting step: loader anim (waves | sweep | pulse | shimmer | …)\n"
             f"done_anim: {_yv(self.done_anim)}"
             "  # done entrance animation: pop | flash | none\n"
             f"done_ring: {_yv(self.done_ring)}"

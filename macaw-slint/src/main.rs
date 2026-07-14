@@ -405,6 +405,7 @@ impl App {
                 s("record_anim")
             },
             transcribe_anim: s("transcribe_anim"),
+            format_anim: s("format_anim"),
             done_anim: if s("done_anim").is_empty() {
                 "pop".into()
             } else {
@@ -977,6 +978,7 @@ impl App {
         match state.as_str() {
             "recording" => self.show_overlay("eq", false),
             "transcribing" => self.show_overlay("loader", false),
+            "formatting" => self.show_overlay("format", false),
             "done" => self.show_overlay("done", false),
             "error" if !self.overlay.get_error_text().is_empty() => {
                 let detail = self.overlay.get_error_text();
@@ -994,12 +996,37 @@ impl App {
     /// `demo`: preview shows (pin / state chips) loop the done entrance;
     /// real engine states play it once.
     fn show_overlay(self: &Rc<Self>, mode: &str, demo: bool) {
-        if self.ls_send(json!({"cmd": "show", "mode": mode, "demo": demo})) {
+        // "format" is the transcribe loader look with its own animation: map it
+        // to the pill's "loader" mode and swap in the formatting-step anim.
+        let anim: Option<String> = match mode {
+            "format" => Some(
+                self.cfg.borrow()["format_anim"]
+                    .as_str()
+                    .unwrap_or("shimmer")
+                    .to_string(),
+            ),
+            "loader" => Some(
+                self.cfg.borrow()["transcribe_anim"]
+                    .as_str()
+                    .unwrap_or("waves")
+                    .to_string(),
+            ),
+            _ => None,
+        };
+        let pill_mode = if mode == "format" { "loader" } else { mode };
+        let mut msg = json!({"cmd": "show", "mode": pill_mode, "demo": demo});
+        if let Some(a) = &anim {
+            msg["anim"] = json!(a);
+        }
+        if self.ls_send(msg) {
             return;
         }
         let visible = self.overlay.window().is_visible();
         self.overlay.set_demo_loop(demo);
-        self.overlay.set_mode(mode.into());
+        if let Some(a) = &anim {
+            self.overlay.set_anim(a.as_str().into());
+        }
+        self.overlay.set_mode(pill_mode.into());
         if !visible {
             let (x, y, w, h) = self.overlay_geometry();
             hypr::install_rules(x, y, w, h);
