@@ -2,6 +2,23 @@
 
 Notable changes to Macaw. Older releases live on the [releases page](https://github.com/Osyna/Macaw/releases).
 
+## 0.7.1 — 2026-07-14
+
+- **Windows: the GUI now actually launches.** 0.7.0's window died before
+  first paint — Slint's software renderer panics when Windows font
+  enumeration comes up empty, and the GL renderer wants a matching OpenGL
+  config it won't always get (VMs, RDP, odd drivers). The UI fonts
+  (DejaVu Sans + Mono, regular and bold) are now embedded in the binary
+  and pinned as the default families, so text rendering never touches
+  system-font enumeration on any platform. Verified end-to-end by running
+  the released win64 artifact under wine: window, tray, engine link and
+  hardware-ranked picks all live.
+- If the UI ever dies on Windows again, the panic lands in
+  `%LOCALAPPDATA%\Macaw\ui-crash.log` with a backtrace — a silent
+  GUI-subsystem death is no longer undiagnosable.
+- Bonus: embedded fonts lock in the chip/status glyph coverage that
+  system fonts couldn't guarantee.
+
 ## 0.7.0 — 2026-07-13
 
 - **Windows gets the real app.** The native Slint UI now builds and ships
