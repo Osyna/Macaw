@@ -2,6 +2,13 @@
 
 Notable changes to Macaw. Older releases live on the [releases page](https://github.com/Osyna/Macaw/releases).
 
+## 0.13.1 — 2026-07-14
+
+- **Orb is now a static, soft circle.** It was rendering as a moving square
+  (the gradient filled the element's corners). It's now a single fixed circle
+  whose gradient fades out before the edges — a clean circle with a soft fade,
+  no motion.
+
 ## 0.13.0 — 2026-07-14
 
 - **New recording animation: Orb.** The old "Ripple" is replaced by a soft

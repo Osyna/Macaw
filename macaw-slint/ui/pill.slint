@@ -153,32 +153,21 @@ export component OverlayPill inherits Rectangle {
             }
         }
     }
-    // orb: a soft gradient circle that swells with the voice and gently waves
+    // orb: a single static, soft gradient circle. The gradient fades to
+    // transparent well before the element's edges, so it always reads as a
+    // clean circle (never a square) and never moves.
     if root.mode == "eq" && root.record-anim == "orb": Rectangle {
-        property <float> breath: 0.5 + 0.5 * sin(root.t * 0.5 * 1rad);
-        property <length> base: min(root.width * 0.5, root.height * 1.75);
-        // soft outer halo — waves outward with the energy plus a slow breath
         Rectangle {
-            property <float> k: clamp(0.5 + 0.4 * root.heard + 0.1 * parent.breath, 0, 1);
-            property <length> d: parent.base * self.k;
-            x: (root.width - self.d) / 2;
-            y: (root.height - self.d) / 2;
+            property <length> d: min(root.height * 0.86, root.width * 0.5);
+            x: (parent.width - self.d) / 2;
+            y: (parent.height - self.d) / 2;
             width: self.d;
             height: self.d;
             border-radius: self.d / 2;
-            background: @radial-gradient(circle, root.pal(0.25).with-alpha(0.5) 0%,
-                                                 root.pal(0.85).with-alpha(0.0) 72%);
-        }
-        // core gradient circle — brighter, grows with the level
-        Rectangle {
-            property <length> d: parent.base * (0.32 + 0.3 * root.heard + 0.05 * parent.breath);
-            x: (root.width - self.d) / 2;
-            y: (root.height - self.d) / 2;
-            width: self.d;
-            height: self.d;
-            border-radius: self.d / 2;
-            background: @radial-gradient(circle, root.pal(0.1) 0%, root.pal(0.55) 55%,
-                                                 root.pal(0.95) 100%);
+            background: @radial-gradient(circle,
+                root.pal(0.1) 0%,
+                root.pal(0.5) 36%,
+                root.pal(0.85).with-alpha(0.0) 64%);
         }
     }
 
