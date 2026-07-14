@@ -2,6 +2,17 @@
 
 Notable changes to Macaw. Older releases live on the [releases page](https://github.com/Osyna/Macaw/releases).
 
+## 0.8.2 — 2026-07-14
+
+- **The recording indicator can no longer vanish mid-session.** The pill
+  on Wayland is a separate layer-shell process; a mid-run wayland hiccup
+  (compositor restart, output reconfigure) could kill it while recording
+  and typing carried on with no indicator until the next state change.
+  Two fixes: the overlay process exits cleanly instead of panicking on
+  dispatch errors, and the app now notices a dead overlay within a tick,
+  respawns it (look, geometry and state re-applied), and falls back to
+  the regular overlay window if it won't come back.
+
 ## 0.8.1 — 2026-07-14
 
 - **Live typing defaults to a 5 s silence stop.** Switching Output type

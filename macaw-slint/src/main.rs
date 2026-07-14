@@ -137,6 +137,7 @@ struct App {
     anim: RefCell<BarAnim>,
     rms: Cell<f32>,
     ls: RefCell<Option<ls::LsOverlay>>,
+    ls_respawns: Cell<u32>, // layer-shell child revival budget (crash-loop guard)
     level_timer: slint::Timer,
     recording: Cell<bool>,
     pinned: Cell<bool>,            // "show indicator" live-edit toggle in Settings
@@ -738,18 +739,61 @@ impl App {
         }
     }
 
-    /// Send to the layer-shell overlay process; false = gone (fallback).
+    /// Send to the layer-shell overlay process; false = gone. A dead child
+    /// schedules recovery (respawn or window fallback) on the next loop turn
+    /// — an active session must never run without its indicator.
     fn ls_send(&self, v: Value) -> bool {
         let mut slot = self.ls.borrow_mut();
         if let Some(proc) = slot.as_mut() {
             if proc.send(&v) {
                 return true;
             }
-            eprintln!("[shell] layer-shell overlay lost — window fallback");
+            eprintln!("[shell] layer-shell overlay lost");
             proc.kill();
             *slot = None;
+            drop(slot);
+            slint::Timer::single_shot(std::time::Duration::from_millis(0), || {
+                with_app(|a| a.ls_recover());
+            });
         }
         false
+    }
+
+    /// The layer-shell child died mid-flight: give it a fresh start (bounded
+    /// budget, so a crash-looping child can't spin us), re-push the look and
+    /// geometry, and restore whatever the current state should display —
+    /// otherwise the winit fallback takes over immediately.
+    fn ls_recover(self: &Rc<Self>) {
+        if self.ls_respawns.get() < 3 {
+            self.ls_respawns.set(self.ls_respawns.get() + 1);
+            *self.ls.borrow_mut() = ls::LsOverlay::spawn();
+            if self.ls.borrow().is_some() {
+                eprintln!("[shell] layer-shell overlay respawned");
+                self.apply_theme(); // fresh child knows nothing: look + geometry
+            }
+        }
+        self.sync_overlay_to_state();
+    }
+
+    /// Put the indicator into whatever the current engine state demands.
+    /// Shared by the State event and layer-shell recovery.
+    fn sync_overlay_to_state(self: &Rc<Self>) {
+        let state = self.ui.get_engine_state().to_string();
+        match state.as_str() {
+            "recording" => self.show_overlay("eq", false),
+            "transcribing" => self.show_overlay("loader", false),
+            "done" => self.show_overlay("done", false),
+            "error" if !self.overlay.get_error_text().is_empty() => {
+                let detail = self.overlay.get_error_text();
+                self.ls_send(json!({"cmd": "error", "text": detail.as_str()}));
+                self.show_overlay("error", false);
+            }
+            _ if self.pinned.get() => {
+                let mode = self.preview_mode.borrow().clone();
+                self.show_overlay(&mode, true); // live-edit pin follows the chip
+            }
+            _ => self.hide_overlay(), // idle / loading / detail-less error
+        }
     }
 
     /// `demo`: preview shows (pin / state chips) loop the done entrance;
@@ -950,22 +994,12 @@ impl App {
                     let rec = state == "recording";
                     t.update(move |tr| tr.recording = rec);
                 }
-                match state.as_str() {
-                    "recording" => self.show_overlay("eq", false),
-                    "transcribing" => self.show_overlay("loader", false),
-                    "done" => self.show_overlay("done", false),
-                    "error" if !detail.is_empty() => {
-                        self.overlay
-                            .set_error_text(SharedString::from(detail.as_str()));
-                        self.ls_send(json!({"cmd": "error", "text": detail}));
-                        self.show_overlay("error", false);
-                    }
-                    _ if self.pinned.get() => {
-                        let mode = self.preview_mode.borrow().clone();
-                        self.show_overlay(&mode, true); // live-edit pin follows the chip
-                    }
-                    _ => self.hide_overlay(), // idle / loading / detail-less error
+                if state == "error" {
+                    // sync reads it back; empty detail = detail-less error
+                    self.overlay
+                        .set_error_text(SharedString::from(detail.as_str()));
                 }
+                self.sync_overlay_to_state();
             }
             ws::Event::Level { rms } => {
                 self.rms.set(rms);
@@ -1275,6 +1309,7 @@ fn main() {
         anim: RefCell::new(BarAnim::new(24)),
         rms: Cell::new(0.0),
         ls: RefCell::new(ls::LsOverlay::spawn()),
+        ls_respawns: Cell::new(0),
         level_timer: slint::Timer::default(),
         recording: Cell::new(false),
         pinned: Cell::new(false),

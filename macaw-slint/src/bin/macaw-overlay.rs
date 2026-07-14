@@ -397,9 +397,13 @@ fn main() {
 
     let _keep_region = region;
     while !overlay.exit {
-        event_loop
-            .dispatch(Duration::from_millis(500), &mut overlay)
-            .expect("dispatch");
+        // A mid-run wayland error (compositor restart, output reconfigure,
+        // protocol hiccup) must not panic-abort: exit cleanly — the parent
+        // notices the dead child and respawns or falls back to its window.
+        if let Err(e) = event_loop.dispatch(Duration::from_millis(500), &mut overlay) {
+            eprintln!("[overlay] wayland dispatch failed: {e}");
+            std::process::exit(1);
+        }
     }
 }
 
