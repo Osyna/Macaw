@@ -2,6 +2,31 @@
 
 Notable changes to Macaw. Older releases live on the [releases page](https://github.com/Osyna/Macaw/releases).
 
+## Unreleased
+
+- **First-launch wizard.** A fresh install now opens a friendly six-step
+  setup: microphone (with a live level bar and an Advanced fold for boost
+  and silence level), language, output style as three explained cards,
+  punctuation/sounds, and the global hotkey — captured right in the
+  wizard. Skippable at any point; existing installs never see it.
+- **One "Output type" setting.** Clipboard, Type into window, or Live
+  typing — the separate "Live typing" checkbox is gone (old configs
+  migrate automatically). When Live typing is picked, Settings shows
+  whether the active model streams natively (⚡) or uses the fallback.
+- **Live typing got faster on non-streaming models.** Smart splitting:
+  once the utterance grows past ~12 s, everything before the last long
+  pause is decoded once and frozen — each tick (and the final pass) only
+  re-decodes the live tail, so long dictations no longer slow down as
+  they grow. Natively-streaming models are untouched (already bounded).
+- **Sliders that write fractions actually work now.** Input level and
+  Input boost were truncated to whole numbers on save — dragging the
+  silence marker always snapped back to 0%.
+- The input-level marker drags smoothly from anywhere on the track and
+  commits once on release.
+- **New stock oled theme** — the neon "Oled Custom" look (magenta→cyan
+  ramp, 14 thick rounded bars, mirror animation, pill-round corners on
+  true black) is now the built-in `oled` preset.
+
 ## 0.7.2 — 2026-07-14
 
 - **Windows: fixed the last launch blocker.** The WebSocket auth token was

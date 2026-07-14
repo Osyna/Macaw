@@ -37,6 +37,43 @@ class Transcriber:
         """Start a fresh live-typing utterance (engine calls this on record start)."""
         self._stream_fed = 0
 
+    def live_native(self) -> bool:
+        """True when the active model streams natively (the worker keeps one
+        persistent stream and eats only new samples — bounded per-tick cost).
+        Before the backend has loaded, the catalog's streaming flag is the
+        honest hint; after, the worker's ready message is the truth."""
+        b = self._backend
+        if b is not None and getattr(b, "_proc", None) is not None:
+            return bool(getattr(b, "_incremental", False))
+        return bool(get_model_info(self.model_size).streaming)
+
+    @staticmethod
+    def split_point(audio: np.ndarray, sample_rate: int = 16_000) -> int | None:
+        """Sample index inside the LAST long silence gap, or None.
+
+        Smart-splitting anchor for live typing on batch models: the gap must
+        be >= 600 ms of near-silence and end >= 2 s before the buffer's end,
+        so a split never lands mid-word and the live tail keeps context.
+        Same adaptive-RMS footing as the VAD gate."""
+        frame = int(sample_rate * 0.03)
+        n = audio.size // frame
+        if n < 100:  # < ~3 s — nothing to split
+            return None
+        frames = audio[: n * frame].reshape(n, frame)
+        rms = np.sqrt(np.mean(frames * frames, axis=1))
+        floor = float(np.percentile(rms, 10))
+        thr = min(max(3.0 * floor, 1e-3), 5e-3)
+        quiet = (rms <= thr).astype(np.int32)
+        need = 20  # 600 ms of consecutive quiet frames
+        limit = n - int(2.0 / 0.03)  # gap must sit >= 2 s before the end
+        if limit <= need:
+            return None
+        windows = np.convolve(quiet[:limit], np.ones(need, np.int32), "valid")
+        hits = np.flatnonzero(windows >= need)
+        if hits.size == 0:
+            return None
+        return int((int(hits[-1]) + need // 2) * frame)
+
     # -- backend lifecycle ---------------------------------------------
 
     def _ensure_backend(self):

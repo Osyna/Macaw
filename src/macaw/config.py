@@ -44,14 +44,14 @@ def _yv(v: object) -> str:
 class Config:
     device_index: int | None = None
     language: str = "en"
-    output_mode: str = "clipboard"
+    output_mode: str = "clipboard"  # clipboard | type | live (live = type as you speak)
     silence_timeout: float = 3.0
     level_gain: float = 1.0  # visual input boost, 0.5-4 (quiet mics; peaks still cap)
     silence_level: float = 0.33  # meter position (0-1): quieter than this = silence
     vad_gate: bool = True  # trim silence before transcription (all models)
     window_position: str = "bottom_center"
     sound_enabled: bool = True
-    streaming: bool = False
+    onboarded: bool = False  # first-launch wizard completed (fresh installs: False)
     punctuation_hints: bool = True
     hotkey_enabled: bool = False  # listen for a global shortcut to toggle recording
     hotkey: str = ""  # combo spec, e.g. "ctrl+alt+space" (empty = unset)
@@ -106,17 +106,23 @@ class Config:
         if path.exists():
             with open(path, encoding="utf-8") as f:
                 data = yaml.safe_load(f) or {}
+            # streaming was its own flag before output_mode grew "live";
+            # old configs with it enabled migrate to the merged value.
+            mode = data.get("output_mode", "clipboard")
+            if bool(data.get("streaming", False)) and mode == "type":
+                mode = "live"
             return cls(
                 device_index=data.get("device_index"),
                 language=data.get("language", "en"),
-                output_mode=data.get("output_mode", "clipboard"),
+                output_mode=mode,
                 silence_timeout=float(data.get("silence_timeout", 3.0)),
                 level_gain=float(data.get("level_gain", 1.0)),
                 silence_level=float(data.get("silence_level", 0.33)),
                 vad_gate=bool(data.get("vad_gate", True)),
                 window_position=data.get("window_position", "bottom_center"),
                 sound_enabled=bool(data.get("sound_enabled", True)),
-                streaming=bool(data.get("streaming", False)),
+                # a pre-existing config means a working setup — never re-onboard
+                onboarded=bool(data.get("onboarded", bool(data))),
                 punctuation_hints=bool(data.get("punctuation_hints", True)),
                 hotkey_enabled=bool(data.get("hotkey_enabled", False)),
                 hotkey=data.get("hotkey") or "",
@@ -208,9 +214,8 @@ class Config:
             "  # transcription language code (en, fr, de, …)\n"
             "\n"
             "# ── Output ───────────────────────────────────────────────\n"
-            f"output_mode: {_yv(self.output_mode)}  # 'clipboard' or 'type'\n"
-            f"streaming: {_yv(self.streaming)}"
-            "  # live typing as you speak (needs output_mode: type)\n"
+            f"output_mode: {_yv(self.output_mode)}"
+            "  # 'clipboard', 'type' (into the focused window) or 'live' (type as you speak)\n"
             f"window_position: {_yv(self.window_position)}  # overlay position\n"
             "\n"
             "# ── Behaviour ────────────────────────────────────────────\n"
@@ -223,6 +228,7 @@ class Config:
             f"vad_gate: {_yv(self.vad_gate)}"
             "  # skip silent stretches before transcribing (faster, fewer hallucinations)\n"
             f"sound_enabled: {_yv(self.sound_enabled)}  # play record / done tones\n"
+            f"onboarded: {_yv(self.onboarded)}  # first-launch wizard completed\n"
             f"punctuation_hints: {_yv(self.punctuation_hints)}"
             "  # nudge the model toward punctuation\n"
             f"hotkey_enabled: {_yv(self.hotkey_enabled)}"

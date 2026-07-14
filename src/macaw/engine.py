@@ -258,10 +258,12 @@ class Engine:
         self._load_cancelled = False
         self._pending_model: str | None = None  # switch queued behind a cancel
 
-        # streaming live-typing
+        # live typing (output_mode == "live")
         self._stream_buffer: list[np.ndarray] = []
-        self._stream_prev_text = ""
-        self._stream_confirmed_len = 0  # chars already typed
+        self._stream_tail_prev = ""  # last full decode of the live tail
+        self._stream_frozen_text = ""  # smart-split: text of committed audio
+        self._stream_drop = 0  # samples the next tick trims off the buffer
+        self._stream_confirmed_len = 0  # chars already typed (composed text)
         self._streaming_active = False
         self._stream_busy = False  # a live-typing tick is decoding right now
 
@@ -497,7 +499,7 @@ class Engine:
             return
         if self.cfg.sound_enabled:
             sounds.play_start()
-        if self.cfg.output_mode == "type":
+        if self.cfg.output_mode in ("type", "live"):
             self._saved_window_id = self.desktop.capture_active_window()
         self.is_recording = True
         if self._error_reset is not None:
@@ -508,15 +510,22 @@ class Engine:
         self.capture.last_sound_time = time.time()
         self.capture.speech_detected = False
         self._monitor_task = asyncio.ensure_future(self._monitor())
-        if self.cfg.streaming and self.cfg.output_mode == "type":
+        if self.cfg.output_mode == "live":
             self._streaming_active = True
             self._stream_buffer = []
-            self._stream_prev_text = ""
+            self._stream_tail_prev = ""
+            self._stream_frozen_text = ""
+            self._stream_drop = 0
             self._stream_confirmed_len = 0
             self._stream_busy = False
             self.transcriber.reset_stream()  # fresh native-stream state
             self._stream_task = asyncio.ensure_future(self._stream_loop())
-            logger.info("Streaming transcription active")
+            logger.info(
+                "Live typing active (%s)",
+                "native stream"
+                if self.transcriber.live_native()
+                else "smart splitting",
+            )
 
     async def _monitor(self) -> None:
         """~30 Hz while recording: `level` events + the silence timeout."""
@@ -645,36 +654,45 @@ class Engine:
         text = ""
         if chunks:
             audio = np.concatenate(chunks)
+            if self._stream_drop:  # smart-split trim the final pass too
+                audio = audio[self._stream_drop :]
+                self._stream_drop = 0
             logger.debug(
                 "Audio: %d samples @ %dHz (%.1fs)",
                 len(audio),
                 self.capture.sample_rate,
                 len(audio) / self.capture.sample_rate,
             )
-            text = self.transcriber.transcribe(
-                audio, sample_rate=self.capture.sample_rate
-            )
+            if audio.size:
+                text = self.transcriber.transcribe(
+                    audio, sample_rate=self.capture.sample_rate
+                )
         else:
             logger.debug("No audio chunks captured.")
+        if self._stream_frozen_text:
+            # smart-split: audio before the last split was decoded and frozen
+            # during live typing — the final pass only re-decoded the tail
+            text = (self._stream_frozen_text + " " + text).strip()
+            self._stream_frozen_text = ""
 
         if text:
             self.emit("text", {"kind": "final", "text": text})
-            if self.cfg.output_mode == "type":
+            if self.cfg.output_mode in ("type", "live"):
                 # Overlay hides on idle; give the compositor a beat before typing
                 self.set_state("idle")
                 time.sleep(0.08)
 
-            # In streaming mode, only type the remaining unconfirmed text
+            # Live typing: only type the remaining unconfirmed text
             if self._stream_confirmed_len > 0:
                 remaining = text[self._stream_confirmed_len :]
                 self._stream_confirmed_len = 0
-                self._stream_prev_text = ""
+                self._stream_tail_prev = ""
                 if remaining.strip():
                     self._deliver_text(remaining.strip())
             else:
                 self._deliver_text(text)
 
-            if self.cfg.output_mode != "type":
+            if self.cfg.output_mode == "clipboard":
                 # Delivered to the clipboard: flash the ✓ on the overlay.
                 self.set_state("done")
                 self._state_later(1.2, "done", "idle")
@@ -703,6 +721,11 @@ class Engine:
         if not self._stream_buffer:
             return
         audio = np.concatenate(self._stream_buffer)
+        if self._stream_drop:
+            # a smart split froze the head — drop it from the working buffer
+            audio = audio[self._stream_drop :]
+            self._stream_drop = 0
+            self._stream_buffer = [audio]
         if len(audio) < self.capture.sample_rate:
             return  # need at least 1s of audio
         if self._stream_busy:
@@ -715,30 +738,54 @@ class Engine:
         ).start()
 
     def _stream_transcribe(self, audio: np.ndarray, sample_rate: int) -> None:
-        """Worker thread: transcribe and live-type newly confirmed text."""
+        """Worker thread: transcribe and live-type newly confirmed text.
+
+        Batch models re-decode the whole buffer every tick, so cost grows with
+        utterance length. Smart splitting bounds it: once the buffer is long,
+        everything before the last long silence gap is decoded ONCE and
+        frozen; only the tail stays live. Native streamers skip all of that —
+        the transcriber feeds them deltas already.
+        """
         try:
-            confirmed, full = self.transcriber.transcribe_streaming(
+            if not self.transcriber.live_native() and len(audio) > 12 * sample_rate:
+                cut = self.transcriber.split_point(audio, sample_rate)
+                if cut:
+                    head = self.transcriber.transcribe(audio[:cut], sample_rate)
+                    if head:
+                        self._stream_frozen_text = (
+                            self._stream_frozen_text + " " + head
+                        ).strip()
+                    self._stream_drop += cut  # the tick trims the shared buffer
+                    audio = audio[cut:]
+                    self._stream_tail_prev = ""  # fresh agreement on the tail
+                    logger.info(
+                        "Live typing: froze %.1fs before the silence gap",
+                        cut / sample_rate,
+                    )
+            confirmed, tail_full = self.transcriber.transcribe_streaming(
                 audio,
                 sample_rate=sample_rate,
-                prev_text=self._stream_prev_text,
+                prev_text=self._stream_tail_prev,
             )
         except Exception as exc:  # noqa: BLE001 — mid-stream tick; final pass reports
             logger.error("Streaming transcription error: %s", exc)
             return
         finally:
             self._stream_busy = False
-        self._stream_prev_text = full
-        if confirmed and len(confirmed) > self._stream_confirmed_len:
-            new_text = confirmed[self._stream_confirmed_len :]
+        self._stream_tail_prev = tail_full
+        frozen = self._stream_frozen_text
+        composed = (frozen + " " + confirmed).strip() if frozen else confirmed
+        if composed and len(composed) > self._stream_confirmed_len:
+            new_text = composed[self._stream_confirmed_len :]
             if not new_text.endswith(" "):
                 new_text += " "  # so the next chunk appends cleanly
-            self._stream_confirmed_len = len(confirmed)
+            self._stream_confirmed_len = len(composed)
             logger.debug("Streaming: typing confirmed %r", new_text)
             self.emit("text", {"kind": "partial", "text": new_text})
             self.desktop.type_into_window(new_text, self._saved_window_id)
 
     def _deliver_text(self, text: str) -> None:
-        if self.cfg.output_mode == "type":
+        if self.cfg.output_mode in ("type", "live"):
             self.desktop.type_into_window(text, self._saved_window_id)
         else:
             try:

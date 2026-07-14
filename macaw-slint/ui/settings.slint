@@ -10,14 +10,14 @@ import { Btn, Toggle, SliderX, Select, Field, Row, Card, ScrollArea } from "widg
 
 export struct Cfg {
     language: string,
-    output-mode: string,       // clipboard | type
+    output-mode: string,       // clipboard | type | live
     device-label: string,
     silence-timeout: float,
     vad-gate: bool,
     level-gain: float,
     silence-level: float,
     sound-enabled: bool,
-    streaming: bool,
+    onboarded: bool,
     punctuation-hints: bool,
     hotkey-enabled: bool,
     hotkey: string,
@@ -75,6 +75,7 @@ export component SettingsView inherits ScrollArea {
     in property <[string]> langs;        // display names; index-paired with codes in Rust
     in property <int> lang-current: 0;
     in property <bool> capturing-hotkey: false;
+    in property <bool> live-native: false; // active model streams natively
 
     callback set-str(string, string);    // key, value
     callback set-num(string, float);
@@ -158,20 +159,21 @@ export component SettingsView inherits ScrollArea {
                             border-color: Theme.pal.bg;
                         }
                         ta := TouchArea {
+                            // whole track: press anywhere to set, drag to adjust,
+                            // release commits once
                             mouse-cursor: MouseCursor.col-resize;
-                            moved => {
-                                if (self.pressed) {
-                                    meter.drag-val = clamp(self.mouse-x / parent.width, 0, 1);
-                                }
-                            }
-                            clicked => {
-                                root.set-num("silence_level", clamp(self.mouse-x / parent.width, 0, 1));
-                                meter.drag-val = -1;
-                            }
                             pointer-event(ev) => {
+                                if (ev.kind == PointerEventKind.down) {
+                                    meter.drag-val = clamp(self.mouse-x / self.width, 0, 1);
+                                }
                                 if (ev.kind == PointerEventKind.up && meter.drag-val >= 0) {
                                     root.set-num("silence_level", meter.drag-val);
                                     meter.drag-val = -1;
+                                }
+                            }
+                            moved => {
+                                if (self.pressed) {
+                                    meter.drag-val = clamp(self.mouse-x / self.width, 0, 1);
                                 }
                             }
                         }
@@ -213,12 +215,24 @@ export component SettingsView inherits ScrollArea {
                     Toggle { checked: cfg.vad-gate; toggled(v) => { root.set-bool("vad_gate", v); } }
                 }
                 Row {
-                    label: "Output";
-                    hint: "Where text goes: the clipboard, or typed into the focused window.";
+                    label: "Output type";
+                    hint: "Clipboard: text lands in the clipboard, paste it anywhere. Type into window: the finished text is typed into the window you recorded from. Live typing: words appear while you speak.";
                     Select {
-                        options: ["Clipboard", "Type into window"];
-                        current: cfg.output-mode == "type" ? 1 : 0;
-                        changed(i) => { root.set-str("output_mode", i == 1 ? "type" : "clipboard"); }
+                        options: ["Clipboard", "Type into window", "Live typing"];
+                        current: cfg.output-mode == "live" ? 2 : cfg.output-mode == "type" ? 1 : 0;
+                        changed(i) => { root.set-str("output_mode", i == 2 ? "live" : i == 1 ? "type" : "clipboard"); }
+                    }
+                }
+                if cfg.output-mode == "live": Row {
+                    label: "";
+                    Text {
+                        text: root.live-native
+                            ? "⚡ This model streams natively — words appear near-instantly."
+                            : "◔ This model can't stream — Macaw smart-splits at pauses so long dictations stay fast.";
+                        color: root.live-native ? Theme.pal.ok : Theme.pal.muted;
+                        font-size: 12px;
+                        wrap: word-wrap;
+                        horizontal-stretch: 1;
                     }
                 }
                 Row {
@@ -239,11 +253,6 @@ export component SettingsView inherits ScrollArea {
                     label: "Punctuation hints";
                     hint: "Nudges the model toward proper punctuation.";
                     Toggle { checked: cfg.punctuation-hints; toggled(v) => { root.set-bool("punctuation_hints", v); } }
-                }
-                Row {
-                    label: "Live typing";
-                    hint: "Streaming mode: words are typed while you speak (streaming-capable models only).";
-                    Toggle { checked: cfg.streaming; toggled(v) => { root.set-bool("streaming", v); } }
                 }
             }
 

@@ -42,6 +42,9 @@ pub const MACAW: ThemeDef = ThemeDef {
     border_color: 0xE5322B,
 };
 
+// "Oled Custom" promoted to the stock oled look: neon eq ramp on true black,
+// pill-round corners, green accent. Bar geometry/anim defaults live in
+// theme_defaults() below (they're override-space fields, not ThemeDef ones).
 pub const OLED: ThemeDef = ThemeDef {
     bg: 0x0A0A0A,
     surface: 0x0E0E0E,
@@ -49,15 +52,15 @@ pub const OLED: ThemeDef = ThemeDef {
     fg: 0xFFFFFF,
     muted: 0x666666,
     border: 0x2A2A2A,
-    accent: 0x4CAF7D,
+    accent: 0x00CC53,
     accent_fg: 0x0A0A0A,
-    ok: 0x4CAF7D,
+    ok: 0x00CC53,
     warn: 0xC9A227,
     danger: 0xCC4444,
     overlay_bg: 0x000000,
     eq_idle: 0x3A3A3A,
-    eq_colors: [0x4CAF7D, 0x2FBF9F, 0x38BDF8, 0],
-    corners: [3, 3, 3, 3],
+    eq_colors: [0xDC00D6, 0xB300F8, 0x1800DC, 0x00A6FA],
+    corners: [40, 40, 40, 40],
     border_color: 0x2A2A2A,
 };
 
@@ -383,6 +386,29 @@ pub fn override_defaults() -> Vec<(&'static str, Value)> {
     ]
 }
 
+/// Stock-theme defaults for the override fields — override_defaults() with
+/// per-theme departures patched in. Resolution, the theme picker and the
+/// dirty check all consult this, so a stock theme can ship its own bar
+/// geometry/animation without counting as "custom".
+pub fn theme_defaults(name: &str) -> Vec<(&'static str, Value)> {
+    use serde_json::json;
+    let mut out = override_defaults();
+    if name == "oled" {
+        for (k, d) in out.iter_mut() {
+            match *k {
+                "bar_count" => *d = json!(14),
+                "bar_width" => *d = json!(10),
+                "bar_spacing" => *d = json!(0),
+                "bar_radius" => *d = json!(16),
+                "bar_fade" => *d = json!(false),
+                "record_anim" => *d = json!("mirror"),
+                _ => {}
+            }
+        }
+    }
+    out
+}
+
 /// The stock theme the current look is based on. `theme` is either a stock
 /// name or "custom:<name>" whose entry carries `based_on`.
 pub fn base_name(cfg: &Value) -> String {
@@ -396,10 +422,12 @@ pub fn base_name(cfg: &Value) -> String {
     theme.to_string()
 }
 
-/// True when any indicator override differs from its pristine default —
+/// True when any indicator override differs from its base theme's default —
 /// numeric comparisons are fuzzy (YAML round-trips ints/floats loosely).
+/// Compared against theme_defaults(base), so a stock theme that ships its
+/// own bar geometry (oled) doesn't read as "custom" out of the box.
 pub fn is_dirty(cfg: &Value) -> bool {
-    override_defaults().iter().any(|(key, def)| {
+    theme_defaults(&base_name(cfg)).iter().any(|(key, def)| {
         let v = &cfg[*key];
         if v.is_null() {
             return false;

@@ -1,0 +1,373 @@
+// First-launch wizard: a full-window sheet that walks a fresh install through
+// microphone, language, output style, comfort toggles and the hotkey — in
+// plain words, one decision per step. Every choice writes the same config
+// fields as Settings (via the forwarded callbacks), so there is no separate
+// truth. Finishing (or skipping) sets `onboarded` and the sheet never
+// returns.
+
+import { Theme } from "theme.slint";
+import { Btn, Toggle, SliderX, Select, Row } from "widgets.slint";
+import { Cfg } from "settings.slint";
+
+component StepDot inherits Rectangle {
+    in property <bool> active;
+    in property <bool> done;
+    width: 26px;
+    height: 4px;
+    border-radius: 2px;
+    background: root.active ? Theme.pal.accent
+        : root.done ? Theme.pal.accent.with-alpha(0.45) : Theme.pal.control;
+    animate background { duration: 150ms; }
+}
+
+component ChoiceCard inherits Rectangle {
+    in property <string> icon;
+    in property <string> title;
+    in property <string> body;
+    in property <string> note: "";
+    in property <color> note-color: Theme.pal.muted;
+    in property <bool> selected;
+    callback clicked;
+    height: 92px;
+    border-radius: Theme.radius;
+    border-width: root.selected ? 2px : 1px;
+    border-color: root.selected ? Theme.pal.accent : Theme.pal.border;
+    background: root.selected ? Theme.pal.accent.with-alpha(0.08)
+        : (touch.has-hover ? Theme.pal.control : transparent);
+    animate border-color, background { duration: 120ms; }
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+    HorizontalLayout {
+        padding: 16px;
+        spacing: 14px;
+        Text {
+            text: root.icon;
+            font-size: 22px;
+            color: root.selected ? Theme.pal.accent : Theme.pal.muted;
+            vertical-alignment: center;
+            width: 30px;
+        }
+        VerticalLayout {
+            alignment: center;
+            spacing: 4px;
+            Text {
+                text: root.title;
+                color: Theme.pal.fg;
+                font-size: 14px;
+                font-weight: 700;
+            }
+            Text {
+                text: root.body;
+                color: Theme.pal.muted;
+                font-size: 12px;
+                wrap: word-wrap;
+            }
+            if root.note != "": Text {
+                text: root.note;
+                color: root.note-color;
+                font-size: 11px;
+                wrap: word-wrap;
+            }
+        }
+        Rectangle { // radio dot
+            width: 18px;
+            height: 18px;
+            y: parent.height / 2 - 9px;
+            border-radius: 9px;
+            border-width: 2px;
+            border-color: root.selected ? Theme.pal.accent : Theme.pal.border;
+            if root.selected: Rectangle {
+                x: 4px; y: 4px; width: 6px; height: 6px;
+                border-radius: 3px;
+                background: Theme.pal.accent;
+            }
+        }
+    }
+}
+
+export component OnboardingWizard inherits Rectangle {
+    in property <Cfg> cfg;
+    in property <[string]> devices;
+    in property <int> device-current;
+    in property <[string]> langs;
+    in property <int> lang-current;
+    in property <float> mic-level;
+    in property <bool> capturing-hotkey;
+    in property <bool> live-native;
+    callback set-str(string, string);
+    callback set-num(string, float);
+    callback set-bool(string, bool);
+    callback pick-device(int);
+    callback pick-default-lang(int);
+    callback capture-hotkey();
+    callback done();
+
+    property <int> step: 0; // 0 welcome · 1 mic · 2 language · 3 output · 4 comfort · 5 hotkey
+    property <bool> advanced: false;
+
+    background: Theme.pal.bg;
+
+    function finish() {
+        // a captured combo means they want the shortcut — arm it
+        if (root.cfg.hotkey != "") {
+            root.set-bool("hotkey_enabled", true);
+        }
+        root.set-bool("onboarded", true);
+        root.done();
+    }
+
+    // skip is always one click away, never buried
+    if root.step > 0: Rectangle {
+        x: parent.width - self.width - 20px;
+        y: 16px;
+        width: skip-t.preferred-width + 20px;
+        height: 26px;
+        border-radius: 13px;
+        background: skip-ta.has-hover ? Theme.pal.control : transparent;
+        skip-t := Text {
+            text: "Skip setup";
+            color: Theme.pal.muted;
+            font-size: 12px;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+        skip-ta := TouchArea {
+            mouse-cursor: pointer;
+            clicked => { root.finish(); }
+        }
+    }
+
+    card := Rectangle {
+        width: 660px;
+        height: 600px;
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        border-radius: Theme.radius * 2;
+        background: Theme.pal.surface;
+        border-width: 1px;
+        border-color: Theme.pal.border;
+
+        VerticalLayout {
+            padding: 36px;
+            spacing: 0px;
+
+            // progress dots (welcome step shows none)
+            HorizontalLayout {
+                alignment: center;
+                spacing: 8px;
+                height: 20px;
+                if root.step > 0: HorizontalLayout {
+                    spacing: 8px;
+                    for i in 5: StepDot { active: root.step == i + 1; done: root.step > i + 1; }
+                }
+            }
+            Rectangle { height: 18px; }
+
+            // ── step content ────────────────────────────────────────
+            content := VerticalLayout {
+                vertical-stretch: 1;
+                alignment: root.step == 0 ? center : start;
+                spacing: 14px;
+
+                if root.step == 0: VerticalLayout {
+                    spacing: 14px;
+                    alignment: center;
+                    HorizontalLayout {
+                        alignment: center;
+                        Image {
+                            source: @image-url("assets/parrot.png");
+                            width: 72px;
+                            height: 72px;
+                        }
+                    }
+                    Text {
+                        text: "Welcome to Macaw";
+                        font-size: 26px;
+                        font-weight: 800;
+                        color: Theme.pal.fg;
+                        horizontal-alignment: center;
+                    }
+                    Text {
+                        text: "Speak — Macaw types. Let's set you up.\nIt takes about a minute, and everything can be changed later in Settings.";
+                        font-size: 13px;
+                        color: Theme.pal.muted;
+                        horizontal-alignment: center;
+                        wrap: word-wrap;
+                    }
+                }
+
+                if root.step == 1: VerticalLayout {
+                    spacing: 14px;
+                    Text { text: "Pick your microphone"; font-size: 20px; font-weight: 800; color: Theme.pal.fg; }
+                    Text { text: "Say something — the bar below should move when you talk."; font-size: 13px; color: Theme.pal.muted; wrap: word-wrap; }
+                    Select {
+                        options: root.devices;
+                        current: root.device-current;
+                        changed(i) => { root.pick-device(i); }
+                    }
+                    Rectangle { // live level bar
+                        height: 14px;
+                        border-radius: 7px;
+                        background: Theme.pal.control;
+                        clip: true;
+                        Rectangle {
+                            x: 0; y: 0;
+                            width: parent.width * clamp(root.mic-level, 0, 1);
+                            height: parent.height;
+                            border-radius: 7px;
+                            background: root.mic-level > 0.5 ? Theme.pal.ok : Theme.pal.accent;
+                            animate width { duration: 60ms; }
+                        }
+                    }
+                    Rectangle { height: 4px; }
+                    adv-ta := TouchArea {
+                        height: 20px;
+                        mouse-cursor: pointer;
+                        clicked => { root.advanced = !root.advanced; }
+                        HorizontalLayout {
+                            alignment: start;
+                            Text {
+                                text: root.advanced ? "▾ Advanced (boost & silence level)" : "▸ Advanced (boost & silence level)";
+                                color: adv-ta.has-hover || root.advanced ? Theme.pal.accent : Theme.pal.muted;
+                                font-size: 12px;
+                            }
+                        }
+                    }
+                    if root.advanced: VerticalLayout {
+                        spacing: 12px;
+                        Row {
+                            label: "Boost";
+                            hint: "Quiet microphone? Boost amplifies the meter and the overlay animation.";
+                            SliderX {
+                                value: cfg.level-gain;
+                                minimum: 0.5;
+                                maximum: 4.0;
+                                step: 0.25;
+                                changed(v) => { root.set-num("level_gain", v); }
+                            }
+                            Text { text: "\{cfg.level-gain}×"; color: Theme.pal.muted; font-size: 12px; vertical-alignment: center; }
+                        }
+                        Row {
+                            label: "Silence level";
+                            hint: "Anything quieter than this counts as silence — recording auto-stops after a few silent seconds.";
+                            SliderX {
+                                value: cfg.silence-level * 100;
+                                minimum: 0;
+                                maximum: 100;
+                                step: 1;
+                                changed(v) => { root.set-num("silence_level", v / 100); }
+                            }
+                            Text { text: "\{round(cfg.silence-level * 100)}%"; color: Theme.pal.muted; font-size: 12px; vertical-alignment: center; }
+                        }
+                    }
+                }
+
+                if root.step == 2: VerticalLayout {
+                    spacing: 14px;
+                    Text { text: "What language do you speak?"; font-size: 20px; font-weight: 800; color: Theme.pal.fg; }
+                    Text { text: "Models transcribe in this language. Multilingual models follow it; English-only models simply ignore it. Each model can override it later."; font-size: 13px; color: Theme.pal.muted; wrap: word-wrap; }
+                    Select {
+                        options: root.langs;
+                        current: root.lang-current;
+                        changed(i) => { root.pick-default-lang(i); }
+                    }
+                }
+
+                if root.step == 3: VerticalLayout {
+                    spacing: 12px;
+                    Text { text: "Where should your words go?"; font-size: 20px; font-weight: 800; color: Theme.pal.fg; }
+                    ChoiceCard {
+                        icon: "⧉";
+                        title: "Clipboard";
+                        body: "Text lands in your clipboard. Paste it anywhere with Ctrl+V. The safe, works-everywhere choice.";
+                        selected: cfg.output-mode == "clipboard";
+                        clicked => { root.set-str("output_mode", "clipboard"); }
+                    }
+                    ChoiceCard {
+                        icon: "⌨";
+                        title: "Type into window";
+                        body: "When you stop talking, Macaw types the finished text into the window you were using.";
+                        selected: cfg.output-mode == "type";
+                        clicked => { root.set-str("output_mode", "type"); }
+                    }
+                    ChoiceCard {
+                        icon: "⚡";
+                        title: "Live typing";
+                        body: "Words appear while you're still speaking — like magic dictation.";
+                        note: root.live-native
+                            ? "Your current model streams natively — instant words."
+                            : "Works with every model: Macaw smart-splits at pauses behind the scenes.";
+                        note-color: root.live-native ? Theme.pal.ok : Theme.pal.muted;
+                        selected: cfg.output-mode == "live";
+                        clicked => { root.set-str("output_mode", "live"); }
+                    }
+                }
+
+                if root.step == 4: VerticalLayout {
+                    spacing: 14px;
+                    Text { text: "A few comforts"; font-size: 20px; font-weight: 800; color: Theme.pal.fg; }
+                    Row {
+                        label: "Punctuation hints";
+                        hint: "Nudge the model toward proper commas and periods.";
+                        Toggle { checked: cfg.punctuation-hints; toggled(v) => { root.set-bool("punctuation_hints", v); } }
+                    }
+                    Row {
+                        label: "Sounds";
+                        hint: "A soft tone when recording starts and stops.";
+                        Toggle { checked: cfg.sound-enabled; toggled(v) => { root.set-bool("sound_enabled", v); } }
+                    }
+                }
+
+                if root.step == 5: VerticalLayout {
+                    spacing: 14px;
+                    Text { text: "One shortcut to talk anywhere"; font-size: 20px; font-weight: 800; color: Theme.pal.fg; }
+                    Text { text: "Press Capture, then hit the key combo you want — that shortcut will start and stop recording from any app."; font-size: 13px; color: Theme.pal.muted; wrap: word-wrap; }
+                    HorizontalLayout {
+                        spacing: 12px;
+                        Text {
+                            text: root.capturing-hotkey ? "press keys…" : (cfg.hotkey == "" ? "no shortcut yet" : cfg.hotkey);
+                            color: root.capturing-hotkey ? Theme.pal.accent : Theme.pal.fg;
+                            font-size: 15px;
+                            vertical-alignment: center;
+                            horizontal-stretch: 1;
+                        }
+                        Btn { text: "Capture"; enabled: !root.capturing-hotkey; clicked => { root.capture-hotkey(); } }
+                    }
+                    Text {
+                        text: "Totally optional — the tray icon and the Record button work too.";
+                        font-size: 12px;
+                        color: Theme.pal.muted;
+                    }
+                }
+            }
+
+            // ── footer ──────────────────────────────────────────────
+            HorizontalLayout {
+                height: 40px;
+                spacing: 12px;
+                if root.step > 0: Btn {
+                    text: "Back";
+                    clicked => { root.step -= 1; }
+                }
+                Rectangle { horizontal-stretch: 1; }
+                if root.step == 0: Btn {
+                    text: "Get started";
+                    primary: true;
+                    clicked => { root.step = 1; }
+                }
+                if root.step > 0 && root.step < 5: Btn {
+                    text: "Continue";
+                    primary: true;
+                    clicked => { root.step += 1; }
+                }
+                if root.step == 5: Btn {
+                    text: "Finish";
+                    primary: true;
+                    clicked => { root.finish(); }
+                }
+            }
+        }
+    }
+}

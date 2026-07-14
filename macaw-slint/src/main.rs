@@ -177,7 +177,14 @@ impl App {
         });
 
         // overlay look: theme + config overrides, resolved once, pushed to
-        // both the real overlay window and the settings preview (Look global)
+        // both the real overlay window and the settings preview (Look global).
+        // Unset fields fall back to the BASE THEME's defaults (theme_defaults),
+        // not the global pristine values — oled ships its own bar geometry.
+        let td: std::collections::HashMap<&str, Value> =
+            theme::theme_defaults(&name).into_iter().collect();
+        let di = |k: &str| td[k].as_i64().unwrap_or(0);
+        let db = |k: &str| td[k].as_bool().unwrap_or(true);
+        let ds = |k: &str| td[k].as_str().unwrap_or("").to_string();
         set_colors(&self.eq, theme::eq_colors(t, &cfg));
         let c = theme::corners(t, &cfg);
         let bw = cfg["border_width"].as_i64().unwrap_or(0) as f32;
@@ -189,22 +196,28 @@ impl App {
         } else {
             slint::Color::from_argb_u8(0, 0, 0, 0)
         };
-        let bar_w = cfg["bar_width"].as_i64().unwrap_or(-1) as f32;
-        let bar_s = cfg["bar_spacing"].as_i64().unwrap_or(-1) as f32;
+        let bar_w = cfg["bar_width"].as_i64().unwrap_or(di("bar_width")) as f32;
+        let bar_s = cfg["bar_spacing"].as_i64().unwrap_or(di("bar_spacing")) as f32;
         let opacity = cfg["overlay_opacity"].as_f64().unwrap_or(0.94) as f32;
-        let bar_radius = cfg["bar_radius"].as_i64().unwrap_or(0) as f32;
-        let bar_fade = cfg["bar_fade"].as_bool().unwrap_or(true);
+        let bar_radius = cfg["bar_radius"].as_i64().unwrap_or(di("bar_radius")) as f32;
+        let bar_fade = cfg["bar_fade"].as_bool().unwrap_or(db("bar_fade"));
         let anim = cfg["transcribe_anim"]
             .as_str()
             .unwrap_or("waves")
             .to_string();
-        let record_anim = cfg["record_anim"].as_str().unwrap_or("bars").to_string();
+        let record_anim = cfg["record_anim"]
+            .as_str()
+            .map(str::to_string)
+            .unwrap_or_else(|| ds("record_anim"));
         let done_anim = cfg["done_anim"].as_str().unwrap_or("pop").to_string();
         let pill_bg = cfg["overlay_bg"]
             .as_str()
             .and_then(theme::parse_hex)
             .unwrap_or(theme::rgb(t.overlay_bg));
-        let count = cfg["bar_count"].as_u64().unwrap_or(24).clamp(8, 48) as usize;
+        let count = cfg["bar_count"]
+            .as_u64()
+            .unwrap_or(di("bar_count") as u64)
+            .clamp(8, 48) as usize;
         if self.levels.row_count() != count {
             self.anim.borrow_mut().set_count(count);
             self.levels.set_vec(vec![0.0f32; count]);
@@ -324,6 +337,12 @@ impl App {
             .unwrap_or_default();
         let t = theme::by_name(&theme::base_name(&cfg));
         let corners = theme::corners(t, &cfg);
+        // unset override fields display their base theme's defaults
+        let td: std::collections::HashMap<&str, Value> =
+            theme::theme_defaults(&theme::base_name(&cfg))
+                .into_iter()
+                .collect();
+        let tdf = |k: &str| td[k].as_f64().unwrap_or(0.0) as f32;
         let lang_idx = LANGS
             .iter()
             .position(|(_, c)| *c == cfg["language"].as_str().unwrap_or("en"))
@@ -337,7 +356,7 @@ impl App {
             vad_gate: b("vad_gate", true),
             level_gain: f("level_gain", 1.0),
             sound_enabled: b("sound_enabled", true),
-            streaming: b("streaming", false),
+            onboarded: b("onboarded", true),
             silence_level: f("silence_level", 0.33),
             punctuation_hints: b("punctuation_hints", true),
             hotkey_enabled: b("hotkey_enabled", false),
@@ -365,13 +384,13 @@ impl App {
             c_tr: corners[1],
             c_br: corners[2],
             c_bl: corners[3],
-            bar_spacing: f("bar_spacing", -1.0),
-            bar_width: f("bar_width", -1.0),
-            bar_radius: f("bar_radius", 0.0),
-            bar_fade: b("bar_fade", true),
-            bar_count: f("bar_count", 24.0),
+            bar_spacing: f("bar_spacing", tdf("bar_spacing") as f64),
+            bar_width: f("bar_width", tdf("bar_width") as f64),
+            bar_radius: f("bar_radius", tdf("bar_radius") as f64),
+            bar_fade: b("bar_fade", td["bar_fade"].as_bool().unwrap_or(true)),
+            bar_count: f("bar_count", tdf("bar_count") as f64),
             record_anim: if s("record_anim").is_empty() {
-                "bars".into()
+                SharedString::from(td["record_anim"].as_str().unwrap_or("bars"))
             } else {
                 s("record_anim")
             },
@@ -428,6 +447,8 @@ impl App {
             ssl_verify: b("ssl_verify", true),
             autostart: autostart_enabled(),
         });
+        // the wizard only ever appears once a real config said "not onboarded"
+        self.ui.set_show_wizard(!b("onboarded", true));
         let want = cfg["device_index"].as_i64();
         let idx = self
             .devices
@@ -484,6 +505,23 @@ impl App {
                 }
             })),
         );
+    }
+
+    /// Active model's native-streaming capability -> the Settings badge and
+    /// the wizard's Live typing card note.
+    fn sync_live_native(&self) {
+        let active = self.cfg.borrow()["model"]
+            .as_str()
+            .unwrap_or_default()
+            .to_string();
+        let native = self
+            .models_raw
+            .borrow()
+            .iter()
+            .find(|m| m["id"].as_str() == Some(active.as_str()))
+            .map(|m| m["streaming"].as_bool().unwrap_or(false))
+            .unwrap_or(false);
+        self.ui.set_live_native(native);
     }
 
     fn render_models(&self) {
@@ -820,6 +858,8 @@ impl App {
             Msg::ConfigLoaded(v) => {
                 self.cfg.replace(v["config"].clone());
                 self.apply_config();
+                self.sync_live_native();
+                self.sync_mic_monitor(); // wizard visibility follows onboarded
             }
             Msg::SystemInfo(v) => {
                 self.ui
@@ -856,6 +896,7 @@ impl App {
                 }
                 self.models_raw.replace(list);
                 self.render_models();
+                self.sync_live_native();
             }
             Msg::Cmd(cmd) => self.on_cmd(cmd),
         }
@@ -933,6 +974,8 @@ impl App {
             ws::Event::Config { config } => {
                 self.cfg.replace(config);
                 self.apply_config();
+                self.sync_live_native();
+                self.sync_mic_monitor(); // wizard visibility follows onboarded
                 if self.ls.borrow().is_none() && self.overlay.window().is_visible() {
                     let (x, y, w, h) = self.overlay_geometry();
                     hypr::install_rules(x, y, w, h);
@@ -996,9 +1039,11 @@ impl App {
         });
     }
 
-    /// The idle mic meter runs exactly while the Settings tab is on screen.
+    /// The idle mic meter runs while the Settings tab is on screen — or the
+    /// first-launch wizard (its mic step needs the live bar).
     fn sync_mic_monitor(&self) {
-        let on = self.ui.get_tab() == "settings" && self.ui.window().is_visible();
+        let wizard = self.ui.get_show_wizard();
+        let on = (self.ui.get_tab() == "settings" || wizard) && self.ui.window().is_visible();
         if on != self.mic_mon.get() {
             self.mic_mon.set(on);
             self.client.call("mic.monitor", json!({ "on": on }), None);
@@ -1273,7 +1318,18 @@ fn main() {
         let a = Rc::clone(&app);
         app.ui.on_set_num(move |k, v| {
             let key = k.to_string();
-            let patch = if ["silence_timeout", "overlay_opacity"].contains(&key.as_str()) {
+            // Float config fields keep 2 decimals; everything else (sizes,
+            // counts, radii, positions) is a genuine integer. The old logic
+            // truncated unknown keys `as i64` — silence_level (0-1) always
+            // became 0.
+            const FLOAT_KEYS: [&str; 5] = [
+                "silence_timeout",
+                "overlay_opacity",
+                "silence_level",
+                "level_gain",
+                "anim_speed",
+            ];
+            let patch = if FLOAT_KEYS.contains(&key.as_str()) {
                 kv(&key, json!((v as f64 * 100.0).round() / 100.0))
             } else {
                 kv(&key, json!(v as i64))
@@ -1542,12 +1598,23 @@ fn main() {
                 .unwrap_or_default();
             customs.sort();
             let mut patch = Map::new();
-            for (k, d) in theme::override_defaults() {
-                patch.insert(k.to_string(), d);
-            }
             if i < theme::NAMES.len() {
+                // stock pick: write the THEME's defaults (oled ships its own
+                // bar geometry), resetting any overrides from the prior look
+                for (k, d) in theme::theme_defaults(theme::NAMES[i]) {
+                    patch.insert(k.to_string(), d);
+                }
                 patch.insert("theme".into(), json!(theme::NAMES[i]));
             } else if let Some(name) = customs.get(i - theme::NAMES.len()) {
+                // custom pick: its base theme's defaults, then the snapshot —
+                // fields the snapshot doesn't carry reset to the base look
+                let based = cfg["custom_themes"][name]["based_on"]
+                    .as_str()
+                    .unwrap_or("macaw")
+                    .to_string();
+                for (k, d) in theme::theme_defaults(&based) {
+                    patch.insert(k.to_string(), d);
+                }
                 if let Some(saved) = cfg["custom_themes"][name].as_object() {
                     for (k, v) in saved {
                         if k != "based_on" {
@@ -1607,7 +1674,7 @@ fn main() {
             }
             drop(cfg);
             let mut patch = Map::new();
-            for (k, d) in theme::override_defaults() {
+            for (k, d) in theme::theme_defaults(&base) {
                 patch.insert(k.to_string(), d);
             }
             patch.insert("custom_themes".into(), all);

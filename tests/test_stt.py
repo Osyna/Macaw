@@ -336,3 +336,37 @@ def test_adding_a_backend_is_the_whole_job():
     b = stt.create_backend("_dummy-model")
     b.load()
     assert b.transcribe(np.zeros(10, dtype=np.float32)) == "dummy output"
+
+
+# -- smart splitting (live typing on batch models) ----------------------------
+
+
+def test_split_point_lands_in_last_eligible_silence_gap():
+    # [3s tone][1s gap][5s tone][1s gap][3s tone]: the second gap is the last
+    # one ending >= 2s before the end — the split must land inside it.
+    audio = np.concatenate(
+        [
+            _tone(3),
+            np.zeros(16_000, np.float32),
+            _tone(5),
+            np.zeros(16_000, np.float32),
+            _tone(3),
+        ]
+    )
+    cut = Transcriber.split_point(audio)
+    assert cut is not None
+    assert 9 * 16_000 <= cut <= 10 * 16_000  # inside the second gap
+    # splitting must never eat the live tail's context
+    assert audio.size - cut >= 2 * 16_000
+
+
+def test_split_point_none_without_a_gap():
+    assert Transcriber.split_point(_tone(15)) is None  # continuous speech
+    assert Transcriber.split_point(_tone(2)) is None  # too short to bother
+
+
+def test_live_native_follows_catalog_before_load():
+    # Before a backend loads, the catalog's streaming flag is the honest hint
+    # (the UI badge and the engine's splitting gate both rely on it).
+    assert Transcriber(model_size="sherpa-nemotron-streaming-en").live_native()
+    assert not Transcriber(model_size="large-v3-turbo").live_native()

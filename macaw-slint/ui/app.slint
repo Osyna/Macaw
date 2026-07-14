@@ -16,6 +16,7 @@ import { SettingsView, Cfg } from "settings.slint";
 import { AppearanceView } from "appearance.slint";
 import { ModelsView, ModelRow, ParamRow } from "models.slint";
 import { OverlayWindow } from "overlay.slint";
+import { OnboardingWizard } from "onboarding.slint";
 
 export { OverlayWindow, Cfg, ModelRow, ParamRow, Palette, Theme, Look, Tip }
 
@@ -85,6 +86,10 @@ export component MainWindow inherits Window {
     in property <[string]> devices;
     in-out property <int> device-current;
     in property <bool> capturing-hotkey;
+    in property <bool> live-native: false;
+    // Rust-gated (not cfg.onboarded directly): stays false until a REAL
+    // config arrives, so existing users never see a wizard flash at boot.
+    in property <bool> show-wizard: false;
     callback set-str(string, string);
     callback set-num(string, float);
     callback set-bool(string, bool);
@@ -249,6 +254,7 @@ export component MainWindow inherits Window {
             lang-current: root.default-lang-current;
             pick-default-lang(i) => { root.pick-default-lang(i); }
             capturing-hotkey: root.capturing-hotkey;
+            live-native: root.live-native;
             set-str(k, v) => { root.set-str(k, v); }
             set-num(k, v) => { root.set-num(k, v); }
             set-bool(k, v) => { root.set-bool(k, v); }
@@ -346,6 +352,26 @@ export component MainWindow inherits Window {
                 wrap: word-wrap;
             }
         }
+    }
+
+    // ── first-launch wizard (covers everything until onboarded) ─────
+    if root.show-wizard: OnboardingWizard {
+        width: 100%;
+        height: 100%;
+        cfg: root.cfg;
+        devices: root.devices;
+        device-current: root.device-current;
+        langs: root.langs;
+        lang-current: root.default-lang-current;
+        mic-level: root.mic-level;
+        capturing-hotkey: root.capturing-hotkey;
+        live-native: root.live-native;
+        set-str(k, v) => { root.set-str(k, v); }
+        set-num(k, v) => { root.set-num(k, v); }
+        set-bool(k, v) => { root.set-bool(k, v); }
+        pick-device(i) => { root.pick-device(i); }
+        pick-default-lang(i) => { root.pick-default-lang(i); }
+        capture-hotkey => { root.capture-hotkey(); }
     }
 
     // ── hover hint (fed by settings rows via the Tip global) ────────

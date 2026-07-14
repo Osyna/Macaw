@@ -92,3 +92,31 @@ def test_cli_proxy_and_no_ssl_verify_persist(tmp_path: Path, monkeypatch):
     loaded = Config.load(tmp_path / "config.yaml")
     assert loaded.proxy == "http://cli:3128"
     assert loaded.ssl_verify is False
+
+
+def test_streaming_flag_migrates_to_live_output(tmp_path: Path):
+    # Pre-0.8 configs had a separate streaming toggle; enabled + type = the
+    # old live-typing combo, which must land on the merged "live" mode.
+    p = tmp_path / "config.yaml"
+    p.write_text("output_mode: type\nstreaming: true\n")
+    assert Config.load(p).output_mode == "live"
+
+
+def test_streaming_flag_without_type_stays_clipboard(tmp_path: Path):
+    # streaming only ever worked with output_mode: type — don't invent "live"
+    # for clipboard users.
+    p = tmp_path / "config.yaml"
+    p.write_text("output_mode: clipboard\nstreaming: true\n")
+    assert Config.load(p).output_mode == "clipboard"
+
+
+def test_onboarded_gates_only_fresh_installs(tmp_path: Path):
+    # No config file -> wizard. Existing config without the key -> a working
+    # setup, never re-onboard. Explicit false -> wizard again (manual reset).
+    assert Config.load(tmp_path / "missing.yaml").onboarded is False
+    existing = tmp_path / "old.yaml"
+    existing.write_text("language: fr\n")
+    assert Config.load(existing).onboarded is True
+    reset = tmp_path / "reset.yaml"
+    reset.write_text("onboarded: false\n")
+    assert Config.load(reset).onboarded is False
