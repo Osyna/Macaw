@@ -654,6 +654,7 @@ impl App {
                     ready: m["ready"].as_bool().unwrap_or(false),
                     active: m["active"].as_bool().unwrap_or(false),
                     api_key_set: m["api_key_set"].as_bool().unwrap_or(false),
+                    uses_prompt: m["uses_prompt"].as_bool().unwrap_or(true),
                     busy,
                     progress_pct: if busy { pct } else { -1.0 },
                     progress_msg: SharedString::from(if busy { msg } else { String::new() }),

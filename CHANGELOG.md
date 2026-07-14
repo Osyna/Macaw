@@ -2,6 +2,17 @@
 
 Notable changes to Macaw. Older releases live on the [releases page](https://github.com/Osyna/Macaw/releases).
 
+## 0.14.0 — 2026-07-14
+
+- **Dropdowns reveal long text on hover.** Every listbox (model picker, output
+  type, language, position, theme, providers…) now trims overflowing text to
+  `…` at rest and gently **slides it into full view when you hover** — the
+  selected value *and* each open option, even before you open it.
+- **System prompt hides when a model doesn't use one.** For the rules and NLP
+  formatters (which apply fixed transformations), the SYSTEM PROMPT editor and
+  its buttons are replaced by a short note — no more editing a prompt that has
+  no effect.
+
 ## 0.13.1 — 2026-07-14
 
 - **Orb is now a static, soft circle.** It was rendering as a moving square

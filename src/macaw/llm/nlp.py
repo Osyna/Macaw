@@ -23,6 +23,7 @@ _NLP_WORKER = str(Path(__file__).parent / "nlp_worker.py")
 class NlpBackend(LlmSubprocessBackend):
     key = "nlp"
     worker_script = _NLP_WORKER
+    uses_prompt = False  # ONNX punctuation model; no system prompt
 
     def _worker_cmd(self, py: Path) -> list[str]:
         # `filename` carries the punctuators key (e.g. "pcs_en"); `repo` is the

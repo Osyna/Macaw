@@ -62,6 +62,7 @@ class LlmBackend(abc.ABC):
 
     key: str = ""  # unique id; the YAML catalog binds models to this backend
     cloud: bool = False  # cloud backends skip download/venv and need a key
+    uses_prompt: bool = True  # False for backends that ignore the system prompt
 
     def __init__(self, model: LlmInfo) -> None:
         self.model = model

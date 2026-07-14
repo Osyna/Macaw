@@ -95,6 +95,7 @@ class RulesBackend(LlmBackend):
     the user tunes exactly which mechanical corrections run."""
 
     key = "rules"
+    uses_prompt = False  # fixed rules; the system prompt does not apply
 
     def load(self) -> None:  # nothing to load; instant and in-process
         pass

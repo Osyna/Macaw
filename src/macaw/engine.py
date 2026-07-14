@@ -1188,6 +1188,7 @@ class Engine:
                         for p in info.params
                     ],
                     "cur_params": cfg.llm_params.get(info.id, {}),
+                    "uses_prompt": backend.uses_prompt,
                 }
             )
         # configured cloud providers appear as pickable formatters too
@@ -1227,6 +1228,7 @@ class Engine:
                     "disk_size": 0,
                     "api_key_set": r["key_set"],
                     "removable": False,
+                    "uses_prompt": True,
                 }
             )
         return out

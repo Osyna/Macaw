@@ -28,6 +28,7 @@ export struct LlmModelRow {
     active: bool,
     api-key-set: bool,
     provider: bool,      // a configured cloud provider (vs a catalog model)
+    uses-prompt: bool,   // model uses an editable system prompt
     busy: bool,
     progress-pct: float, // -1 = indeterminate
     progress-msg: string,
@@ -261,30 +262,39 @@ export component LlmView inherits ScrollArea {
 
             Card {
                 title: "SYSTEM PROMPT";
-                Text {
-                    text: cfg.llm-prompt == ""
-                        ? "The built-in smart prompt (below) is used. Edit it and Save to customise."
-                        : "Custom prompt — sent with every format.";
-                    color: cfg.llm-prompt == "" ? Theme.pal.muted : Theme.pal.accent;
+                if !(root.have-sel && sel.uses-prompt): Text {
+                    text: "This formatter applies fixed transformations — it doesn't use an editable system prompt.";
+                    color: Theme.pal.muted;
                     font-size: 12px;
                     wrap: word-wrap;
                 }
-                prompt-ed := MultiField {
-                    min-height: 150px;
-                    text: cfg.llm-prompt != "" ? cfg.llm-prompt : root.default-prompt;
-                }
-                HorizontalLayout {
+                if root.have-sel && sel.uses-prompt: VerticalLayout {
                     spacing: 8px;
-                    alignment: end;
-                    Btn {
-                        text: "Reset to smart mode";
-                        enabled: cfg.llm-prompt != "";
-                        clicked => { root.set-str("llm_prompt", ""); }
+                    Text {
+                        text: cfg.llm-prompt == ""
+                            ? "The built-in smart prompt (below) is used. Edit it and Save to customise."
+                            : "Custom prompt — sent with every format.";
+                        color: cfg.llm-prompt == "" ? Theme.pal.muted : Theme.pal.accent;
+                        font-size: 12px;
+                        wrap: word-wrap;
                     }
-                    Btn {
-                        text: "Save prompt";
-                        primary: true;
-                        clicked => { root.set-str("llm_prompt", prompt-ed.text); }
+                    prompt-ed := MultiField {
+                        min-height: 150px;
+                        text: cfg.llm-prompt != "" ? cfg.llm-prompt : root.default-prompt;
+                    }
+                    HorizontalLayout {
+                        spacing: 8px;
+                        alignment: end;
+                        Btn {
+                            text: "Reset to smart mode";
+                            enabled: cfg.llm-prompt != "";
+                            clicked => { root.set-str("llm_prompt", ""); }
+                        }
+                        Btn {
+                            text: "Save prompt";
+                            primary: true;
+                            clicked => { root.set-str("llm_prompt", prompt-ed.text); }
+                        }
                     }
                 }
             }

@@ -176,15 +176,23 @@ export component Select inherits Rectangle {
     border-color: Theme.pal.border;
     clip: true;
 
-    Text {
+    // value: trims to … at rest, slides to reveal the full text on hover
+    Rectangle {
         x: 10px;
-        width: parent.width - 34px; // keep clear of the ▾ arrow
-        text: root.current >= 0 && root.current < root.options.length ? root.options[root.current] : "";
-        color: Theme.pal.fg;
-        font-size: 13px;
-        vertical-alignment: center;
-        height: 100%;
-        overflow: elide;
+        width: parent.width - 34px; // clear of the ▾ arrow
+        clip: true;
+        val := Text {
+            property <bool> over: self.preferred-width > parent.width;
+            x: (sel-ta.has-hover && self.over) ? parent.width - self.preferred-width : 0;
+            width: (sel-ta.has-hover && self.over) ? self.preferred-width : parent.width;
+            animate x { duration: 1800ms; easing: ease-in-out; }
+            text: root.current >= 0 && root.current < root.options.length ? root.options[root.current] : "";
+            color: Theme.pal.fg;
+            font-size: 13px;
+            vertical-alignment: center;
+            height: 100%;
+            overflow: elide;
+        }
     }
     Text {
         x: parent.width - 20px;
@@ -194,7 +202,7 @@ export component Select inherits Rectangle {
         vertical-alignment: center;
         height: 100%;
     }
-    TouchArea {
+    sel-ta := TouchArea {
         clicked => { pop.show(); }
         mouse-cursor: MouseCursor.pointer;
     }
@@ -213,13 +221,18 @@ export component Select inherits Rectangle {
                     height: 26px;
                     border-radius: Theme.radius;
                     background: ta.has-hover ? Theme.pal.control : transparent;
-                    Text {
-                        x: 8px;
+                    clip: true;
+                    otxt := Text {
+                        property <bool> over: self.preferred-width > parent.width - 12px;
+                        x: (ta.has-hover && self.over) ? parent.width - 8px - self.preferred-width : 8px;
+                        width: (ta.has-hover && self.over) ? self.preferred-width : parent.width - 12px;
+                        animate x { duration: 1800ms; easing: ease-in-out; }
                         text: opt;
                         color: i == root.current ? Theme.pal.accent : Theme.pal.fg;
                         font-size: 13px;
                         vertical-alignment: center;
                         height: 100%;
+                        overflow: elide;
                     }
                     ta := TouchArea {
                         clicked => {
