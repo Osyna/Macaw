@@ -31,10 +31,26 @@ class LlmSubprocessBackend(LlmBackend):
     environment, and the loaded model stays warm between requests.
     """
 
+    worker_script: str = _WORKER  # overridable so subclasses use their own worker
+
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self._proc: subprocess.Popen | None = None
         self._lock = threading.RLock()
+
+    def _worker_cmd(self, py: Path) -> list[str]:
+        """argv for the persistent worker. Subclasses with a different worker
+        protocol (e.g. NLP) override this."""
+        return [
+            str(py),
+            self.worker_script,
+            "--repo",
+            self.model.repo,
+            "--filename",
+            self.model.filename,
+            "--n-ctx",
+            str(self.model.n_ctx),
+        ]
 
     # -- capability / weight management --------------------------------
 
@@ -92,16 +108,7 @@ class LlmSubprocessBackend(LlmBackend):
         stderr_f = open(self._stderr_path, "w")  # noqa: SIM115 — handed to Popen
         try:
             self._proc = subprocess.Popen(
-                [
-                    str(py),
-                    _WORKER,
-                    "--repo",
-                    self.model.repo,
-                    "--filename",
-                    self.model.filename,
-                    "--n-ctx",
-                    str(self.model.n_ctx),
-                ],
+                self._worker_cmd(py),
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=stderr_f,
@@ -128,7 +135,7 @@ class LlmSubprocessBackend(LlmBackend):
         except OSError:
             return "(stderr unavailable)"
 
-    def format(self, text: str, system: str) -> str:
+    def format(self, text: str, system: str, params: dict | None = None) -> str:
         if not text.strip():
             return ""
         # bound generation to the input's shape: formatting rarely grows text,
@@ -169,6 +176,10 @@ class LlmSubprocessBackend(LlmBackend):
                         pipe.close()
                 except Exception:  # noqa: BLE001
                     pass
+
+    def is_loaded(self) -> bool:
+        proc = self._proc
+        return proc is not None and proc.poll() is None
 
     # -- protocol ------------------------------------------------------
 

@@ -2330,6 +2330,10 @@ nemo = [
     { name = "nemo-toolkit", extra = ["asr"] },
     { name = "numba" },
 ]
+nlp = [
+    { name = "huggingface-hub" },
+    { name = "punctuators" },
+]
 openai = [
     { name = "openai" },
 ]
@@ -2366,6 +2370,7 @@ requires-dist = [
     { name = "faster-whisper", marker = "extra == 'whisper'", specifier = ">=1.1.0" },
     { name = "huggingface-hub", specifier = ">=0.20" },
     { name = "huggingface-hub", marker = "extra == 'llm'", specifier = ">=0.20" },
+    { name = "huggingface-hub", marker = "extra == 'nlp'", specifier = ">=0.20" },
     { name = "huggingface-hub", marker = "extra == 'sherpa'", specifier = ">=0.20" },
     { name = "llama-cpp-python", marker = "extra == 'llm'", specifier = ">=0.3.0" },
     { name = "mistral-common", extras = ["audio"], marker = "extra == 'voxtral'", specifier = ">=1.8" },
@@ -2378,6 +2383,7 @@ requires-dist = [
     { name = "nvidia-cublas-cu12", marker = "extra == 'cuda'" },
     { name = "nvidia-cudnn-cu12", marker = "extra == 'cuda'" },
     { name = "openai", marker = "extra == 'openai'", specifier = ">=1.0" },
+    { name = "punctuators", marker = "extra == 'nlp'", specifier = ">=0.0.7" },
     { name = "pyperclip", specifier = ">=1.9.0" },
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "pyzmq", specifier = ">=26.0.0" },
@@ -2389,7 +2395,7 @@ requires-dist = [
     { name = "useful-moonshine-onnx", marker = "extra == 'moonshine'" },
     { name = "websockets", specifier = ">=12" },
 ]
-provides-extras = ["whisper", "cuda", "rocm", "moonshine", "moonshine2", "nemo", "voxtral", "sherpa", "llm", "openai", "hotkey"]
+provides-extras = ["whisper", "cuda", "rocm", "moonshine", "moonshine2", "nemo", "voxtral", "sherpa", "llm", "nlp", "openai", "hotkey"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -4062,6 +4068,23 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/20/e5/16ff212c1e452235a90aeb09066144d0c5a6a8c0834397e03f5224495c4e/ptyprocess-0.7.0.tar.gz", hash = "sha256:5c5d0a3b48ceee0b48485e0c26037c0acd7d29765ca3fbb5cb3831d347423220", size = 70762, upload-time = "2020-12-28T15:15:30.155Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/22/a6/858897256d0deac81a172289110f31629fc4cee19b6f01283303e18c8db3/ptyprocess-0.7.0-py2.py3-none-any.whl", hash = "sha256:4b41f3967fce3af57cc7e94b888626c18bf37a083e3651ca8feeb66d492fef35", size = 13993, upload-time = "2020-12-28T15:15:28.35Z" },
+]
+
+[[package]]
+name = "punctuators"
+version = "0.0.7"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "huggingface-hub" },
+    { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "numpy", version = "2.3.5", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "omegaconf" },
+    { name = "onnxruntime" },
+    { name = "sentencepiece" },
+    { name = "torch" },
+]
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/34/73/d7236406f8377c6586fdccbd54a26f0a933cd2cb9fadf36d251317ac78df/punctuators-0.0.7-py3-none-any.whl", hash = "sha256:053146e5173ef6bddb6f69e20d37339c75274c26d562f96a4752ede23054be1f", size = 10245, upload-time = "2024-06-08T21:07:20.493Z" },
 ]
 
 [[package]]

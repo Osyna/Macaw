@@ -87,7 +87,11 @@ def _resolve_provider(cfg: Config) -> dict | None:
 
 def _make_formatter(cfg: Config) -> Formatter:
     return Formatter(
-        cfg.llm_model, cfg.llm_prompt, _resolve_provider(cfg), cfg.ssl_verify
+        cfg.llm_model,
+        cfg.llm_prompt,
+        _resolve_provider(cfg),
+        cfg.ssl_verify,
+        cfg.llm_params.get(cfg.llm_model, {}),
     )
 
 
@@ -157,9 +161,14 @@ class _InstallJob(threading.Thread):
                 # llama.cpp GPU build: add the CUDA wheel index. uv falls back to
                 # the CPU wheel when no match, so it's safe on any machine.
                 index_url = "https://abetlen.github.io/llama-cpp-python/whl/cu124"
+            torch_cpu = (
+                extra == "nlp"
+            )  # punctuators needs torch; CPU-only keeps it lean
             ensure_uv(self._progress)  # frozen installs: fetch a private uv once
             self._progress(f"Creating isolated environment for {extra}…")
-            for cmd in install_commands(extra, packages, index_url):
+            for cmd in install_commands(
+                extra, packages, index_url, torch_cpu=torch_cpu
+            ):
                 code = self._stream(cmd)
                 if self._cancelled:
                     self._progress("Cancelled", True, False)
@@ -475,6 +484,7 @@ class Engine:
             self.cfg.llm_prompt,
             _resolve_provider(self.cfg),
             self.cfg.ssl_verify,
+            self.cfg.llm_params.get(self.cfg.llm_model, {}),
         )
         if self.cfg.llm_enabled:
             self._warm_formatter()
@@ -965,11 +975,27 @@ class Engine:
         if (cfg.hotkey_enabled, cfg.hotkey) != (old.hotkey_enabled, old.hotkey):
             self._start_hotkey()
         # formatter follows model / prompt / provider / ssl changes
-        llm_now = (cfg.llm_model, cfg.llm_prompt, cfg.providers, cfg.ssl_verify)
-        llm_was = (old.llm_model, old.llm_prompt, old.providers, old.ssl_verify)
+        llm_now = (
+            cfg.llm_model,
+            cfg.llm_prompt,
+            cfg.providers,
+            cfg.ssl_verify,
+            cfg.llm_params,
+        )
+        llm_was = (
+            old.llm_model,
+            old.llm_prompt,
+            old.providers,
+            old.ssl_verify,
+            old.llm_params,
+        )
         if llm_now != llm_was:
             self.formatter.apply(
-                cfg.llm_model, cfg.llm_prompt, _resolve_provider(cfg), cfg.ssl_verify
+                cfg.llm_model,
+                cfg.llm_prompt,
+                _resolve_provider(cfg),
+                cfg.ssl_verify,
+                cfg.llm_params.get(cfg.llm_model, {}),
             )
         # (re)warm or free the local model when anything governing whether it
         # should be resident changed — model/prompt, enable, output or load mode.
@@ -1146,6 +1172,20 @@ class Engine:
                     "disk_size": size,
                     "api_key_set": False,
                     "provider": False,
+                    "params": [
+                        {
+                            "key": p.key,
+                            "label": p.label,
+                            "kind": p.kind,
+                            "default": p.default,
+                            "min": p.minimum,
+                            "max": p.maximum,
+                            "step": p.step,
+                            "hint": p.hint,
+                        }
+                        for p in info.params
+                    ],
+                    "cur_params": cfg.llm_params.get(info.id, {}),
                 }
             )
         # configured cloud providers appear as pickable formatters too
@@ -1258,6 +1298,40 @@ class Engine:
         else:
             stat = "instant"
         return {"output": out, "stat": stat}
+
+    def _llm_label(self) -> str:
+        f = self.formatter
+        if f.is_provider():
+            pid = f.model_id.split(":", 1)[1]
+            preset = llm_providers.PRESET_BY_ID.get(pid)
+            return preset.label if preset else pid
+        info = llm_get_model_info(f.model_id)
+        return info.label if info else "—"
+
+    def _llm_status(self) -> dict:
+        """Formatter engine status for the Settings 'Formatter' card."""
+        f = self.formatter
+        return {
+            "enabled": self.cfg.llm_enabled,
+            "model": f.model_id,
+            "label": self._llm_label(),
+            "provider": f.is_provider(),
+            "ready": f.is_ready(),
+            "loaded": f.is_loaded(),
+            "mode": self.cfg.llm_load_mode,
+            "tps": f.last_tps,
+        }
+
+    def _llm_reload(self) -> dict:
+        """Drop the local formatter worker and re-warm it if it should stay
+        resident (hot, enabled, non-live, local). Cloud/rules just re-resolve."""
+        self.formatter.unload()
+        if self._llm_idle_timer is not None:
+            self._llm_idle_timer.cancel()
+            self._llm_idle_timer = None
+        self._warm_formatter()  # self-guards: skips cold / live / disabled / cloud
+        self.emit("llm", {})
+        return self._llm_status()
 
     # ── cloud providers ──────────────────────────────────────────────
 
@@ -1425,6 +1499,10 @@ class Engine:
             return self._llm_delete(params)
         if method == "llm.test":
             return await asyncio.to_thread(self._llm_test, params)
+        if method == "llm.status":
+            return self._llm_status()
+        if method in ("llm.reload", "llm.restart"):
+            return self._llm_reload()
         if method == "providers.list":
             return await asyncio.to_thread(self.providers_list)
         if method == "providers.set":

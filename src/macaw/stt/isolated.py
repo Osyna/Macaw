@@ -64,7 +64,10 @@ def remove(extra: str) -> int:
 
 
 def install_commands(
-    extra: str, packages: list[str], index_url: str | None = None
+    extra: str,
+    packages: list[str],
+    index_url: str | None = None,
+    torch_cpu: bool = False,
 ) -> list[list[str]]:
     """Create the isolated venv and install the backend's packages into it.
 
@@ -78,10 +81,24 @@ def install_commands(
     install = [uv, "pip", "install", "--python", str(venv_python(extra))]
     if index_url:
         install += ["--extra-index-url", index_url]
-    return [
-        [uv, "venv", "--python", _PY_RANGE, "--allow-existing", d],
-        [*install, *packages],
-    ]
+    cmds = [[uv, "venv", "--python", _PY_RANGE, "--allow-existing", d]]
+    if torch_cpu:
+        # CPU-only torch from PyTorch's own index — some backends need torch but
+        # run on onnxruntime, so the multi-GB CUDA build would be dead weight.
+        cmds.append(
+            [
+                uv,
+                "pip",
+                "install",
+                "--python",
+                str(venv_python(extra)),
+                "--index-url",
+                "https://download.pytorch.org/whl/cpu",
+                "torch",
+            ]
+        )
+    cmds.append([*install, *packages])
+    return cmds
 
 
 def _worker_env() -> dict:

@@ -18,3 +18,14 @@ models:
       + No download and no model — pure rules, runs in microseconds and always works offline.
       + Fixes capitalization, spacing, spoken punctuation ("comma", "new line") and trims "um"/"uh" filler.
       − Won't reshape into emails or lists, or fix wording — pick a local or cloud model for that.
+    params:
+      - {key: spoken, label: Spoken punctuation, kind: bool, default: true,
+         hint: "Turn dictated 'comma' / 'new line' / 'period' into real punctuation."}
+      - {key: filler, label: Trim filler, kind: bool, default: true,
+         hint: "Drop 'um', 'uh', 'erm', 'you know', 'I mean'."}
+      - {key: caps, label: Capitalize, kind: bool, default: true,
+         hint: "Capitalize sentence starts and the pronoun 'I'."}
+      - {key: dedupe, label: De-duplicate words, kind: bool, default: true,
+         hint: "Collapse an immediately repeated word (the the → the)."}
+      - {key: period, label: Add end punctuation, kind: bool, default: true,
+         hint: "Add a full stop to a spoken sentence that dictated none."}

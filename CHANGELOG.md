@@ -2,6 +2,25 @@
 
 Notable changes to Macaw. Older releases live on the [releases page](https://github.com/Osyna/Macaw/releases).
 
+## 0.12.0 — 2026-07-14
+
+- **"LLM" tab is now "Formatting".** It was never only LLMs — it spans rules,
+  NLP, local models and cloud. The name now says so.
+- **The rules formatter is configurable.** The "Basic cleanup" engine grew
+  per-toggle **OPTIONS** in the Formatting tab: spoken punctuation, filler
+  trim, capitalization, de-duplication and end punctuation — each on/off,
+  saved per model. (Formatter models can now declare `params`, like STT.)
+- **New NLP model — transformer punctuation + true-casing.** A dependency-free
+  (of the LLM) **Punctuate & Capitalize** engine (`punctuators`, ONNX on CPU)
+  restores commas, periods, question marks and capitals from raw dictation in
+  well under a second — English and a 47-language variant. Installed on demand
+  into an isolated venv with a **CPU-only torch** pin (≈0.9 GB, not the 4.8 GB
+  the default CUDA build would drag in). *Verified: "…report by Friday? Thanks
+  and lets meet Monday."*
+- **Formatter controls in Settings.** A new **FORMATTER** card shows the engine
+  status (model · ready/warm/cold) with **Reload** and **Force restart**, next
+  to the existing speech-engine controls.
+
 ## 0.11.0 — 2026-07-14
 
 - **Faster local formatting.** The llama.cpp worker now runs with flash

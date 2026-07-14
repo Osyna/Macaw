@@ -115,6 +115,7 @@ enum Msg {
     LlmTest(String, String),
     ProvidersLoaded(Vec<Value>),
     ProviderTest(String),
+    FormatterStatus(Value),
     Cmd(single::Cmd),
 }
 
@@ -533,6 +534,19 @@ impl App {
         );
     }
 
+    fn refresh_formatter_status(&self) {
+        let tx = self.msg_tx.clone();
+        self.client.call(
+            "llm.status",
+            json!({}),
+            Some(Box::new(move |res| {
+                if let Ok(v) = res {
+                    let _ = tx.send(Msg::FormatterStatus(v));
+                }
+            })),
+        );
+    }
+
     fn refresh_providers(&self) {
         let tx = self.msg_tx.clone();
         self.client.call(
@@ -655,6 +669,39 @@ impl App {
         self.ui.set_llm_names(ModelRc::from(names.as_slice()));
         self.ui.set_llm_current(current);
         self.ui.set_llm_models(ModelRc::from(rows.as_slice()));
+        // per-model tunables for the active formatter (rendered in its card)
+        let dp: Vec<ParamRow> = raw
+            .iter()
+            .find(|m| m["active"].as_bool() == Some(true))
+            .map(|m| {
+                let cur = m["cur_params"].clone();
+                m["params"]
+                    .as_array()
+                    .map(|a| {
+                        a.iter()
+                            .map(|p| {
+                                let key = p["key"].as_str().unwrap_or_default();
+                                let kind = p["kind"].as_str().unwrap_or("bool");
+                                let val = cur[key].clone();
+                                ParamRow {
+                                    key: key.into(),
+                                    label: p["label"].as_str().unwrap_or(key).into(),
+                                    kind: kind.into(),
+                                    hint: p["hint"].as_str().unwrap_or_default().into(),
+                                    value: val.as_f64().or(p["default"].as_f64()).unwrap_or(0.0)
+                                        as f32,
+                                    bvalue: val.as_bool().or(p["default"].as_bool()).unwrap_or(false),
+                                    minimum: p["min"].as_f64().unwrap_or(0.0) as f32,
+                                    maximum: p["max"].as_f64().unwrap_or(1.0) as f32,
+                                    step: p["step"].as_f64().unwrap_or(1.0) as f32,
+                                }
+                            })
+                            .collect()
+                    })
+                    .unwrap_or_default()
+            })
+            .unwrap_or_default();
+        self.ui.set_llm_detail_params(ModelRc::from(dp.as_slice()));
     }
 
     /// Active model's native-streaming capability -> the Settings badge and
@@ -1111,6 +1158,34 @@ impl App {
                 self.ui.set_provider_testing(false);
                 self.ui.set_provider_test_result(SharedString::from(out));
             }
+            Msg::FormatterStatus(v) => {
+                let enabled = v["enabled"].as_bool().unwrap_or(false);
+                let provider = v["provider"].as_bool().unwrap_or(false);
+                let ready = v["ready"].as_bool().unwrap_or(false);
+                let loaded = v["loaded"].as_bool().unwrap_or(false);
+                let mode = v["mode"].as_str().unwrap_or("hot");
+                let (status, ok) = if !enabled {
+                    ("disabled", false)
+                } else if provider {
+                    if ready {
+                        ("cloud · ready", true)
+                    } else {
+                        ("cloud · needs key", false)
+                    }
+                } else if !ready {
+                    ("not installed", false)
+                } else if loaded {
+                    ("warm", true)
+                } else if mode == "cold" {
+                    ("loaded on demand", true)
+                } else {
+                    ("ready", true)
+                };
+                self.ui
+                    .set_formatter_label(SharedString::from(v["label"].as_str().unwrap_or("—")));
+                self.ui.set_formatter_status(SharedString::from(status));
+                self.ui.set_formatter_ok(ok);
+            }
             Msg::Cmd(cmd) => self.on_cmd(cmd),
         }
     }
@@ -1154,6 +1229,7 @@ impl App {
                 );
                 self.refresh_models();
                 self.refresh_llm_models();
+                self.refresh_formatter_status();
                 self.refresh_providers();
             }
             ws::Event::Disconnected => self.ui.set_engine_connected(false),
@@ -1179,6 +1255,7 @@ impl App {
             ws::Event::Config { config } => {
                 self.cfg.replace(config);
                 self.apply_config();
+                self.refresh_formatter_status();
                 self.sync_live_native();
                 self.sync_mic_monitor(); // wizard visibility follows onboarded
                 if self.ls.borrow().is_none() && self.overlay.window().is_visible() {
@@ -1194,6 +1271,7 @@ impl App {
             ws::Event::Models => {
                 self.refresh_models();
                 self.refresh_llm_models();
+                self.refresh_formatter_status();
                 self.refresh_providers();
             }
             ws::Event::Progress {
@@ -1922,6 +2000,32 @@ fn main() {
             .on_param_bool(move |id, key, v| merge(&a, id.as_str(), key.as_str(), json!(v)));
     }
     {
+        // per-model formatter tunables: merge into config.llm_params
+        fn lmerge(a: &Rc<App>, id: &str, key: &str, val: Value) {
+            let mut all = a.cfg.borrow()["llm_params"].clone();
+            if !all.is_object() {
+                all = json!({});
+            }
+            if !all[id].is_object() {
+                all[id] = json!({});
+            }
+            all[id][key] = val;
+            a.patch(kv("llm_params", all));
+        }
+        let a = Rc::clone(&app);
+        app.ui.on_llm_param_num(move |id, key, v| {
+            let val = if v.fract() == 0.0 {
+                json!(v as i64)
+            } else {
+                json!((v as f64 * 100.0).round() / 100.0)
+            };
+            lmerge(&a, id.as_str(), key.as_str(), val);
+        });
+        let a = Rc::clone(&app);
+        app.ui
+            .on_llm_param_bool(move |id, key, v| lmerge(&a, id.as_str(), key.as_str(), json!(v)));
+    }
+    {
         let a = Rc::clone(&app);
         app.ui.on_models_search(move |t| {
             *a.search.borrow_mut() = t.to_string();
@@ -2061,6 +2165,38 @@ fn main() {
         app.ui.on_reload_model(move || {
             a.toast("info", "Reloading model…");
             a.client.call("model.reload", json!({}), None);
+        });
+    }
+    {
+        let a = Rc::clone(&app);
+        app.ui.on_reload_formatter(move || {
+            a.toast("info", "Reloading formatter…");
+            let tx = a.msg_tx.clone();
+            a.client.call(
+                "llm.reload",
+                json!({}),
+                Some(Box::new(move |res| {
+                    if let Ok(v) = res {
+                        let _ = tx.send(Msg::FormatterStatus(v));
+                    }
+                })),
+            );
+        });
+    }
+    {
+        let a = Rc::clone(&app);
+        app.ui.on_restart_formatter(move || {
+            a.toast("info", "Restarting formatter…");
+            let tx = a.msg_tx.clone();
+            a.client.call(
+                "llm.restart",
+                json!({}),
+                Some(Box::new(move |res| {
+                    if let Ok(v) = res {
+                        let _ = tx.send(Msg::FormatterStatus(v));
+                    }
+                })),
+            );
         });
     }
 

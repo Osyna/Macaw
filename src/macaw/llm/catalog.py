@@ -15,6 +15,7 @@ from typing import Callable
 import yaml
 
 from macaw.llm.base import LlmInfo
+from macaw.stt.base import Param
 
 logger = logging.getLogger("macaw")
 
@@ -32,12 +33,29 @@ _INHERITED = (
     "min_specs",
     "rec_specs",
     "n_ctx",
+    "params",
 )
 _VALID = set(LlmInfo.__dataclass_fields__)
 
 
 class CatalogError(RuntimeError):
     """An LLM model YAML file is malformed or references something unknown."""
+
+
+def _param(d: dict, where: str) -> Param:
+    try:
+        return Param(
+            key=d["key"],
+            label=d["label"],
+            kind=d["kind"],
+            default=d["default"],
+            minimum=float(d.get("min", 0.0)),
+            maximum=float(d.get("max", 1.0)),
+            step=float(d.get("step", 1.0)),
+            hint=str(d.get("hint", "")),
+        )
+    except (KeyError, TypeError, ValueError) as exc:
+        raise CatalogError(f"{where}: bad param definition ({exc})") from exc
 
 
 def _model_info(entry: dict, defaults: dict, source: str) -> LlmInfo:
@@ -67,6 +85,7 @@ def _model_info(entry: dict, defaults: dict, source: str) -> LlmInfo:
         repo=str(m.get("repo", "")),
         filename=str(m.get("filename", "")),
         n_ctx=int(m.get("n_ctx", 4096)),
+        params=tuple(_param(p, source) for p in (m.get("params") or [])),
     )
 
 

@@ -61,6 +61,12 @@ llm = [  # local text formatting — llama.cpp (GGUF) in an isolated venv, CPU +
     "llama-cpp-python>=0.3.0",
     "huggingface-hub>=0.20",  # fetches the GGUF weights on first use
 ]
+nlp = [  # transformer punctuation + true-casing (punctuators) — CPU ONNX, isolated venv
+    # CPU-only torch is installed first by the installer (engine._InstallJob);
+    # punctuators hard-requires torch but inference itself runs on onnxruntime.
+    "punctuators>=0.0.7",
+    "huggingface-hub>=0.20",
+]
 openai = [  # GPT-4o cloud transcription — installs into the MAIN env, no isolated venv
     "openai>=1.0",
 ]

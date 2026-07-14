@@ -51,38 +51,63 @@ def _recase(s: str) -> str:
     return "".join(out)
 
 
-def clean(text: str) -> str:
-    """Return ``text`` mechanically cleaned. Empty in → empty out."""
+def clean(
+    text: str,
+    *,
+    spoken: bool = True,
+    filler: bool = True,
+    dedupe: bool = True,
+    caps: bool = True,
+    period: bool = True,
+) -> str:
+    """Return ``text`` mechanically cleaned. Each fix is individually
+    toggleable; empty in → empty out."""
     s = (text or "").strip()
     if not s:
         return ""
-    for pat, repl in _SPOKEN:
-        s = re.sub(rf"\b{pat}\b", repl, s, flags=re.IGNORECASE)
-    s = _FILLER.sub("", s)
-    # collapse immediate duplicate words ("the the" → "the")
-    s = re.sub(r"\b(\w+)(\s+\1\b)+", r"\1", s, flags=re.IGNORECASE)
+    if spoken:
+        for pat, repl in _SPOKEN:
+            s = re.sub(rf"\b{pat}\b", repl, s, flags=re.IGNORECASE)
+    if filler:
+        s = _FILLER.sub("", s)
+    if dedupe:
+        # collapse immediate duplicate words ("the the" → "the")
+        s = re.sub(r"\b(\w+)(\s+\1\b)+", r"\1", s, flags=re.IGNORECASE)
     # spacing around punctuation: none before, one after (but not inside 3.14)
     s = re.sub(r"\s+([,.!?;:])", r"\1", s)
     s = re.sub(r"([,.!?;:])(?=[^\s\d])", r"\1 ", s)
     s = re.sub(r"[ \t]{2,}", " ", s)
     s = re.sub(r" *\n *", "\n", s)
     s = re.sub(r"\n{3,}", "\n\n", s)
-    s = _recase(s)
+    if caps:
+        s = _recase(s)
     # a single spoken sentence usually wants a full stop it never dictated
-    if "\n" not in s and " " in s and s[-1] not in ".!?:,":
+    if period and "\n" not in s and " " in s and s[-1] not in ".!?:,":
         s += "."
     return s.strip()
 
 
 @register
 class RulesBackend(LlmBackend):
-    """Instant rule-based cleanup — no model, no download, always available."""
+    """Instant rule-based cleanup — no model, no download, always available.
+
+    Every fix is a per-model toggle (see ``models/rules.yaml`` ``params``), so
+    the user tunes exactly which mechanical corrections run."""
 
     key = "rules"
 
     def load(self) -> None:  # nothing to load; instant and in-process
         pass
 
-    def format(self, text: str, system: str) -> str:
-        # rules are fixed, so the system prompt does not apply here
-        return clean(text)
+    def format(self, text: str, system: str, params: dict | None = None) -> str:
+        # rules are fixed; the system prompt does not apply. Param values gate
+        # each fix — absent keys default to on.
+        p = params or {}
+        return clean(
+            text,
+            spoken=bool(p.get("spoken", True)),
+            filler=bool(p.get("filler", True)),
+            dedupe=bool(p.get("dedupe", True)),
+            caps=bool(p.get("caps", True)),
+            period=bool(p.get("period", True)),
+        )

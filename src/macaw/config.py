@@ -114,6 +114,9 @@ class Config:
     # model?, enabled}}. API keys are NOT here — they live in the encrypted
     # secret store (see macaw/secrets.py + macaw/llm/providers.py).
     providers: dict = field(default_factory=dict)
+    # Per-model formatter tunables: {model_id: {key: value}} — rendered as
+    # controls in the Formatting tab and passed to the backend at format time.
+    llm_params: dict = field(default_factory=dict)
 
     def nudge_live_defaults(self, old_mode: str, patch: dict) -> None:
         """Switching to live typing: give speakers more breathing room — bump
@@ -226,6 +229,7 @@ class Config:
                 llm_base_url=data.get("llm_base_url") or "",
                 llm_load_mode=data.get("llm_load_mode") or "hot",
                 providers=data.get("providers") or {},
+                llm_params=data.get("llm_params") or {},
             )
         return cls()
 
@@ -268,6 +272,14 @@ class Config:
             ).rstrip()
         else:
             providers = "providers: {}"
+        if self.llm_params:
+            llm_params = yaml.safe_dump(
+                {"llm_params": self.llm_params},
+                default_flow_style=False,
+                sort_keys=True,
+            ).rstrip()
+        else:
+            llm_params = "llm_params: {}"
         prompt = yaml.safe_dump(
             {"llm_prompt": self.llm_prompt},
             default_flow_style=False,
@@ -397,5 +409,5 @@ class Config:
             "  # whether the GitHub-star nudge has been shown\n"
             "\n"
             "# ── Per-model tunables (set from the Model Manager) ──────\n"
-            f"{params}\n{langs}\n{themes}\n{providers}\n"
+            f"{params}\n{langs}\n{themes}\n{providers}\n{llm_params}\n"
         )

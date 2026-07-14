@@ -19,10 +19,15 @@ from macaw.llm.registry import register, register_model
 
 def test_backends_and_models_registered():
     ids = {m.id for m in llm.list_models()}
-    for expected in ("qwen2.5-0.5b-instruct", "qwen2.5-1.5b-instruct", "rules-basic"):
+    for expected in (
+        "qwen2.5-0.5b-instruct",
+        "qwen2.5-1.5b-instruct",
+        "rules-basic",
+        "punct-cap-en",
+    ):
         assert expected in ids, f"{expected} not registered"
-    # local catalog: llama.cpp models + the dependency-free rules formatter
-    assert {m.backend for m in llm.list_models()} == {"llamacpp", "rules"}
+    # llama.cpp + the dependency-free rules formatter + the ONNX NLP backend
+    assert {m.backend for m in llm.list_models()} == {"llamacpp", "rules", "nlp"}
 
 
 def test_unknown_model_is_none():
@@ -61,6 +66,43 @@ def test_rules_backend_formats_via_facade():
     f = Formatter("rules-basic")
     assert f.is_ready() is True
     assert f.format("um hello world") == "Hello world."
+
+
+def test_rules_params_gate_each_fix():
+    from macaw.llm.rules import clean
+
+    assert clean("um the the report", filler=False) == "Um the report."
+    assert clean("um the the report", caps=False) == "the report."
+    assert clean("say comma now", spoken=False) == "Say comma now."
+    assert clean("the the same", dedupe=False) == "The the same."
+    assert clean("hello there", period=False) == "Hello there"
+
+
+def test_rules_backend_reads_param_dict():
+    b = llm.create_backend("rules-basic")
+    # absent keys default on; an explicit False disables just that fix
+    assert b.format("um hi", "", {"filler": False}) == "Um hi."
+    assert b.format("um hi", "", {}) == "Hi."
+
+
+def test_nlp_backend_registered_and_venv_gated(monkeypatch, tmp_path):
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
+    b = llm.create_backend("punct-cap-en")
+    assert b.key == "nlp"
+    assert b.available() is False  # no venv installed yet
+    assert b.hf_repos() == ["1-800-BAD-CODE/punct_cap_seg_en"]
+    # the worker is driven by the punctuators model key, not repo/filename/n_ctx
+    assert b._worker_cmd("py")[-2:] == ["--model", "pcs_en"]
+
+
+def test_nlp_install_pins_cpu_torch():
+    from macaw.stt.isolated import install_commands
+
+    cmds = install_commands("nlp", ["punctuators>=0.0.7"], None, torch_cpu=True)
+    assert len(cmds) == 3  # venv, cpu-torch, packages
+    torch_step = cmds[1]
+    assert "torch" in torch_step
+    assert "https://download.pytorch.org/whl/cpu" in torch_step
 
 
 def test_local_backend_is_venv_gated(monkeypatch, tmp_path):
@@ -162,7 +204,7 @@ class _StubLlm(LlmBackend):
     def load(self) -> None:
         self.loaded = True
 
-    def format(self, text: str, system: str) -> str:
+    def format(self, text: str, system: str, params: dict | None = None) -> str:
         if text == "boom":
             raise RuntimeError("backend blew up")
         # echo enough to prove the system prompt + text both reach the backend

@@ -27,11 +27,13 @@ class Formatter:
         custom_prompt: str = "",
         provider: dict | None = None,
         ssl_verify: bool = True,
+        params: dict | None = None,
     ) -> None:
         self.model_id = model_id
         self.custom_prompt = custom_prompt
         self.provider = provider  # resolved provider dict when model is a provider
         self.ssl_verify = ssl_verify
+        self.params = params or {}  # active model's tunable values
         self._backend = None  # local backend cache
         self.last_tps = 0.0  # last format() speed (local worker); 0 if unknown
         self.last_secs = 0.0
@@ -73,6 +75,10 @@ class Formatter:
         except Exception:  # noqa: BLE001
             return False
 
+    def is_loaded(self) -> bool:
+        """True if the local worker is warm now (cloud/rules keep no resident)."""
+        return self._backend is not None and self._backend.is_loaded()
+
     # -- lifecycle ----------------------------------------------------
 
     def _ensure_backend(self):
@@ -111,7 +117,7 @@ class Formatter:
         b = self._ensure_backend()
         if b is None:
             return text
-        result = b.format(text, self.system_prompt()) or text
+        result = b.format(text, self.system_prompt(), self.params) or text
         self.last_tps = getattr(b, "last_tps", 0.0)
         self.last_secs = getattr(b, "last_secs", 0.0)
         return result
@@ -122,6 +128,7 @@ class Formatter:
         custom_prompt: str,
         provider: dict | None,
         ssl_verify: bool,
+        params: dict | None = None,
     ) -> None:
         """Adopt new config; drop the local backend if the model changed."""
         if model_id != self.model_id:
@@ -130,6 +137,7 @@ class Formatter:
         self.custom_prompt = custom_prompt
         self.provider = provider
         self.ssl_verify = ssl_verify
+        self.params = params or {}
 
     def unload(self) -> None:
         if self._backend is not None:

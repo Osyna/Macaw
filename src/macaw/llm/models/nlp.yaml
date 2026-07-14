@@ -1,0 +1,36 @@
+# ONNX transformer punctuation + true-casing (punctuators / 1-800-BAD-CODE).
+# Restores punctuation and capitalization from raw speech-to-text with a real
+# transformer, fast on CPU via onnxruntime — no LLM, no GPU. Weights download
+# once from Hugging Face into the shared cache. `filename` is the punctuators
+# model key; `repo` is the canonical HF id (download link + cache size).
+backend: nlp
+source_url: https://github.com/1-800-BAD-CODE/punctuators
+extra: nlp
+hardware: CPU / Any
+vram: "—"
+min_specs: "2-core CPU · 2 GB RAM"
+rec_specs: "4-core CPU · 4 GB RAM"
+
+models:
+  - id: punct-cap-en
+    label: Punctuate & Capitalize (EN)
+    repo: 1-800-BAD-CODE/punct_cap_seg_en
+    filename: pcs_en
+    size: "~200 MB"
+    speed: very fast
+    rating: 4
+    notes: |-
+      + Transformer punctuation + true-casing for English, ONNX on CPU — sub-second.
+      + Great structure on run-on dictation: restores commas, periods, question marks and capitals.
+      − Doesn't trim filler ("um") or reshape into emails/lists — pair it with rules or an LLM for that.
+  - id: punct-cap-multi
+    label: Punctuate & Capitalize (47 lang)
+    repo: 1-800-BAD-CODE/punct_cap_seg_47_language
+    filename: pcs_47lang
+    size: "~230 MB"
+    speed: very fast
+    rating: 3
+    notes: |-
+      + Same transformer punctuation + true-casing across 47 languages, ONNX on CPU.
+      + Ideal for multilingual dictation cleanup without a heavyweight LLM.
+      − Slightly larger; doesn't trim filler or reshape text.

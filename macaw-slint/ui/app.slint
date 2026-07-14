@@ -80,6 +80,11 @@ export component MainWindow inherits Window {
     callback reload-model();
     in property <bool> engine-connected: false;
     in property <string> engine-state: "idle";
+    in property <string> formatter-label: "";
+    in property <string> formatter-status: "";
+    in property <bool> formatter-ok: false;
+    callback reload-formatter();
+    callback restart-formatter();
     in property <string> active-model-label: "";
     in property <[Toast]> toasts;
 
@@ -173,6 +178,9 @@ export component MainWindow inherits Window {
     in property <string> llm-test-stat;
     in property <string> llm-default-prompt;
     in-out property <bool> show-providers;
+    in property <[ParamRow]> llm-detail-params;
+    callback llm-param-num(string, string, float);
+    callback llm-param-bool(string, string, bool);
     callback llm-activate(string);
     callback llm-install(string);
     callback llm-download(string);
@@ -241,7 +249,7 @@ export component MainWindow inherits Window {
                 TabBtn {
                     y: 12px;
                     icon: "✦";
-                    text: "LLM";
+                    text: "Formatting";
                     active: root.tab == "llm";
                     clicked => { root.tab = "llm"; }
                 }
@@ -306,6 +314,11 @@ export component MainWindow inherits Window {
             engine-state: root.engine-state;
             restart-engine => { root.restart-engine(); }
             reload-model => { root.reload-model(); }
+            formatter-label: root.formatter-label;
+            formatter-status: root.formatter-status;
+            formatter-ok: root.formatter-ok;
+            reload-formatter => { root.reload-formatter(); }
+            restart-formatter => { root.restart-formatter(); }
         }
         if root.tab == "appearance": AppearanceView {
             cfg: root.cfg;
@@ -375,6 +388,7 @@ export component MainWindow inherits Window {
             test-stat: root.llm-test-stat;
             default-prompt: root.llm-default-prompt;
             op-running: root.op-running;
+            detail-params: root.llm-detail-params;
             set-bool(k, v) => { root.set-bool(k, v); }
             set-str(k, v) => { root.set-str(k, v); }
             activate(id) => { root.llm-activate(id); }
@@ -385,6 +399,8 @@ export component MainWindow inherits Window {
             run-test(t) => { root.llm-test(t); }
             open-url(u) => { root.open-url(u); }
             manage-providers => { root.manage-providers(); }
+            param-num(i, k, v) => { root.llm-param-num(i, k, v); }
+            param-bool(i, k, v) => { root.llm-param-bool(i, k, v); }
         }
     }
 

@@ -95,6 +95,11 @@ export component SettingsView inherits ScrollArea {
     in property <string> engine-state: "idle";
     callback restart-engine();
     callback reload-model();
+    in property <string> formatter-label: "";
+    in property <string> formatter-status: "";
+    in property <bool> formatter-ok: false;
+    callback reload-formatter();
+    callback restart-formatter();
 
     viewport-height: cols.preferred-height;
 
@@ -358,6 +363,52 @@ export component SettingsView inherits ScrollArea {
                         text: "Force restart";
                         danger: true;
                         clicked => { root.restart-engine(); }
+                    }
+                }
+            }
+
+            Card {
+                title: "FORMATTER";
+                Row {
+                    label: "Status";
+                    hint: "Post-STT text formatting (rules, NLP, local LLM or cloud). Active in Clipboard and Type modes; Live typing is left untouched.";
+                    Rectangle { // status dot
+                        width: 8px;
+                        Rectangle {
+                            y: parent.height / 2 - 4px;
+                            width: 8px;
+                            height: 8px;
+                            border-radius: 4px;
+                            background: root.formatter-ok ? Theme.pal.ok : Theme.pal.muted;
+                        }
+                    }
+                    Text {
+                        text: root.formatter-status == "" ? "—"
+                            : root.formatter-label + " · " + root.formatter-status;
+                        color: Theme.pal.muted;
+                        font-size: 13px;
+                        vertical-alignment: center;
+                        horizontal-stretch: 1;
+                    }
+                }
+                Row {
+                    label: "Reload formatter";
+                    hint: "Frees the formatter model and warms it again from scratch. Try this if formatting hangs or after changing options.";
+                    Rectangle { horizontal-stretch: 1; }
+                    Btn {
+                        text: "Reload";
+                        enabled: root.engine-connected;
+                        clicked => { root.reload-formatter(); }
+                    }
+                }
+                Row {
+                    label: "Restart formatter";
+                    hint: "Force a fresh formatter worker — the heavy hammer when a reload doesn't clear it.";
+                    Rectangle { horizontal-stretch: 1; }
+                    Btn {
+                        text: "Force restart";
+                        danger: true;
+                        clicked => { root.restart-formatter(); }
                     }
                 }
             }

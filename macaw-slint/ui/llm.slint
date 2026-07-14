@@ -4,8 +4,9 @@
 // fixed window height: left = switch + model, right = prompt + try-it.
 
 import { Theme } from "theme.slint";
-import { Btn, Badge, Toggle, Select, Field, MultiField, ProgressBar, Card, Row, ScrollArea } from "widgets.slint";
+import { Btn, Badge, Toggle, Select, Field, MultiField, ProgressBar, Card, Row, ScrollArea, SliderX } from "widgets.slint";
 import { Cfg } from "settings.slint";
+import { ParamRow } from "models.slint";
 
 export struct LlmModelRow {
     id: string,
@@ -44,6 +45,7 @@ export component LlmView inherits ScrollArea {
     in property <string> test-stat;     // Try-it speed readout (tok/s)
     in property <string> default-prompt; // built-in smart prompt (shown when custom is blank)
     in property <bool> op-running;
+    in property <[ParamRow]> detail-params;   // active model's tunables
 
     callback set-bool(string, bool);
     callback set-str(string, string);
@@ -55,6 +57,8 @@ export component LlmView inherits ScrollArea {
     callback run-test(string);
     callback open-url(string);
     callback manage-providers();
+    callback param-num(string, string, float);
+    callback param-bool(string, string, bool);
 
     viewport-height: cols.preferred-height;
 
@@ -158,6 +162,46 @@ export component LlmView inherits ScrollArea {
                             color: Theme.pal.muted;
                             font-size: 12px;
                             wrap: word-wrap;
+                        }
+                        if root.detail-params.length > 0 && !sel.busy: VerticalLayout {
+                            spacing: 4px;
+                            Text {
+                                text: "OPTIONS";
+                                color: Theme.pal.muted;
+                                font-size: 10px;
+                                font-weight: 800;
+                            }
+                            for p in root.detail-params: VerticalLayout {
+                                spacing: 1px;
+                                HorizontalLayout {
+                                    spacing: 10px;
+                                    Text {
+                                        text: p.label;
+                                        color: Theme.pal.fg;
+                                        font-size: 12px;
+                                        vertical-alignment: center;
+                                        horizontal-stretch: 1;
+                                    }
+                                    if p.kind == "bool": Toggle {
+                                        checked: p.bvalue;
+                                        toggled(v) => { root.param-bool(sel.id, p.key, v); }
+                                    }
+                                    if p.kind != "bool": SliderX {
+                                        width: 120px;
+                                        value: p.value;
+                                        minimum: p.minimum;
+                                        maximum: p.maximum;
+                                        step: p.step;
+                                        changed(v) => { root.param-num(sel.id, p.key, v); }
+                                    }
+                                }
+                                if p.hint != "": Text {
+                                    text: p.hint;
+                                    color: Theme.pal.muted;
+                                    font-size: 10px;
+                                    wrap: word-wrap;
+                                }
+                            }
                         }
                         if sel.busy: VerticalLayout {
                             spacing: 4px;

@@ -33,6 +33,7 @@ datas = [
     (os.path.join(src, "stt", "worker.py"), "macaw/stt"),
     (os.path.join(src, "llm", "models"), "macaw/llm/models"),
     (os.path.join(src, "llm", "worker.py"), "macaw/llm"),
+    (os.path.join(src, "llm", "nlp_worker.py"), "macaw/llm"),
 ]
 datas += copy_metadata("macaw")
 

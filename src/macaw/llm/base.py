@@ -8,6 +8,7 @@ from dataclasses import dataclass
 # rather than growing a second copy.
 from macaw.stt.base import (
     MissingDependency,
+    Param,
     hf_cache_sizes,
     hf_repo_delete,
     hf_repo_size,
@@ -43,6 +44,7 @@ class LlmInfo:
     repo: str = ""  # HF repo id for GGUF weights (download link + cache size)
     filename: str = ""  # GGUF file within the repo (glob ok, e.g. "*Q4_K_M.gguf")
     n_ctx: int = 4096  # context window the local runtime allocates
+    params: tuple[Param, ...] = ()  # user-tunable settings rendered as controls
 
 
 class LlmBackend(abc.ABC):
@@ -83,8 +85,9 @@ class LlmBackend(abc.ABC):
         """Bring the model up (persistent worker / client). Idempotent."""
 
     @abc.abstractmethod
-    def format(self, text: str, system: str) -> str:
-        """Rework ``text`` per the ``system`` instruction. '' → ''."""
+    def format(self, text: str, system: str, params: dict | None = None) -> str:
+        """Rework ``text`` per ``system`` and optional per-model ``params``.
+        '' → ''."""
 
     # -- capability / dependency ---------------------------------------
 
@@ -128,3 +131,7 @@ class LlmBackend(abc.ABC):
 
     def unload(self) -> None:
         """Release the model. Default: no-op."""
+
+    def is_loaded(self) -> bool:
+        """True if a heavyweight resident (worker/model) is in memory now."""
+        return False
