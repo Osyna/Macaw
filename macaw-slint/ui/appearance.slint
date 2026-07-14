@@ -188,20 +188,22 @@ export component AppearanceView inherits Rectangle {
                 }
                 // state chips: scope the editor AND the preview
                 HorizontalLayout {
-                    spacing: 4px;
+                    spacing: 3px;
                     alignment: start;
                     height: 34px;
                     for m in ["eq", "loader", "format", "done", "error"]: Rectangle {
-                        width: t.preferred-width + 10px;
+                        width: t.preferred-width + 8px;
                         height: 28px;
                         border-radius: Theme.radius;
                         background: root.preview-mode == m ? Theme.pal.accent : Theme.pal.control;
                         border-width: 1px;
                         border-color: root.preview-mode == m ? transparent : Theme.pal.border;
                         t := Text {
+                            x: (parent.width - self.width) / 2;
+                            y: (parent.height - self.height) / 2;
                             text: m == "eq" ? "Recording" : m == "loader" ? "Transcribing" : m == "format" ? "Formatting" : m == "done" ? "Done" : "Error";
                             color: root.preview-mode == m ? Theme.pal.accent-fg : Theme.pal.fg;
-                            font-size: 12px;
+                            font-size: 11px;
                             font-weight: 600;
                         }
                         TouchArea {

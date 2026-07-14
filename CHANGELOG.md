@@ -2,6 +2,12 @@
 
 Notable changes to Macaw. Older releases live on the [releases page](https://github.com/Osyna/Macaw/releases).
 
+## 0.14.1 — 2026-07-14
+
+- **Fix: Appearance state chips no longer clip.** With five states the last
+  chip ("Error") was cut off at the rail edge. The chips are now sized to fit
+  the rail with margin and their labels are centered.
+
 ## 0.14.0 — 2026-07-14
 
 - **Dropdowns reveal long text on hover.** Every listbox (model picker, output
