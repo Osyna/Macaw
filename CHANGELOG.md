@@ -2,6 +2,12 @@
 
 Notable changes to Macaw. Older releases live on the [releases page](https://github.com/Osyna/Macaw/releases).
 
+## 0.10.1 — 2026-07-14
+
+- **Fix: LLM tab model-card buttons.** Delete / About sat flush against — and
+  slightly over — the model card's bottom border. The card now sizes to its
+  content with even padding, so the buttons sit cleanly inside it.
+
 ## 0.10.0 — 2026-07-14
 
 - **Cloud LLM providers — bring your own key.** A new **Cloud Providers**

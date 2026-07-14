@@ -117,12 +117,9 @@ export component LlmView inherits ScrollArea {
                     background: Theme.pal.control;
                     border-width: 1px;
                     border-color: sel.ready ? Theme.pal.ok : Theme.pal.border;
-                    height: card.preferred-height + 24px;
-                    card := VerticalLayout {
-                        x: 14px;
-                        y: 12px;
-                        width: parent.width - 28px;
-                        spacing: 6px;
+                    VerticalLayout {
+                        padding: 14px;
+                        spacing: 8px;
                         HorizontalLayout {
                             spacing: 6px;
                             alignment: start;
