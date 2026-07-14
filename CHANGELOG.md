@@ -2,6 +2,17 @@
 
 Notable changes to Macaw. Older releases live on the [releases page](https://github.com/Osyna/Macaw/releases).
 
+## 0.13.0 — 2026-07-14
+
+- **New recording animation: Orb.** The old "Ripple" is replaced by a soft
+  **gradient circle** that swells with your voice and gently waves. Existing
+  configs set to `ripple` migrate to `orb` automatically.
+- **A dedicated Formatting step in the overlay.** While the finished text runs
+  through the formatter (rules, NLP or an LLM — Clipboard/Type modes), the
+  indicator now shows a distinct **formatting** stage. Appearance gained a
+  **Formatting** chip + section to pick that step's animation (colors follow
+  Transcribing).
+
 ## 0.12.0 — 2026-07-14
 
 - **"LLM" tab is now "Formatting".** It was never only LLMs — it spans rules,
