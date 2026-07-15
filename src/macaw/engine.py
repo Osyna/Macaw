@@ -1080,6 +1080,50 @@ class Engine:
                     "cur_params": cfg.model_params.get(info.id, {}),
                 }
             )
+        # cloud voice: injected only for providers the user enabled, so cloud
+        # STT stays hidden until a provider is switched on (Providers window).
+        for preset in llm_providers.PRESETS:
+            r = llm_providers.resolve(preset.id, cfg.providers.get(preset.id))
+            if not r["enabled"] or not r["stt_models"]:
+                continue
+            key_ok = bool(r["key"]) or not r["needs_key"]
+            for model in r["stt_models"]:
+                mid = f"cloud:{preset.id}:{model}"
+                out.append(
+                    {
+                        "id": mid,
+                        "backend": "cloud",
+                        "label": f"{preset.label} · {model}",
+                        "size": "cloud",
+                        "speed": "fast",
+                        "languages": "99+",
+                        "streaming": False,
+                        "extra": None,
+                        "hardware": "Cloud API",
+                        "vram": "—",
+                        "notes": "",
+                        "rating": 0,
+                        "pros": [],
+                        "cons": [],
+                        "rec_specs": "Internet + provider key",
+                        "min_specs": "Internet + provider key",
+                        "source_url": r["docs_url"],
+                        "repo": "",
+                        "params": [],
+                        "cloud": True,
+                        "recommended": False,
+                        "light": False,
+                        "available": True,
+                        "installed": True,
+                        "ready": key_ok,
+                        "active": mid == cfg.model,
+                        "disk_size": 0,
+                        "api_key_set": key_ok,
+                        "lang_select": True,
+                        "cur_lang": cfg.model_languages.get(mid) or "en",
+                        "cur_params": {},
+                    }
+                )
         hardware.rank(out, hw)
         return out
 

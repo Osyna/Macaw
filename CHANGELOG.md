@@ -2,6 +2,16 @@
 
 Notable changes to Macaw. Older releases live on the [releases page](https://github.com/Osyna/Macaw/releases).
 
+## 0.16.0 — 2026-07-14
+
+- **Cloud voice models, gated behind your providers.** Voice Models no longer
+  always shows cloud transcription — a cloud model appears only once you
+  **enable its provider** in the Providers window. Enabling one unlocks its
+  transcription models: OpenAI (`gpt-4o-transcribe`, `gpt-4o-mini-transcribe`,
+  `whisper-1`), Groq (`whisper-large-v3-turbo`, `whisper-large-v3`,
+  `distil-whisper`), and a `whisper-1` default for any other OpenAI-compatible
+  provider. One key per provider, shared with Formatting, encrypted at rest.
+
 ## 0.15.0 — 2026-07-14
 
 - **Recording settings adapt to the animation.** The controls under RECORDING

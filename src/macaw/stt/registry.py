@@ -37,8 +37,34 @@ def list_models() -> list[ModelInfo]:
     return list(_MODELS.values())
 
 
+def _cloud_info(model_id: str) -> ModelInfo:
+    """Synthesize a ModelInfo for a dynamic cloud voice model
+    (``cloud:<provider>:<model>``), served by the shared 'cloud' backend."""
+    from macaw.llm import providers
+
+    parts = model_id.split(":", 2)
+    pid = parts[1] if len(parts) == 3 else "openai"
+    model = parts[2] if len(parts) == 3 else model_id
+    preset = providers.PRESET_BY_ID.get(pid)
+    return ModelInfo(
+        id=model_id,
+        backend="cloud",
+        label=f"{preset.label if preset else pid} · {model}",
+        size="cloud",
+        speed="fast",
+        languages="99+",
+        cloud=True,
+        lang_select=True,
+        hardware="Cloud API",
+        vram="—",
+        source_url=preset.docs_url if preset else "",
+    )
+
+
 def get_model_info(model_id: str) -> ModelInfo:
     """Resolve a model id, falling back to the default if it's unknown."""
+    if model_id.startswith("cloud:"):
+        return _cloud_info(model_id)
     return _MODELS.get(model_id) or _MODELS[DEFAULT_MODEL]
 
 

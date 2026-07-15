@@ -37,6 +37,7 @@ class ProviderPreset:
     env: str = ""  # env var the key falls back to
     needs_key: bool = True
     note: str = ""
+    stt_models: tuple[str, ...] = ()  # transcription model ids (cloud voice)
 
 
 # Built-in providers. `custom` lets users point at any OpenAI-compatible server.
@@ -49,6 +50,7 @@ PRESETS: tuple[ProviderPreset, ...] = (
         "https://platform.openai.com/api-keys",
         ("gpt-4o-mini", "gpt-4.1-mini", "gpt-4o"),
         env="OPENAI_API_KEY",
+        stt_models=("gpt-4o-transcribe", "gpt-4o-mini-transcribe", "whisper-1"),
     ),
     ProviderPreset(
         "anthropic",
@@ -100,6 +102,11 @@ PRESETS: tuple[ProviderPreset, ...] = (
         ("llama-3.3-70b-versatile", "llama-3.1-8b-instant"),
         env="GROQ_API_KEY",
         note="Very fast inference.",
+        stt_models=(
+            "whisper-large-v3-turbo",
+            "whisper-large-v3",
+            "distil-whisper-large-v3-en",
+        ),
     ),
     ProviderPreset(
         "mistral",
@@ -167,6 +174,9 @@ def resolve(provider_id: str, user: dict | None) -> dict:
     if not key and preset.env:
         key = os.environ.get(preset.env, "")
     model = user.get("model") or (preset.models[0] if preset.models else "")
+    # cloud voice: explicit list, else a whisper default for OpenAI-compatible
+    # endpoints (Anthropic has no transcription API, so none).
+    stt = list(preset.stt_models) or (["whisper-1"] if preset.kind == "openai" else [])
     return {
         "id": provider_id,
         "label": preset.label,
@@ -181,6 +191,7 @@ def resolve(provider_id: str, user: dict | None) -> dict:
         "models": list(preset.models),
         "note": preset.note,
         "env": preset.env,
+        "stt_models": stt,
     }
 
 

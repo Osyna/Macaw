@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import importlib.util
 import io
-import os
 import wave
 
 import numpy as np
@@ -10,10 +9,13 @@ import numpy as np
 from macaw.stt.base import Backend, MissingDependency
 from macaw.stt.registry import register
 
-# OpenAI cloud transcription (gpt-4o-transcribe / gpt-4o-mini-transcribe).
-# Runs in-process over HTTPS — no local weights, no isolated venv. Needs the
-# `openai` SDK in the MAIN env (pip install 'macaw[openai]') and an API key.
-# Models/provenance live in stt/models/cloud.yaml.
+# Cloud speech-to-text over any OpenAI-compatible transcription endpoint
+# (/v1/audio/transcriptions). One backend serves every configured provider: the
+# model id encodes the provider + model as ``cloud:<provider>:<model>`` (e.g.
+# ``cloud:groq:whisper-large-v3-turbo``). No local weights or venv — it runs
+# in-process via the `openai` SDK (pip install 'macaw[openai]') against the
+# provider's base URL + key. Keys live in the encrypted provider secret store;
+# the models a provider offers live in llm/providers.py (`stt_models`).
 
 _ENDPOINT_DOCS = "https://platform.openai.com/docs/guides/speech-to-text"
 
@@ -30,24 +32,31 @@ def _to_wav_bytes(audio: np.ndarray, sample_rate: int) -> bytes:
     return buf.getvalue()
 
 
+def split_id(model_id: str) -> tuple[str, str]:
+    """``cloud:<provider>:<model>`` -> (provider_id, model). A bare id maps to
+    the OpenAI provider (legacy / direct)."""
+    if model_id.startswith("cloud:"):
+        _, pid, model = model_id.split(":", 2)
+        return pid, model
+    return "openai", model_id
+
+
 @register
 class OpenAICloudBackend(Backend):
-    """OpenAI cloud speech-to-text. No download; billed per use via your key."""
+    """Cloud speech-to-text over an OpenAI-compatible provider. No download;
+    billed per use via your provider key."""
 
-    key = "openai"
+    key = "cloud"
+
+    def _resolved(self) -> dict:
+        from macaw.config import Config
+        from macaw.llm import providers
+
+        pid, _ = split_id(self.model.id)
+        return providers.resolve(pid, Config.load().providers.get(pid))
 
     def api_key(self) -> str:
-        """API key: the encrypted OpenAI provider secret, else the legacy config
-        field (pre-encryption configs), else the OPENAI_API_KEY env var."""
-        from macaw import secrets
-        from macaw.config import Config
-        from macaw.llm.providers import secret_name
-
-        return (
-            secrets.get(secret_name("openai"))
-            or Config.load().openai_api_key
-            or os.environ.get("OPENAI_API_KEY", "")
-        )
+        return self._resolved().get("key", "")
 
     # -- capability / weight management --------------------------------
 
@@ -58,10 +67,11 @@ class OpenAICloudBackend(Backend):
         return []  # cloud model — nothing to download or cache
 
     def is_ready(self, cache: dict[str, int] | None = None) -> bool:
-        return self.available() and bool(self.api_key())
+        r = self._resolved()
+        return self.available() and (bool(r.get("key")) or not r.get("needs_key"))
 
     def model_url(self) -> str:
-        return _ENDPOINT_DOCS
+        return self._resolved().get("docs_url") or _ENDPOINT_DOCS
 
     # -- inference ------------------------------------------------------
 
@@ -70,35 +80,36 @@ class OpenAICloudBackend(Backend):
             raise MissingDependency(
                 "openai package not installed — run: pip install 'macaw[openai]'"
             )
-        if not self.api_key():
+        if not self.is_ready():
             raise MissingDependency(
-                "no OpenAI API key — set it in Settings or export OPENAI_API_KEY"
+                "cloud provider not configured — enable it and set a key in the "
+                "Providers window"
             )
 
     def transcribe(self, audio: np.ndarray, sample_rate: int = 16_000) -> str:
         from openai import OpenAI
 
-        key = self.api_key()
-        if not key:
-            raise MissingDependency(
-                "no OpenAI API key — set it in Settings or export OPENAI_API_KEY"
-            )
+        _, model = split_id(self.model.id)
+        r = self._resolved()
         kwargs: dict = {
-            "model": self.model.id,
+            "model": model,
             "file": ("audio.wav", _to_wav_bytes(audio, sample_rate)),
-            "response_format": "json",  # only format these models support
+            "response_format": "json",  # the format these models reliably support
         }
         if self.language:
             kwargs["language"] = self.language
-        resp = OpenAI(**self._client_args(key)).audio.transcriptions.create(**kwargs)
+        resp = OpenAI(**self._client_args(r)).audio.transcriptions.create(**kwargs)
         return (resp.text or "").strip()
 
-    def _client_args(self, key: str) -> dict:
-        """OpenAI client kwargs. The proxy is read from the environment (set by
-        macaw.net); disabling SSL verification needs an explicit httpx client."""
+    def _client_args(self, resolved: dict) -> dict:
+        """OpenAI client kwargs: the provider's base URL + key. The proxy is read
+        from the environment (set by macaw.net); disabling SSL verification needs
+        an explicit httpx client."""
         from macaw.config import Config
 
-        args: dict = {"api_key": key}
+        args: dict = {"api_key": resolved.get("key") or "none"}
+        if resolved.get("base_url"):
+            args["base_url"] = resolved["base_url"]
         if not Config.load().ssl_verify:
             import httpx
 

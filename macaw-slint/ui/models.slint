@@ -308,7 +308,7 @@ export component ModelsView inherits HorizontalLayout {
                     clicked => { root.download(sel.id); }
                 }
                 if sel.cloud && !sel.api-key-set: Text {
-                    text: "Set your OpenAI API key in Settings";
+                    text: "Enable the provider and set its key in the Providers window (Settings → Manage providers).";
                     color: Theme.pal.warn;
                     font-size: 12px;
                     vertical-alignment: center;

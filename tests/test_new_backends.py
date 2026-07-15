@@ -81,34 +81,38 @@ def _fake_openai(captured: dict, text: str = " hi "):
 def test_openai_transcribe_builds_request():
     from macaw.stt.cloud import OpenAICloudBackend
 
-    for model_id in ("gpt-4o-transcribe", "gpt-4o-mini-transcribe"):
+    for model in ("gpt-4o-transcribe", "gpt-4o-mini-transcribe"):
         captured: dict = {}
-        b = stt.create_backend(model_id, language="en")
+        b = stt.create_backend(f"cloud:openai:{model}", language="en")
         with (
             mock.patch.dict(sys.modules, {"openai": _fake_openai(captured)}),
-            mock.patch.object(OpenAICloudBackend, "api_key", lambda self: "sk-test"),
+            mock.patch.object(
+                OpenAICloudBackend, "_resolved", lambda self: {"key": "sk-test"}
+            ),
         ):
             out = b.transcribe(np.zeros(1600, dtype=np.float32), sample_rate=16_000)
 
-        assert out == "hi", model_id  # resp.text (" hi ") is stripped
-        assert captured["api_key"] == "sk-test", model_id
+        assert out == "hi", model  # resp.text (" hi ") is stripped
+        assert captured["api_key"] == "sk-test", model
         kw = captured["create_kwargs"]
-        assert kw["model"] == model_id, model_id
-        assert kw["response_format"] == "json", model_id
-        assert kw["language"] == "en", model_id
+        assert kw["model"] == model, model  # provider prefix stripped from the id
+        assert kw["response_format"] == "json", model
+        assert kw["language"] == "en", model
         f = kw["file"]
-        assert isinstance(f, tuple) and f[0].endswith(".wav"), model_id
-        assert isinstance(f[1], (bytes, bytearray)) and f[1][:4] == b"RIFF", model_id
+        assert isinstance(f, tuple) and f[0].endswith(".wav"), model
+        assert isinstance(f[1], (bytes, bytearray)) and f[1][:4] == b"RIFF", model
 
 
 def test_openai_transcribe_omits_empty_language():
     from macaw.stt.cloud import OpenAICloudBackend
 
     captured: dict = {}
-    b = stt.create_backend("gpt-4o-transcribe", language="")
+    b = stt.create_backend("cloud:openai:gpt-4o-transcribe", language="")
     with (
         mock.patch.dict(sys.modules, {"openai": _fake_openai(captured)}),
-        mock.patch.object(OpenAICloudBackend, "api_key", lambda self: "sk-test"),
+        mock.patch.object(
+            OpenAICloudBackend, "_resolved", lambda self: {"key": "sk-test"}
+        ),
     ):
         b.transcribe(np.zeros(10, dtype=np.float32))
 
@@ -121,17 +125,21 @@ def test_openai_transcribe_omits_empty_language():
 def test_openai_hf_repos_empty():
     # Cloud model → nothing to download; a non-empty list would make the Model
     # Manager try to size/cache weights that don't exist.
-    assert stt.create_backend("gpt-4o-transcribe").hf_repos() == []
+    assert stt.create_backend("cloud:openai:gpt-4o-transcribe").hf_repos() == []
 
 
 def test_openai_is_ready_gates_on_key():
     from macaw.stt.cloud import OpenAICloudBackend
 
-    b = stt.create_backend("gpt-4o-transcribe")
+    b = stt.create_backend("cloud:openai:gpt-4o-transcribe")
     with mock.patch.object(OpenAICloudBackend, "available", lambda self: True):
-        with mock.patch.object(OpenAICloudBackend, "api_key", lambda self: ""):
+        with mock.patch.object(
+            OpenAICloudBackend, "_resolved", lambda self: {"key": "", "needs_key": True}
+        ):
             assert b.is_ready() is False
-        with mock.patch.object(OpenAICloudBackend, "api_key", lambda self: "sk"):
+        with mock.patch.object(
+            OpenAICloudBackend, "_resolved", lambda self: {"key": "sk", "needs_key": True}
+        ):
             assert b.is_ready() is True
 
 
@@ -139,11 +147,13 @@ def test_openai_load_requires_key():
     from macaw.stt.base import MissingDependency
     from macaw.stt.cloud import OpenAICloudBackend
 
-    b = stt.create_backend("gpt-4o-transcribe")
+    b = stt.create_backend("cloud:openai:gpt-4o-transcribe")
     # available() forced True so we exercise the no-key branch, not missing-dep.
     with (
         mock.patch.object(OpenAICloudBackend, "available", lambda self: True),
-        mock.patch.object(OpenAICloudBackend, "api_key", lambda self: ""),
+        mock.patch.object(
+            OpenAICloudBackend, "_resolved", lambda self: {"key": "", "needs_key": True}
+        ),
     ):
         try:
             b.load()
@@ -171,12 +181,14 @@ def test_config_never_writes_api_keys_to_disk():
 # -- Catalog flags exposed through list_models() / create_backend() -----------
 
 
-def test_cloud_models_flagged_in_catalog():
-    by_id = {m.id: m for m in stt.list_models()}
-    for cid in ("gpt-4o-transcribe", "gpt-4o-mini-transcribe"):
-        assert cid in by_id, cid
-        assert by_id[cid].cloud is True, cid
-        assert by_id[cid].backend == "openai", cid
+def test_cloud_models_come_from_providers_not_catalog():
+    # Cloud voice is provider-injected, never in the local catalog.
+    from macaw.llm import providers
+
+    assert not any(m.cloud for m in stt.list_models())
+    assert "gpt-4o-transcribe" in providers.resolve("openai", None)["stt_models"]
+    b = stt.create_backend("cloud:openai:gpt-4o-transcribe")
+    assert b.model.cloud is True and b.key == "cloud"
 
 
 def test_sherpa_streaming_and_recommended_flags():
@@ -194,8 +206,8 @@ def test_sherpa_streaming_and_recommended_flags():
 
 
 def test_create_backend_routes_cloud_and_sherpa():
-    assert stt.create_backend("gpt-4o-transcribe").key == "openai"
-    assert stt.create_backend("gpt-4o-mini-transcribe").key == "openai"
+    assert stt.create_backend("cloud:openai:gpt-4o-transcribe").key == "cloud"
+    assert stt.create_backend("cloud:groq:whisper-large-v3").key == "cloud"
     assert stt.create_backend("sherpa-parakeet-tdt-v3").key == "sherpa"
 
 
