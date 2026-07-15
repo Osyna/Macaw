@@ -9,6 +9,7 @@ cleaned, formatted text, and degrades to the original text if anything fails.
 from __future__ import annotations
 
 import logging
+import threading
 import time
 
 from macaw.llm import providers
@@ -131,8 +132,12 @@ class Formatter:
         params: dict | None = None,
     ) -> None:
         """Adopt new config; drop the local backend if the model changed."""
-        if model_id != self.model_id:
-            self.unload()
+        if model_id != self.model_id and self._backend is not None:
+            # Reap the old worker off-thread: proc.wait() can take up to ~2s and
+            # apply() runs on the engine's event loop during a live model switch,
+            # which would otherwise freeze the UI. The next format loads fresh.
+            old, self._backend = self._backend, None
+            threading.Thread(target=old.unload, daemon=True).start()
         self.model_id = model_id
         self.custom_prompt = custom_prompt
         self.provider = provider

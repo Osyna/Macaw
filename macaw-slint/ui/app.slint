@@ -146,6 +146,7 @@ export component MainWindow inherits Window {
     callback error-clear();
     // models plumbing (forwarded)
     in property <[ModelRow]> models;
+    in property <bool> models-loading;
     in property <ModelRow> sel;
     in property <bool> have-sel;
     in property <bool> op-running;
@@ -169,6 +170,7 @@ export component MainWindow inherits Window {
     callback models-filter(int);
     // llm plumbing (forwarded)
     in property <[LlmModelRow]> llm-models;
+    in property <bool> llm-loading;
     in property <[string]> llm-names;
     in property <int> llm-current;
     in property <LlmModelRow> llm-sel;
@@ -357,6 +359,7 @@ export component MainWindow inherits Window {
         }
         if root.tab == "models": ModelsView {
             models: root.models;
+            loading: root.models-loading;
             sel: root.sel;
             have-sel: root.have-sel;
             op-running: root.op-running;
@@ -380,6 +383,7 @@ export component MainWindow inherits Window {
         if root.tab == "llm": LlmView {
             cfg: root.cfg;
             models: root.llm-models;
+            loading: root.llm-loading;
             names: root.llm-names;
             current: root.llm-current;
             sel: root.llm-sel;

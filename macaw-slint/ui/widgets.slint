@@ -299,6 +299,32 @@ export component Badge inherits Rectangle {
     }
 }
 
+// Indeterminate loading indicator: three dots pulsing in sequence. Pure Slint
+// (no assets, no rotation — Rectangle can't rotate), so it stays cheap on the
+// software renderer and re-skins with the theme accent. Shared by both model
+// listers while their catalog round-trips back from the engine.
+export component Spinner inherits HorizontalLayout {
+    in property <length> dot: 7px;
+    property <bool> go: false;
+    init => { root.go = true; }
+    spacing: root.dot * 0.7;
+    alignment: center;
+    for i in 3: Rectangle {
+        width: root.dot;
+        height: root.dot;
+        border-radius: root.dot / 2;
+        background: Theme.pal.accent;
+        opacity: root.go ? 1.0 : 0.2;
+        animate opacity {
+            duration: 600ms;
+            delay: i * 180ms;
+            iteration-count: -1;
+            direction: alternate;
+            easing: ease-in-out;
+        }
+    }
+}
+
 export component ProgressBar inherits Rectangle {
     // pct < 0 => indeterminate sweep
     in property <float> pct: -1;

@@ -4,7 +4,7 @@
 // and backend parameters, plus the actions and live progress.
 
 import { Theme } from "theme.slint";
-import { Btn, Badge, ProgressBar, SectionTitle, Toggle, SliderX, Select, Field, ScrollArea } from "widgets.slint";
+import { Btn, Badge, ProgressBar, SectionTitle, Toggle, SliderX, Select, Field, ScrollArea, Spinner } from "widgets.slint";
 
 export struct ModelRow {
     id: string,
@@ -170,6 +170,7 @@ component ModelItem inherits Rectangle {
 
 export component ModelsView inherits HorizontalLayout {
     in property <[ModelRow]> models;
+    in property <bool> loading;   // catalog not yet delivered by the engine
     in property <ModelRow> sel; // the selected model (Rust keeps it in sync)
     in property <bool> have-sel: false;
     in property <bool> op-running;
@@ -228,11 +229,16 @@ export component ModelsView inherits HorizontalLayout {
                 list := VerticalLayout {
                     alignment: start;
                     spacing: 4px;
+                    if root.loading: HorizontalLayout {
+                        padding: 24px;
+                        alignment: center;
+                        Spinner {}
+                    }
                     for m in root.models: ModelItem {
                         m: m;
                         select(id) => { root.toggle-expand(id); }
                     }
-                    if root.models.length == 0: Text {
+                    if !root.loading && root.models.length == 0: Text {
                         text: "No models match.";
                         color: Theme.pal.muted;
                         font-size: 12px;

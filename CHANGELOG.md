@@ -2,6 +2,19 @@
 
 Notable changes to Macaw. Older releases live on the [releases page](https://github.com/Osyna/Macaw/releases).
 
+## 0.18.0 — 2026-07-15
+
+- **No more white flash on open.** The window now paints its dark chrome from
+  the very first frame instead of flashing the light default palette before the
+  real theme loads.
+- **Model lists load seamlessly.** Voice Models and Formatting show a small
+  loading spinner while the catalog is fetched, instead of a blank list that
+  pops in.
+- **Switching a formatter model is instant.** The dossier and its options now
+  update the moment you click (rendered from cache), and the old model's worker
+  is torn down off the engine's event loop — the up-to-2 s freeze on switch is
+  gone.
+
 ## 0.17.1 — 2026-07-14
 
 - **Formatting tab: tighter header, taller model list.** Dropped the

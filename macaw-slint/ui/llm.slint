@@ -5,7 +5,7 @@
 // Try-it box. The whole manager greys out until Formatting is enabled.
 
 import { Theme } from "theme.slint";
-import { Btn, Badge, Toggle, MultiField, ProgressBar, Card, Row, ScrollArea, SliderX, Field } from "widgets.slint";
+import { Btn, Badge, Toggle, MultiField, ProgressBar, Row, ScrollArea, SliderX, Field, Spinner } from "widgets.slint";
 import { Cfg } from "settings.slint";
 import { ParamRow } from "models.slint";
 
@@ -149,6 +149,7 @@ export component PromptWindow inherits Rectangle {
 export component LlmView inherits HorizontalLayout {
     in property <Cfg> cfg;
     in property <[LlmModelRow]> models;
+    in property <bool> loading;        // catalog not yet delivered by the engine
     in property <[string]> names;      // (unused; kept for plumbing compatibility)
     in property <int> current;
     in property <LlmModelRow> sel;     // the active/selected model's detail
@@ -217,6 +218,11 @@ export component LlmView inherits HorizontalLayout {
                         list := VerticalLayout {
                             alignment: start;
                             spacing: 4px;
+                            if root.loading: HorizontalLayout {
+                                padding: 24px;
+                                alignment: center;
+                                Spinner {}
+                            }
                             for m in root.models: LlmItem {
                                 m: m;
                                 select(id) => { root.activate(id); }

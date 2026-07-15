@@ -153,6 +153,35 @@ struct App {
     expanded: RefCell<String>,     // model id with the open dossier ("" = none)
     search: RefCell<String>,
     filter: Cell<i32>, // -1 none / 0 For you / 1 Light / 2 Cloud / 3 Live
+    llm_sel: RefCell<String>, // optimistic formatter pick: instant dossier; "" = follow engine
+}
+
+/// Build the per-model tunable rows (shared by the Voice-model and formatter
+/// dossiers) from a catalog entry's `params` + `cur_params`.
+fn params_of(m: &Value) -> Vec<ParamRow> {
+    let cur = m["cur_params"].clone();
+    m["params"]
+        .as_array()
+        .map(|a| {
+            a.iter()
+                .map(|p| {
+                    let key = p["key"].as_str().unwrap_or_default();
+                    let val = cur[key].clone();
+                    ParamRow {
+                        key: key.into(),
+                        label: p["label"].as_str().unwrap_or(key).into(),
+                        kind: p["kind"].as_str().unwrap_or("float").into(),
+                        hint: p["hint"].as_str().unwrap_or_default().into(),
+                        value: val.as_f64().or(p["default"].as_f64()).unwrap_or(0.0) as f32,
+                        bvalue: val.as_bool().or(p["default"].as_bool()).unwrap_or(false),
+                        minimum: p["min"].as_f64().unwrap_or(0.0) as f32,
+                        maximum: p["max"].as_f64().unwrap_or(1.0) as f32,
+                        step: p["step"].as_f64().unwrap_or(1.0) as f32,
+                    }
+                })
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 impl App {
@@ -614,6 +643,22 @@ impl App {
     fn render_llm_models(&self) {
         let raw = self.llm_models_raw.borrow();
         let op = self.op.borrow();
+        // optimistic selection: the model the user just clicked (instant
+        // dossier + options from cache), else the engine's active model once
+        // its list round-trips back and clears the override.
+        let want = self.llm_sel.borrow();
+        let active_id: String = if !want.is_empty()
+            && raw.iter().any(|m| m["id"].as_str() == Some(want.as_str()))
+        {
+            want.clone()
+        } else {
+            raw.iter()
+                .find(|m| m["active"].as_bool() == Some(true))
+                .and_then(|m| m["id"].as_str())
+                .unwrap_or_default()
+                .to_string()
+        };
+        drop(want);
         let s = |m: &Value, k: &str| SharedString::from(m[k].as_str().unwrap_or_default());
         let repo_url = |m: &Value| {
             let repo = m["repo"].as_str().unwrap_or_default();
@@ -659,7 +704,7 @@ impl App {
                     installed: m["installed"].as_bool().unwrap_or(false),
                     removable: m["removable"].as_bool().unwrap_or(false),
                     ready: m["ready"].as_bool().unwrap_or(false),
-                    active: m["active"].as_bool().unwrap_or(false),
+                    active: m["id"].as_str() == Some(active_id.as_str()),
                     api_key_set: m["api_key_set"].as_bool().unwrap_or(false),
                     uses_prompt: m["uses_prompt"].as_bool().unwrap_or(true),
                     busy,
@@ -669,46 +714,19 @@ impl App {
             })
             .collect();
         let names: Vec<SharedString> = rows.iter().map(|r| r.label.clone()).collect();
-        let current = rows.iter().position(|r| r.active).map(|i| i as i32).unwrap_or(-1);
-        let sel = rows.iter().find(|r| r.active).cloned();
-        self.ui.set_llm_have_sel(sel.is_some());
-        if let Some(r) = sel {
-            self.ui.set_llm_sel(r);
+        let sel_i = rows.iter().position(|r| r.active);
+        self.ui.set_llm_have_sel(sel_i.is_some());
+        if let Some(i) = sel_i {
+            self.ui.set_llm_sel(rows[i].clone());
         }
         self.ui.set_llm_names(ModelRc::from(names.as_slice()));
-        self.ui.set_llm_current(current);
+        self.ui.set_llm_current(sel_i.map(|i| i as i32).unwrap_or(-1));
         self.ui.set_llm_models(ModelRc::from(rows.as_slice()));
-        // per-model tunables for the active formatter (rendered in its card)
+        // per-model tunables for the selected formatter (rendered in its card)
         let dp: Vec<ParamRow> = raw
             .iter()
-            .find(|m| m["active"].as_bool() == Some(true))
-            .map(|m| {
-                let cur = m["cur_params"].clone();
-                m["params"]
-                    .as_array()
-                    .map(|a| {
-                        a.iter()
-                            .map(|p| {
-                                let key = p["key"].as_str().unwrap_or_default();
-                                let kind = p["kind"].as_str().unwrap_or("bool");
-                                let val = cur[key].clone();
-                                ParamRow {
-                                    key: key.into(),
-                                    label: p["label"].as_str().unwrap_or(key).into(),
-                                    kind: kind.into(),
-                                    hint: p["hint"].as_str().unwrap_or_default().into(),
-                                    value: val.as_f64().or(p["default"].as_f64()).unwrap_or(0.0)
-                                        as f32,
-                                    bvalue: val.as_bool().or(p["default"].as_bool()).unwrap_or(false),
-                                    minimum: p["min"].as_f64().unwrap_or(0.0) as f32,
-                                    maximum: p["max"].as_f64().unwrap_or(1.0) as f32,
-                                    step: p["step"].as_f64().unwrap_or(1.0) as f32,
-                                }
-                            })
-                            .collect()
-                    })
-                    .unwrap_or_default()
-            })
+            .find(|m| m["id"].as_str() == Some(active_id.as_str()))
+            .map(params_of)
             .unwrap_or_default();
         self.ui.set_llm_detail_params(ModelRc::from(dp.as_slice()));
     }
@@ -858,30 +876,7 @@ impl App {
             .iter()
             .find(|m| m["id"].as_str() == Some(expanded.as_str()))
         {
-            let cur = m["cur_params"].clone();
-            let params: Vec<ParamRow> = m["params"]
-                .as_array()
-                .map(|a| {
-                    a.iter()
-                        .map(|p| {
-                            let key = p["key"].as_str().unwrap_or_default();
-                            let kind = p["kind"].as_str().unwrap_or("float");
-                            let val = cur[key].clone();
-                            ParamRow {
-                                key: key.into(),
-                                label: p["label"].as_str().unwrap_or(key).into(),
-                                kind: kind.into(),
-                                hint: p["hint"].as_str().unwrap_or_default().into(),
-                                value: val.as_f64().or(p["default"].as_f64()).unwrap_or(0.0) as f32,
-                                bvalue: val.as_bool().or(p["default"].as_bool()).unwrap_or(false),
-                                minimum: p["min"].as_f64().unwrap_or(0.0) as f32,
-                                maximum: p["max"].as_f64().unwrap_or(1.0) as f32,
-                                step: p["step"].as_f64().unwrap_or(0.1) as f32,
-                            }
-                        })
-                        .collect()
-                })
-                .unwrap_or_default();
+            let params = params_of(m);
             self.ui.set_detail_params(ModelRc::from(params.as_slice()));
             let cur_lang = m["cur_lang"].as_str().unwrap_or("en");
             let idx = LANGS.iter().position(|(_, c)| *c == cur_lang).unwrap_or(0);
@@ -1175,10 +1170,13 @@ impl App {
                 self.models_raw.replace(list);
                 self.render_models();
                 self.sync_live_native();
+                self.ui.set_models_loading(false);
             }
             Msg::LlmModelsLoaded(list) => {
                 self.llm_models_raw.replace(list);
+                self.llm_sel.borrow_mut().clear(); // authoritative list -> follow engine
                 self.render_llm_models();
+                self.ui.set_llm_loading(false);
             }
             Msg::LlmTest(out, stat) => {
                 self.ui.set_llm_test_busy(false);
@@ -1608,9 +1606,12 @@ fn main() {
         expanded: RefCell::new(String::new()),
         search: RefCell::new(String::new()),
         filter: Cell::new(-1), // -1 = no filter selected
+        llm_sel: RefCell::new(String::new()),
     });
     APP.with(|a| *a.borrow_mut() = Some(Rc::clone(&app)));
     app.ui.set_app_version(env!("CARGO_PKG_VERSION").into());
+    app.ui.set_models_loading(true);
+    app.ui.set_llm_loading(true);
     let names: Vec<SharedString> = theme::NAMES
         .iter()
         .map(|n| SharedString::from(*n))
@@ -1902,16 +1903,17 @@ fn main() {
     {
         let a = Rc::clone(&app);
         app.ui.on_provider_use(move |id| {
-            a.client.call(
-                "llm.set_active",
-                json!({ "id": format!("provider:{}", id) }),
-                None,
-            );
+            let mid = format!("provider:{}", id);
+            *a.llm_sel.borrow_mut() = mid.clone();
+            a.render_llm_models();
+            a.client.call("llm.set_active", json!({ "id": mid }), None);
         });
     }
     {
         let a = Rc::clone(&app);
         app.ui.on_llm_activate(move |id| {
+            *a.llm_sel.borrow_mut() = id.to_string();
+            a.render_llm_models();
             a.client
                 .call("llm.set_active", json!({ "id": id.to_string() }), None);
         });
