@@ -1,10 +1,11 @@
-// LLM formatting tab: enable the post-STT formatter, pick a model (small local
-// via llama.cpp, or a configured cloud provider), customise the system prompt
-// (blank = smart mode), and try it on a sample. Two columns so it fits the
-// fixed window height: left = switch + model, right = prompt + try-it.
+// Formatting tab: a master-detail model manager (mirrors Voice Models). Left =
+// enable switch + a scrollable list of formatter models (rules, NLP, local LLM,
+// cloud providers); right = the selected model's dossier — badges/tags, specs,
+// per-model options, the system prompt (edited in a dedicated window) and a
+// Try-it box. The whole manager greys out until Formatting is enabled.
 
 import { Theme } from "theme.slint";
-import { Btn, Badge, Toggle, Select, Field, MultiField, ProgressBar, Card, Row, ScrollArea, SliderX } from "widgets.slint";
+import { Btn, Badge, Toggle, MultiField, ProgressBar, Card, Row, ScrollArea, SliderX, Field } from "widgets.slint";
 import { Cfg } from "settings.slint";
 import { ParamRow } from "models.slint";
 
@@ -34,321 +35,456 @@ export struct LlmModelRow {
     progress-msg: string,
 }
 
-export component LlmView inherits ScrollArea {
+// compact list entry (mirrors models.slint ModelItem)
+component LlmItem inherits Rectangle {
+    in property <LlmModelRow> m;
+    callback select(string);
+    height: inner.preferred-height + 20px;
+    border-radius: Theme.radius;
+    background: m.active ? Theme.pal.control
+        : (ta.has-hover ? Theme.pal.control.with-alpha(0.5) : transparent);
+    border-width: m.active ? 2px : 0px;
+    border-color: Theme.pal.ok;
+    inner := VerticalLayout {
+        x: 10px;
+        y: 10px;
+        width: parent.width - 20px;
+        spacing: 3px;
+        HorizontalLayout {
+            spacing: 6px;
+            Rectangle {
+                y: parent.height / 2 - 4px;
+                width: 8px;
+                height: 8px;
+                border-radius: 4px;
+                background: m.active || m.ready ? Theme.pal.ok
+                    : m.installed ? Theme.pal.warn : Theme.pal.border;
+            }
+            Text {
+                text: m.label;
+                color: Theme.pal.fg;
+                font-size: 13px;
+                font-weight: m.active ? 700 : 500;
+                overflow: elide;
+                horizontal-stretch: 1;
+                vertical-alignment: center;
+            }
+        }
+        HorizontalLayout {
+            spacing: 5px;
+            alignment: start;
+            if m.active: Badge { text: "active"; tint: Theme.pal.ok; }
+            if m.recommended && !m.active: Badge { text: "rec"; tint: Theme.pal.ok; }
+            Badge { text: m.backend; }
+            if m.provider: Badge { text: "cloud"; tint: Theme.pal.warn; }
+            Text {
+                text: m.cloud ? m.speed : m.size;
+                color: Theme.pal.muted;
+                font-size: 11px;
+                vertical-alignment: center;
+            }
+        }
+    }
+    ta := TouchArea {
+        clicked => { root.select(m.id); }
+        mouse-cursor: MouseCursor.pointer;
+    }
+}
+
+// dedicated system-prompt editor, opened as a full-window sheet
+export component PromptWindow inherits Rectangle {
+    in property <string> prompt;         // current custom prompt ("" = smart)
+    in property <string> default-prompt; // built-in smart prompt
+    callback save(string);
+    callback reset();
+    callback close();
+    background: Theme.pal.bg;
+    VerticalLayout {
+        padding: 28px;
+        spacing: 14px;
+        HorizontalLayout {
+            Text {
+                text: "SYSTEM PROMPT";
+                color: Theme.pal.fg;
+                font-size: 18px;
+                font-weight: 800;
+                vertical-alignment: center;
+            }
+            Rectangle { horizontal-stretch: 1; }
+            Btn { text: "✕ Close"; clicked => { root.close(); } }
+        }
+        Text {
+            text: root.prompt == ""
+                ? "The built-in smart prompt is shown below. Edit and Save to use your own; blank falls back to smart mode."
+                : "Your custom prompt — sent with every format.";
+            color: root.prompt == "" ? Theme.pal.muted : Theme.pal.accent;
+            font-size: 13px;
+            wrap: word-wrap;
+        }
+        ed := MultiField {
+            vertical-stretch: 1;
+            min-height: 360px;
+            text: root.prompt != "" ? root.prompt : root.default-prompt;
+        }
+        HorizontalLayout {
+            spacing: 8px;
+            alignment: end;
+            Btn {
+                text: "Reset to smart mode";
+                enabled: root.prompt != "";
+                clicked => { root.reset(); }
+            }
+            Btn {
+                text: "Save";
+                primary: true;
+                clicked => {
+                    root.save(ed.text);
+                    root.close();
+                }
+            }
+        }
+    }
+}
+
+export component LlmView inherits HorizontalLayout {
     in property <Cfg> cfg;
     in property <[LlmModelRow]> models;
-    in property <[string]> names;      // dropdown labels (index-paired with models)
-    in property <int> current;         // active model index (-1 = none)
-    in property <LlmModelRow> sel;      // the active/selected model's detail
+    in property <[string]> names;      // (unused; kept for plumbing compatibility)
+    in property <int> current;
+    in property <LlmModelRow> sel;     // the active/selected model's detail
     in property <bool> have-sel;
     in property <string> test-output;
     in property <bool> test-busy;
-    in property <string> test-stat;     // Try-it speed readout (tok/s)
-    in property <string> default-prompt; // built-in smart prompt (shown when custom is blank)
+    in property <string> test-stat;
+    in property <string> default-prompt;
     in property <bool> op-running;
-    in property <[ParamRow]> detail-params;   // active model's tunables
+    in property <[ParamRow]> detail-params;
 
     callback set-bool(string, bool);
     callback set-str(string, string);
-    callback activate(string);   // model id
-    callback install(string);    // pip extra
-    callback download(string);   // model id
-    callback delete(string);     // model id
+    callback activate(string);
+    callback install(string);
+    callback download(string);
+    callback delete(string);
     callback cancel();
     callback run-test(string);
     callback open-url(string);
     callback manage-providers();
+    callback edit-prompt();
     callback param-num(string, string, float);
     callback param-bool(string, string, bool);
 
-    viewport-height: cols.preferred-height;
+    property <bool> on: cfg.llm-enabled;
+    spacing: 0px;
 
-    cols := HorizontalLayout {
-        width: root.content-width;
-        padding: 16px;
-        spacing: 14px;
-
-        // ── left: switch + model ─────────────────────────────────────
+    // ── left: enable + model list ────────────────────────────────────
+    Rectangle {
+        width: 320px;
+        background: Theme.pal.bg;
         VerticalLayout {
-            width: (root.content-width - 46px) * 0.5;
-            alignment: start;
-            spacing: 14px;
-
+            padding: 12px;
+            spacing: 10px;
             Card {
                 title: "FORMATTING";
                 Row {
                     label: "Enable";
-                    hint: "Pass the finished transcription through an LLM that fixes punctuation, trims dictation filler and formats the text. Applies to Clipboard and Type output — live typing streams words as you speak, so it's left untouched.";
+                    hint: "Pass the finished transcription through the selected formatter. Applies to Clipboard and Type output — live typing streams words as you speak, so it's left untouched.";
                     Toggle {
                         checked: cfg.llm-enabled;
                         toggled(v) => { root.set-bool("llm_enabled", v); }
                     }
                 }
-                Row {
-                    label: "Keep in memory";
-                    hint: "Hot: the model stays loaded in RAM for instant formatting. Cold: it loads only when needed and is freed after a couple of idle minutes, saving memory.";
-                    Toggle {
-                        checked: cfg.llm-load-mode != "cold";
-                        toggled(v) => { root.set-str("llm_load_mode", v ? "hot" : "cold"); }
-                    }
-                }
                 Text {
-                    text: "Smart mode reads what you dictated — an email, a chat reply, a list — and shapes it to match, without changing your words or answering the content.";
+                    text: "Rules, NLP or an LLM clean up and shape your dictation. Pick a model below; tune it and its prompt on the right.";
                     color: Theme.pal.muted;
                     font-size: 12px;
                     wrap: word-wrap;
                 }
             }
-
-            Card {
-                title: "MODEL";
-                HorizontalLayout {
+            Rectangle {
+                vertical-stretch: 1;
+                opacity: root.on ? 1.0 : 0.4;
+                VerticalLayout {
                     spacing: 8px;
-                    Select {
-                        width: 240px;
-                        options: root.names;
-                        current: root.current;
-                        changed(i) => {
-                            if (i >= 0 && i < root.models.length) {
-                                root.activate(root.models[i].id);
-                            }
-                        }
-                    }
-                    Rectangle { horizontal-stretch: 1; }
-                    Btn {
-                        text: "Providers →";
-                        clicked => { root.manage-providers(); }
-                    }
-                }
-
-                if !root.have-sel: Text {
-                    text: "Pick a formatter model, or add a cloud provider.";
-                    color: Theme.pal.muted;
-                    font-size: 12px;
-                }
-
-                if root.have-sel: Rectangle {
-                    border-radius: Theme.radius;
-                    background: Theme.pal.control;
-                    border-width: 1px;
-                    border-color: sel.ready ? Theme.pal.ok : Theme.pal.border;
-                    VerticalLayout {
-                        padding: 14px;
+                    HorizontalLayout {
                         spacing: 8px;
-                        HorizontalLayout {
-                            spacing: 6px;
-                            alignment: start;
-                            Text {
-                                text: sel.label;
-                                color: Theme.pal.fg;
-                                font-size: 14px;
-                                font-weight: 800;
-                                vertical-alignment: center;
-                            }
-                            if sel.provider: Badge { text: "PROVIDER"; tint: Theme.pal.accent; }
-                            if sel.cloud && !sel.provider: Badge { text: "CLOUD"; tint: Theme.pal.warn; }
-                            if !sel.cloud: Badge { text: sel.size; }
-                            if sel.ready: Badge { text: "READY"; tint: Theme.pal.ok; }
-                            if sel.recommended: Badge { text: "REC"; tint: Theme.pal.ok; }
-                            Rectangle { horizontal-stretch: 1; }
-                            Text {
-                                text: sel.speed;
-                                color: Theme.pal.muted;
-                                font-size: 11px;
-                                vertical-alignment: center;
-                            }
-                        }
-                        if sel.desc != "": Text {
-                            text: sel.desc;
+                        Text {
+                            text: "MODELS";
                             color: Theme.pal.muted;
-                            font-size: 12px;
-                            wrap: word-wrap;
+                            font-size: 11px;
+                            font-weight: 800;
+                            vertical-alignment: center;
+                            horizontal-stretch: 1;
                         }
-                        if root.detail-params.length > 0 && !sel.busy: VerticalLayout {
-                            spacing: 4px;
-                            Text {
-                                text: "OPTIONS";
-                                color: Theme.pal.muted;
-                                font-size: 10px;
-                                font-weight: 800;
-                            }
-                            for p in root.detail-params: VerticalLayout {
-                                spacing: 1px;
-                                HorizontalLayout {
-                                    spacing: 10px;
-                                    Text {
-                                        text: p.label;
-                                        color: Theme.pal.fg;
-                                        font-size: 12px;
-                                        vertical-alignment: center;
-                                        horizontal-stretch: 1;
-                                    }
-                                    if p.kind == "bool": Toggle {
-                                        checked: p.bvalue;
-                                        toggled(v) => { root.param-bool(sel.id, p.key, v); }
-                                    }
-                                    if p.kind != "bool": SliderX {
-                                        width: 120px;
-                                        value: p.value;
-                                        minimum: p.minimum;
-                                        maximum: p.maximum;
-                                        step: p.step;
-                                        changed(v) => { root.param-num(sel.id, p.key, v); }
-                                    }
-                                }
-                                if p.hint != "": Text {
-                                    text: p.hint;
-                                    color: Theme.pal.muted;
-                                    font-size: 10px;
-                                    wrap: word-wrap;
-                                }
-                            }
+                        Btn {
+                            text: "Providers →";
+                            clicked => { root.manage-providers(); }
                         }
-                        if sel.busy: VerticalLayout {
-                            spacing: 4px;
-                            ProgressBar { pct: sel.progress-pct; }
-                            HorizontalLayout {
-                                Text {
-                                    text: sel.progress-msg;
-                                    color: Theme.pal.muted;
-                                    font-size: 11px;
-                                    overflow: elide;
-                                    horizontal-stretch: 1;
-                                }
-                                Btn { text: "Cancel"; clicked => { root.cancel(); } }
-                            }
-                        }
-                        if !sel.busy: HorizontalLayout {
-                            spacing: 8px;
+                    }
+                    ScrollArea {
+                        viewport-height: list.preferred-height;
+                        list := VerticalLayout {
                             alignment: start;
-                            if !sel.cloud && !sel.available: Btn {
-                                text: "Install runtime";
-                                primary: true;
-                                enabled: !root.op-running;
-                                clicked => { root.install("llm"); }
-                            }
-                            if !sel.cloud && sel.available && !sel.installed: Btn {
-                                text: "Download " + sel.size;
-                                primary: true;
-                                enabled: !root.op-running;
-                                clicked => { root.download(sel.id); }
-                            }
-                            if sel.cloud && !sel.api-key-set: Btn {
-                                text: "Set up →";
-                                primary: true;
-                                clicked => { root.manage-providers(); }
-                            }
-                            if !sel.cloud && sel.removable: Btn {
-                                text: "Delete";
-                                danger: true;
-                                enabled: !root.op-running;
-                                clicked => { root.delete(sel.id); }
-                            }
-                            if sel.source-url != "": Btn {
-                                text: "About ↗";
-                                clicked => { root.open-url(sel.source-url); }
+                            spacing: 4px;
+                            for m in root.models: LlmItem {
+                                m: m;
+                                select(id) => { root.activate(id); }
                             }
                         }
                     }
                 }
+                if !root.on: TouchArea { } // block interaction while disabled
             }
         }
+    }
+    Rectangle { width: 1px; background: Theme.pal.border; }
 
-        // ── right: prompt + try-it ───────────────────────────────────
-        VerticalLayout {
-            width: (root.content-width - 46px) * 0.5;
-            alignment: start;
-            spacing: 14px;
+    // ── right: dossier (details + prompt + try-it) ───────────────────
+    Rectangle {
+        horizontal-stretch: 1;
+        opacity: root.on ? 1.0 : 0.4;
+        ScrollArea {
+            width: 100%;
+            height: 100%;
+            viewport-height: detail.preferred-height;
+            detail := VerticalLayout {
+                padding: 18px;
+                alignment: start;
+                spacing: 12px;
 
-            Card {
-                title: "SYSTEM PROMPT";
-                if !(root.have-sel && sel.uses-prompt): Text {
-                    text: "This formatter applies fixed transformations — it doesn't use an editable system prompt.";
+                if !root.have-sel: Text {
+                    text: "Pick a formatter model on the left, or add a cloud provider.";
+                    color: Theme.pal.muted;
+                    font-size: 13px;
+                }
+
+                if root.have-sel: HorizontalLayout {
+                    spacing: 10px;
+                    Text {
+                        text: sel.label;
+                        color: Theme.pal.fg;
+                        font-size: 18px;
+                        font-weight: 800;
+                        vertical-alignment: center;
+                    }
+                    Rectangle { horizontal-stretch: 1; }
+                    if sel.active: Badge { text: "ACTIVE"; tint: Theme.pal.ok; }
+                    if sel.provider: Badge { text: "PROVIDER"; tint: Theme.pal.accent; }
+                    if sel.cloud && !sel.provider: Badge { text: "CLOUD"; tint: Theme.pal.warn; }
+                    if !sel.cloud: Badge { text: "OFFLINE"; }
+                    if sel.ready: Badge { text: "READY"; tint: Theme.pal.ok; }
+                    if sel.recommended: Badge { text: "RECOMMENDED"; tint: Theme.pal.ok; }
+                }
+                if root.have-sel: HorizontalLayout {
+                    spacing: 14px;
+                    alignment: start;
+                    if !sel.cloud: Text {
+                        text: "Size " + sel.size;
+                        color: Theme.pal.muted;
+                        font-size: 12px;
+                    }
+                    Text {
+                        text: "Speed " + sel.speed;
+                        color: Theme.pal.muted;
+                        font-size: 12px;
+                    }
+                }
+                if root.have-sel && sel.desc != "": Text {
+                    text: sel.desc;
+                    color: Theme.pal.muted;
+                    font-size: 12px;
+                    wrap: word-wrap;
+                }
+
+                // actions
+                if root.have-sel && sel.busy: VerticalLayout {
+                    spacing: 4px;
+                    ProgressBar { pct: sel.progress-pct; }
+                    HorizontalLayout {
+                        Text {
+                            text: sel.progress-msg;
+                            color: Theme.pal.muted;
+                            font-size: 11px;
+                            overflow: elide;
+                            horizontal-stretch: 1;
+                        }
+                        Btn { text: "Cancel"; clicked => { root.cancel(); } }
+                    }
+                }
+                if root.have-sel && !sel.busy: HorizontalLayout {
+                    spacing: 8px;
+                    alignment: start;
+                    if !sel.active && sel.ready: Btn {
+                        text: "Set as formatter";
+                        primary: true;
+                        clicked => { root.activate(sel.id); }
+                    }
+                    if !sel.cloud && !sel.available: Btn {
+                        text: "Install runtime";
+                        primary: true;
+                        enabled: !root.op-running;
+                        clicked => { root.install("llm"); }
+                    }
+                    if !sel.cloud && sel.available && !sel.installed: Btn {
+                        text: "Download " + sel.size;
+                        primary: true;
+                        enabled: !root.op-running;
+                        clicked => { root.download(sel.id); }
+                    }
+                    if sel.cloud && !sel.api-key-set: Btn {
+                        text: "Set up →";
+                        primary: true;
+                        clicked => { root.manage-providers(); }
+                    }
+                    if !sel.cloud && sel.removable: Btn {
+                        text: "Delete";
+                        danger: true;
+                        enabled: !root.op-running;
+                        clicked => { root.delete(sel.id); }
+                    }
+                    if sel.source-url != "": Btn {
+                        text: "About ↗";
+                        clicked => { root.open-url(sel.source-url); }
+                    }
+                }
+
+                // per-model options (rules toggles, etc.)
+                if root.have-sel && root.detail-params.length > 0 && !sel.busy: VerticalLayout {
+                    spacing: 4px;
+                    Text {
+                        text: "OPTIONS";
+                        color: Theme.pal.muted;
+                        font-size: 11px;
+                        font-weight: 800;
+                    }
+                    for p in root.detail-params: VerticalLayout {
+                        spacing: 1px;
+                        HorizontalLayout {
+                            spacing: 10px;
+                            Text {
+                                text: p.label;
+                                color: Theme.pal.fg;
+                                font-size: 12px;
+                                vertical-alignment: center;
+                                horizontal-stretch: 1;
+                            }
+                            if p.kind == "bool": Toggle {
+                                checked: p.bvalue;
+                                toggled(v) => { root.param-bool(sel.id, p.key, v); }
+                            }
+                            if p.kind != "bool": SliderX {
+                                width: 120px;
+                                value: p.value;
+                                minimum: p.minimum;
+                                maximum: p.maximum;
+                                step: p.step;
+                                changed(v) => { root.param-num(sel.id, p.key, v); }
+                            }
+                        }
+                        if p.hint != "": Text {
+                            text: p.hint;
+                            color: Theme.pal.muted;
+                            font-size: 10px;
+                            wrap: word-wrap;
+                        }
+                    }
+                }
+
+                // system prompt (edited in a dedicated window)
+                if root.have-sel: Rectangle {
+                    height: 1px;
+                    background: Theme.pal.border;
+                }
+                if root.have-sel && !sel.uses-prompt: Text {
+                    text: "SYSTEM PROMPT — this formatter applies fixed transformations and doesn't use an editable prompt.";
                     color: Theme.pal.muted;
                     font-size: 12px;
                     wrap: word-wrap;
                 }
                 if root.have-sel && sel.uses-prompt: VerticalLayout {
-                    spacing: 8px;
-                    Text {
-                        text: cfg.llm-prompt == ""
-                            ? "The built-in smart prompt (below) is used. Edit it and Save to customise."
-                            : "Custom prompt — sent with every format.";
-                        color: cfg.llm-prompt == "" ? Theme.pal.muted : Theme.pal.accent;
-                        font-size: 12px;
-                        wrap: word-wrap;
+                    spacing: 6px;
+                    HorizontalLayout {
+                        spacing: 10px;
+                        Text {
+                            text: "SYSTEM PROMPT";
+                            color: Theme.pal.muted;
+                            font-size: 11px;
+                            font-weight: 800;
+                            vertical-alignment: center;
+                            horizontal-stretch: 1;
+                        }
+                        Badge {
+                            text: cfg.llm-prompt == "" ? "smart mode" : "custom";
+                            tint: cfg.llm-prompt == "" ? Theme.pal.border : Theme.pal.accent;
+                        }
+                        Btn {
+                            text: "Edit prompt →";
+                            clicked => { root.edit-prompt(); }
+                        }
                     }
-                    prompt-ed := MultiField {
-                        min-height: 150px;
+                    Text {
                         text: cfg.llm-prompt != "" ? cfg.llm-prompt : root.default-prompt;
+                        color: Theme.pal.muted;
+                        font-size: 11px;
+                        wrap: word-wrap;
+                        overflow: elide;
+                        height: 54px;
+                    }
+                }
+
+                // try it
+                if root.have-sel: VerticalLayout {
+                    spacing: 6px;
+                    Text {
+                        text: "TRY IT";
+                        color: Theme.pal.muted;
+                        font-size: 11px;
+                        font-weight: 800;
+                    }
+                    test-in := Field {
+                        text: "hey so um can you send me that report by friday thanks";
+                        submitted(v) => { root.run-test(v); }
                     }
                     HorizontalLayout {
+                        alignment: start;
                         spacing: 8px;
-                        alignment: end;
                         Btn {
-                            text: "Reset to smart mode";
-                            enabled: cfg.llm-prompt != "";
-                            clicked => { root.set-str("llm_prompt", ""); }
-                        }
-                        Btn {
-                            text: "Save prompt";
+                            text: root.test-busy ? "Formatting…" : "Format sample";
                             primary: true;
-                            clicked => { root.set-str("llm_prompt", prompt-ed.text); }
+                            enabled: sel.ready && !root.test-busy;
+                            clicked => { root.run-test(test-in.text); }
+                        }
+                        if !sel.ready: Text {
+                            text: "Set up / install this model first.";
+                            color: Theme.pal.muted;
+                            font-size: 12px;
+                            vertical-alignment: center;
                         }
                     }
-                }
-            }
-
-            Card {
-                title: "TRY IT";
-                Text {
-                    text: "Format a sample with the current model and prompt.";
-                    color: Theme.pal.muted;
-                    font-size: 12px;
-                    wrap: word-wrap;
-                }
-                test-in := Field {
-                    text: "hey so um can you send me that report by friday thanks";
-                    submitted(v) => { root.run-test(v); }
-                }
-                HorizontalLayout {
-                    alignment: start;
-                    spacing: 8px;
-                    Btn {
-                        text: root.test-busy ? "Formatting…" : "Format sample";
-                        primary: true;
-                        enabled: sel.ready && !root.test-busy;
-                        clicked => { root.run-test(test-in.text); }
+                    Rectangle {
+                        height: max(56px, out-t.preferred-height + 20px);
+                        border-radius: Theme.radius;
+                        background: Theme.pal.bg;
+                        border-width: 1px;
+                        border-color: Theme.pal.border;
+                        out-t := Text {
+                            x: 12px;
+                            y: 10px;
+                            width: parent.width - 24px;
+                            text: root.test-output != "" ? root.test-output : "The formatted result appears here.";
+                            color: root.test-output != "" ? Theme.pal.fg : Theme.pal.muted;
+                            font-size: 13px;
+                            wrap: word-wrap;
+                        }
                     }
-                    if !sel.ready: Text {
-                        text: "Select a ready model first.";
+                    if root.test-stat != "": Text {
+                        text: root.test-stat;
                         color: Theme.pal.muted;
-                        font-size: 12px;
-                        vertical-alignment: center;
+                        font-size: 11px;
                     }
-                }
-                Rectangle {
-                    height: max(56px, out-t.preferred-height + 20px);
-                    border-radius: Theme.radius;
-                    background: Theme.pal.bg;
-                    border-width: 1px;
-                    border-color: Theme.pal.border;
-                    out-t := Text {
-                        x: 12px;
-                        y: 10px;
-                        width: parent.width - 24px;
-                        text: root.test-output != "" ? root.test-output : "The formatted result appears here.";
-                        color: root.test-output != "" ? Theme.pal.fg : Theme.pal.muted;
-                        font-size: 13px;
-                        wrap: word-wrap;
-                    }
-                }
-                if root.test-stat != "": Text {
-                    text: root.test-stat;
-                    color: Theme.pal.muted;
-                    font-size: 11px;
                 }
             }
         }
+        if !root.on: TouchArea { } // block interaction while disabled
     }
 }

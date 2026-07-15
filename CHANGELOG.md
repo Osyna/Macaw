@@ -2,6 +2,21 @@
 
 Notable changes to Macaw. Older releases live on the [releases page](https://github.com/Osyna/Macaw/releases).
 
+## 0.17.0 — 2026-07-14
+
+- **Formatting is now a full model manager**, like Voice Models: a left list
+  of formatter models (rules, NLP, local LLM, cloud providers) with status
+  dots and tags (active / recommended / backend / cloud / size), and a right
+  **dossier** — badges, specs, per-model options, the system prompt and a
+  Try-it box. Click a model to make it the formatter and see its details.
+- **Edit prompt opens a dedicated window.** The dossier shows the current
+  system prompt (smart-mode or custom) with an **Edit prompt →** button that
+  opens a full-window editor (Save / Reset to smart mode / Close).
+- **Keep in memory moved to Settings.** The hot/cold switch now lives in the
+  Settings **FORMATTER** card, next to the engine status and reload controls.
+- **The whole section greys out until Formatting is enabled** — the model list
+  and dossier dim and stop responding until you flip the Enable switch.
+
 ## 0.16.0 — 2026-07-14
 
 - **Cloud voice models, gated behind your providers.** Voice Models no longer

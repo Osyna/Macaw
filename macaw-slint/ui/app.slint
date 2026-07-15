@@ -15,7 +15,7 @@ import { Btn, Badge } from "widgets.slint";
 import { SettingsView, Cfg } from "settings.slint";
 import { AppearanceView } from "appearance.slint";
 import { ModelsView, ModelRow, ParamRow } from "models.slint";
-import { LlmView, LlmModelRow } from "llm.slint";
+import { LlmView, LlmModelRow, PromptWindow } from "llm.slint";
 import { ProvidersWindow, ProviderRow } from "providers.slint";
 import { OverlayWindow } from "overlay.slint";
 import { OnboardingWizard } from "onboarding.slint";
@@ -178,6 +178,7 @@ export component MainWindow inherits Window {
     in property <string> llm-test-stat;
     in property <string> llm-default-prompt;
     in-out property <bool> show-providers;
+    in-out property <bool> show-prompt: false;
     in property <[ParamRow]> llm-detail-params;
     callback llm-param-num(string, string, float);
     callback llm-param-bool(string, string, bool);
@@ -401,6 +402,7 @@ export component MainWindow inherits Window {
             manage-providers => { root.manage-providers(); }
             param-num(i, k, v) => { root.llm-param-num(i, k, v); }
             param-bool(i, k, v) => { root.llm-param-bool(i, k, v); }
+            edit-prompt => { root.show-prompt = true; }
         }
     }
 
@@ -473,6 +475,17 @@ export component MainWindow inherits Window {
         set-str(k, v) => { root.set-str(k, v); }
         set-bool(k, v) => { root.set-bool(k, v); }
         close => { root.show-providers = false; }
+    }
+
+    // ── system-prompt editor (opened from the Formatting dossier) ───
+    if root.show-prompt: PromptWindow {
+        width: 100%;
+        height: 100%;
+        prompt: root.cfg.llm-prompt;
+        default-prompt: root.llm-default-prompt;
+        save(t) => { root.set-str("llm_prompt", t); }
+        reset => { root.set-str("llm_prompt", ""); root.show-prompt = false; }
+        close => { root.show-prompt = false; }
     }
 
     // ── hover hint (fed by settings rows via the Tip global) ────────

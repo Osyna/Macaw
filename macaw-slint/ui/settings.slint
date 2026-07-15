@@ -395,6 +395,15 @@ export component SettingsView inherits ScrollArea {
                     }
                 }
                 Row {
+                    label: "Keep in memory";
+                    hint: "Hot: the model stays loaded in RAM for instant formatting. Cold: it loads only when needed and is freed after a couple of idle minutes, saving memory.";
+                    Rectangle { horizontal-stretch: 1; }
+                    Toggle {
+                        checked: cfg.llm-load-mode != "cold";
+                        toggled(v) => { root.set-str("llm_load_mode", v ? "hot" : "cold"); }
+                    }
+                }
+                Row {
                     label: "Reload formatter";
                     hint: "Frees the formatter model and warms it again from scratch. Try this if formatting hangs or after changing options.";
                     Rectangle { horizontal-stretch: 1; }
