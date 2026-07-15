@@ -53,6 +53,7 @@ class Config:
     window_position: str = "bottom_center"
     sound_enabled: bool = True
     onboarded: bool = False  # first-launch wizard completed (fresh installs: False)
+    advanced: bool = False  # UI mode: False = Easy home, True = Advanced (full tabs)
     punctuation_hints: bool = True
     hotkey_enabled: bool = False  # listen for a global shortcut to toggle recording
     hotkey: str = ""  # combo spec, e.g. "ctrl+alt+space" (empty = unset)
@@ -185,6 +186,7 @@ class Config:
                 sound_enabled=bool(data.get("sound_enabled", True)),
                 # a pre-existing config means a working setup — never re-onboard
                 onboarded=bool(data.get("onboarded", bool(data))),
+                advanced=bool(data.get("advanced", False)),
                 punctuation_hints=bool(data.get("punctuation_hints", True)),
                 hotkey_enabled=bool(data.get("hotkey_enabled", False)),
                 hotkey=data.get("hotkey") or "",
@@ -327,6 +329,7 @@ class Config:
             "  # skip silent stretches before transcribing (faster, fewer hallucinations)\n"
             f"sound_enabled: {_yv(self.sound_enabled)}  # play record / done tones\n"
             f"onboarded: {_yv(self.onboarded)}  # first-launch wizard completed\n"
+            f"advanced: {_yv(self.advanced)}  # UI mode: false = Easy home, true = Advanced\n"
             f"punctuation_hints: {_yv(self.punctuation_hints)}"
             "  # nudge the model toward punctuation\n"
             f"hotkey_enabled: {_yv(self.hotkey_enabled)}"

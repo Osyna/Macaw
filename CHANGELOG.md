@@ -2,6 +2,17 @@
 
 Notable changes to Macaw. Older releases live on the [releases page](https://github.com/Osyna/Macaw/releases).
 
+## 0.19.0 — 2026-07-15
+
+- **New Easy mode — the friendly default.** Macaw now opens on a calm home
+  screen built for "just launch it and talk": a big **Start dictating** button,
+  your shortcut, and only the four things most people ever change — language,
+  microphone, where the text goes, and a one-switch **Tidy up my words**. No
+  tabs, no model lists, no parameters.
+- **Advanced is one switch away.** The **Advanced** toggle (top-right) reveals
+  the full app — Voice Models, Appearance, Formatting and Settings, exactly as
+  before. The choice is remembered.
+
 ## 0.18.0 — 2026-07-15
 
 - **No more white flash on open.** The window now paints its dark chrome from

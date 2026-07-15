@@ -19,6 +19,7 @@ export struct Cfg {
     silence-level: float,
     sound-enabled: bool,
     onboarded: bool,
+    advanced: bool,
     punctuation-hints: bool,
     hotkey-enabled: bool,
     hotkey: string,
@@ -71,6 +72,7 @@ export struct Cfg {
     ssl-verify: bool,
     autostart: bool,
     llm-enabled: bool,
+    llm-model: string,
     llm-prompt: string,
     llm-base-url: string,
     llm-load-mode: string,     // "hot" | "cold"

@@ -1,0 +1,217 @@
+// Easy mode: the friendly default home. No tabs, no model lists, no params —
+// just "press and talk", plus the handful of things a first-time user actually
+// changes. Everything advanced lives one toggle away (header) in the full UI.
+// Binds the same config fields/callbacks as Settings, so there's no new truth.
+
+import { Theme } from "theme.slint";
+import { Btn, Toggle, Select, Row } from "widgets.slint";
+import { Cfg } from "settings.slint";
+
+export component EasyView inherits Rectangle {
+    in property <Cfg> cfg;
+    in property <[string]> devices;
+    in property <int> device-current;
+    in property <[string]> langs;
+    in property <int> lang-current;
+    in property <float> mic-level;
+    in property <bool> engine-connected;
+    in property <string> engine-state;
+    in property <bool> capturing-hotkey;
+    callback set-str(string, string);
+    callback set-bool(string, bool);
+    callback pick-device(int);
+    callback pick-default-lang(int);
+    callback capture-hotkey();
+    callback toggle-recording();
+
+    property <bool> recording: root.engine-state == "recording";
+    property <bool> has-shortcut: root.cfg.hotkey != "" && root.cfg.hotkey-enabled;
+
+    background: Theme.pal.bg;
+
+    VerticalLayout {
+        alignment: center;
+        HorizontalLayout {
+            alignment: center;
+            VerticalLayout {
+                width: 560px;
+                spacing: 18px;
+
+                // ── hero: status + big record + shortcut ─────────────
+                Rectangle {
+                    border-radius: Theme.radius * 2;
+                    background: Theme.pal.surface;
+                    border-width: 1px;
+                    border-color: Theme.pal.border;
+                    VerticalLayout {
+                        padding: 28px;
+                        spacing: 14px;
+                        alignment: center;
+
+                        Text {
+                            text: root.recording ? "Listening…"
+                                : root.engine-connected ? "Ready when you are"
+                                : "Starting up…";
+                            color: Theme.pal.fg;
+                            font-size: 24px;
+                            font-weight: 800;
+                            horizontal-alignment: center;
+                        }
+                        Text {
+                            text: root.recording
+                                ? "Speak now. Press Stop (or your shortcut) when you're done."
+                                : "Press the button — or your shortcut — then just talk.";
+                            color: Theme.pal.muted;
+                            font-size: 13px;
+                            horizontal-alignment: center;
+                            wrap: word-wrap;
+                        }
+
+                        HorizontalLayout {
+                            alignment: center;
+                            Rectangle {
+                                width: 240px;
+                                height: 54px;
+                                border-radius: Theme.radius;
+                                background: !root.engine-connected ? Theme.pal.control
+                                    : root.recording ? Theme.pal.danger : Theme.pal.accent;
+                                animate background { duration: 150ms; }
+                                HorizontalLayout {
+                                    alignment: center;
+                                    spacing: 10px;
+                                    Rectangle {
+                                        y: parent.height / 2 - 6px;
+                                        width: 12px;
+                                        height: 12px;
+                                        border-radius: root.recording ? 2px : 6px;
+                                        background: !root.engine-connected ? Theme.pal.muted
+                                            : root.recording ? white : Theme.pal.accent-fg;
+                                        animate border-radius { duration: 150ms; }
+                                    }
+                                    Text {
+                                        text: !root.engine-connected ? "Starting…"
+                                            : root.recording ? "Stop" : "Start dictating";
+                                        color: !root.engine-connected ? Theme.pal.muted
+                                            : root.recording ? white : Theme.pal.accent-fg;
+                                        font-size: 16px;
+                                        font-weight: 700;
+                                        vertical-alignment: center;
+                                    }
+                                }
+                                TouchArea {
+                                    enabled: root.engine-connected;
+                                    clicked => { root.toggle-recording(); }
+                                    mouse-cursor: root.engine-connected ? pointer : default;
+                                }
+                            }
+                        }
+
+                        // live mic level while recording
+                        if root.recording: Rectangle {
+                            height: 8px;
+                            border-radius: 4px;
+                            background: Theme.pal.control;
+                            clip: true;
+                            Rectangle {
+                                x: 0;
+                                y: 0;
+                                width: parent.width * clamp(root.mic-level, 0, 1);
+                                height: parent.height;
+                                border-radius: 4px;
+                                background: Theme.pal.accent;
+                                animate width { duration: 60ms; }
+                            }
+                        }
+
+                        // shortcut: show it, or offer to set one
+                        HorizontalLayout {
+                            alignment: center;
+                            spacing: 8px;
+                            if root.has-shortcut && !root.capturing-hotkey: Text {
+                                text: "Shortcut: " + root.cfg.hotkey + " — works in any app";
+                                color: Theme.pal.muted;
+                                font-size: 12px;
+                                vertical-alignment: center;
+                            }
+                            if root.has-shortcut && !root.capturing-hotkey: Btn {
+                                text: "Change";
+                                clicked => { root.capture-hotkey(); }
+                            }
+                            if !root.has-shortcut || root.capturing-hotkey: Btn {
+                                text: root.capturing-hotkey ? "Press your keys…" : "Set a keyboard shortcut";
+                                primary: !root.capturing-hotkey;
+                                enabled: !root.capturing-hotkey;
+                                clicked => { root.capture-hotkey(); }
+                            }
+                        }
+                    }
+                }
+
+                // ── the essentials ───────────────────────────────────
+                Rectangle {
+                    border-radius: Theme.radius * 2;
+                    background: Theme.pal.surface;
+                    border-width: 1px;
+                    border-color: Theme.pal.border;
+                    VerticalLayout {
+                        padding: 20px;
+                        spacing: 6px;
+                        Row {
+                            label: "Language";
+                            hint: "The language you speak. Multilingual models follow it; English-only models ignore it.";
+                            Select {
+                                options: root.langs;
+                                current: root.lang-current;
+                                changed(i) => { root.pick-default-lang(i); }
+                            }
+                        }
+                        Row {
+                            label: "Microphone";
+                            hint: "Which microphone Macaw listens to.";
+                            Select {
+                                options: root.devices;
+                                current: root.device-current;
+                                changed(i) => { root.pick-device(i); }
+                            }
+                        }
+                        Row {
+                            label: "Send text to";
+                            hint: "Where your words go: the clipboard (paste with Ctrl+V), typed into the window you're using, or typed live as you speak.";
+                            Select {
+                                options: ["Copy to clipboard", "Type into my window", "Type live as I speak"];
+                                current: root.cfg.output-mode == "clipboard" ? 0
+                                    : root.cfg.output-mode == "type" ? 1 : 2;
+                                changed(i) => {
+                                    root.set-str("output_mode", i == 0 ? "clipboard" : i == 1 ? "type" : "live");
+                                }
+                            }
+                        }
+                        Row {
+                            label: "Tidy up my words";
+                            hint: "Automatically fix punctuation and capitalization and trim filler like \"um\". Pick a smarter model in Advanced.";
+                            Toggle {
+                                checked: root.cfg.llm-enabled;
+                                toggled(v) => {
+                                    root.set-bool("llm_enabled", v);
+                                    // give the toggle something to do out of the box: the
+                                    // instant, no-download rules cleaner, unless one is set.
+                                    if (v && root.cfg.llm-model == "") {
+                                        root.set-str("llm_model", "rules-basic");
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Text {
+                    text: "Models, appearance and every other setting live in Advanced — the switch is top-right.";
+                    color: Theme.pal.muted;
+                    font-size: 11px;
+                    horizontal-alignment: center;
+                    wrap: word-wrap;
+                }
+            }
+        }
+    }
+}

@@ -11,7 +11,7 @@ import "fonts/DejaVuSansMono.ttf";
 import "fonts/DejaVuSansMono-Bold.ttf";
 
 import { Theme, Palette, Look, Tip } from "theme.slint";
-import { Btn, Badge } from "widgets.slint";
+import { Btn, Badge, Toggle } from "widgets.slint";
 import { SettingsView, Cfg } from "settings.slint";
 import { AppearanceView } from "appearance.slint";
 import { ModelsView, ModelRow, ParamRow } from "models.slint";
@@ -19,6 +19,7 @@ import { LlmView, LlmModelRow, PromptWindow } from "llm.slint";
 import { ProvidersWindow, ProviderRow } from "providers.slint";
 import { OverlayWindow } from "overlay.slint";
 import { OnboardingWizard } from "onboarding.slint";
+import { EasyView } from "easy.slint";
 
 export { OverlayWindow, Cfg, ModelRow, ParamRow, LlmModelRow, ProviderRow, Palette, Theme, Look, Tip }
 
@@ -235,21 +236,21 @@ export component MainWindow inherits Window {
                     }
                 }
                 Rectangle { width: 12px; }
-                TabBtn {
+                if root.cfg.advanced: TabBtn {
                     y: 12px;
                     icon: "◆";
                     text: "Voice Models";
                     active: root.tab == "models";
                     clicked => { root.tab = "models"; }
                 }
-                TabBtn {
+                if root.cfg.advanced: TabBtn {
                     y: 12px;
                     icon: "◐";
                     text: "Appearance";
                     active: root.tab == "appearance";
                     clicked => { root.tab = "appearance"; }
                 }
-                TabBtn {
+                if root.cfg.advanced: TabBtn {
                     y: 12px;
                     icon: "✦";
                     text: "Formatting";
@@ -257,14 +258,32 @@ export component MainWindow inherits Window {
                     clicked => { root.tab = "llm"; }
                 }
                 Rectangle { horizontal-stretch: 1; }
-                TabBtn {
+                if root.cfg.advanced: TabBtn {
                     y: 12px;
                     icon: "⚙";
                     text: "Settings";
                     active: root.tab == "settings";
                     clicked => { root.tab = "settings"; }
                 }
-                if root.active-model-label != "": Badge {
+                Rectangle { // Easy / Advanced mode switch — always visible
+                    y: 17px;
+                    height: 22px;
+                    width: adv-row.preferred-width;
+                    adv-row := HorizontalLayout {
+                        spacing: 8px;
+                        Text {
+                            text: "Advanced";
+                            color: root.cfg.advanced ? Theme.pal.accent : Theme.pal.muted;
+                            font-size: 12px;
+                            vertical-alignment: center;
+                        }
+                        Toggle {
+                            checked: root.cfg.advanced;
+                            toggled(v) => { root.set-bool("advanced", v); }
+                        }
+                    }
+                }
+                if root.active-model-label != "" && root.cfg.advanced: Badge {
                     y: parent.height / 2 - self.height / 2;
                     text: root.active-model-label;
                     tint: Theme.pal.accent;
@@ -294,9 +313,26 @@ export component MainWindow inherits Window {
             }
             Rectangle { y: parent.height - 1px; height: 1px; background: Theme.pal.border; }
         }
+        if !root.cfg.advanced: EasyView {
+            cfg: root.cfg;
+            devices: root.devices;
+            device-current: root.device-current;
+            langs: root.langs;
+            lang-current: root.default-lang-current;
+            mic-level: root.mic-level;
+            engine-connected: root.engine-connected;
+            engine-state: root.engine-state;
+            capturing-hotkey: root.capturing-hotkey;
+            set-str(k, v) => { root.set-str(k, v); }
+            set-bool(k, v) => { root.set-bool(k, v); }
+            pick-device(i) => { root.pick-device(i); }
+            pick-default-lang(i) => { root.pick-default-lang(i); }
+            capture-hotkey => { root.capture-hotkey(); }
+            toggle-recording => { root.toggle-recording(); }
+        }
 
         // ── content ─────────────────────────────────────────────────
-        if root.tab == "settings": SettingsView {
+        if root.tab == "settings" && root.cfg.advanced: SettingsView {
             cfg: root.cfg;
             devices: root.devices;
             device-current <=> root.device-current;
@@ -323,7 +359,7 @@ export component MainWindow inherits Window {
             reload-formatter => { root.reload-formatter(); }
             restart-formatter => { root.restart-formatter(); }
         }
-        if root.tab == "appearance": AppearanceView {
+        if root.tab == "appearance" && root.cfg.advanced: AppearanceView {
             cfg: root.cfg;
             pin-indicator <=> root.pin-indicator;
             preview-mode <=> root.preview-mode;
@@ -357,7 +393,7 @@ export component MainWindow inherits Window {
             save-theme(n) => { root.save-theme(n); }
             delete-theme => { root.delete-theme(); }
         }
-        if root.tab == "models": ModelsView {
+        if root.tab == "models" && root.cfg.advanced: ModelsView {
             models: root.models;
             loading: root.models-loading;
             sel: root.sel;
@@ -380,7 +416,7 @@ export component MainWindow inherits Window {
             search(t) => { root.models-search(t); }
             filter(i) => { root.models-filter(i); }
         }
-        if root.tab == "llm": LlmView {
+        if root.tab == "llm" && root.cfg.advanced: LlmView {
             cfg: root.cfg;
             models: root.llm-models;
             loading: root.llm-loading;
