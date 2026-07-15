@@ -2,6 +2,13 @@
 
 Notable changes to Macaw. Older releases live on the [releases page](https://github.com/Osyna/Macaw/releases).
 
+## 0.17.1 — 2026-07-14
+
+- **Formatting tab: tighter header, taller model list.** Dropped the
+  "FORMATTING" title and the description blurb — the **Enable** switch now sits
+  compact at the very top, so the model list reclaims the space and shows many
+  more models at once.
+
 ## 0.17.0 — 2026-07-14
 
 - **Formatting is now a full model manager**, like Voice Models: a left list

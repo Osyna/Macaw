@@ -184,21 +184,12 @@ export component LlmView inherits HorizontalLayout {
         VerticalLayout {
             padding: 12px;
             spacing: 10px;
-            Card {
-                title: "FORMATTING";
-                Row {
-                    label: "Enable";
-                    hint: "Pass the finished transcription through the selected formatter. Applies to Clipboard and Type output — live typing streams words as you speak, so it's left untouched.";
-                    Toggle {
-                        checked: cfg.llm-enabled;
-                        toggled(v) => { root.set-bool("llm_enabled", v); }
-                    }
-                }
-                Text {
-                    text: "Rules, NLP or an LLM clean up and shape your dictation. Pick a model below; tune it and its prompt on the right.";
-                    color: Theme.pal.muted;
-                    font-size: 12px;
-                    wrap: word-wrap;
+            Row {
+                label: "Enable";
+                hint: "Pass the finished transcription through the selected formatter. Applies to Clipboard and Type output — live typing streams words as you speak, so it's left untouched.";
+                Toggle {
+                    checked: cfg.llm-enabled;
+                    toggled(v) => { root.set-bool("llm_enabled", v); }
                 }
             }
             Rectangle {
