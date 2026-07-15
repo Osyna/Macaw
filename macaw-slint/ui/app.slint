@@ -156,6 +156,9 @@ export component MainWindow inherits Window {
     in property <int> lang-current;
     in property <int> default-lang-current;
     in property <string> hw-summary;
+    in property <[string]> easy-model-names;
+    in property <int> easy-model-current;
+    callback easy-pick-model(int);
     callback pick-default-lang(int);
     callback install(string);
     callback download(string);
@@ -323,6 +326,9 @@ export component MainWindow inherits Window {
             engine-connected: root.engine-connected;
             engine-state: root.engine-state;
             capturing-hotkey: root.capturing-hotkey;
+            model-names: root.easy-model-names;
+            model-current: root.easy-model-current;
+            pick-model(i) => { root.easy-pick-model(i); }
             set-str(k, v) => { root.set-str(k, v); }
             set-bool(k, v) => { root.set-bool(k, v); }
             pick-device(i) => { root.pick-device(i); }

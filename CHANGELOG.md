@@ -2,6 +2,15 @@
 
 Notable changes to Macaw. Older releases live on the [releases page](https://github.com/Osyna/Macaw/releases).
 
+## 0.20.0 — 2026-07-15
+
+- **Easy mode gained a voice-model picker.** A simple **Voice model** dropdown
+  lists just the recommended models, ordered best→lowest for your machine (the
+  hardware-fit pick first, then curated rating). Pick one and it becomes active
+  — bigger ones download on first use, noted right in the list.
+- **Easy mode fills the window.** The home screen is wider with a bigger hero
+  and roomier cards, instead of a small box floating in empty space.
+
 ## 0.19.0 — 2026-07-15
 
 - **New Easy mode — the friendly default.** Macaw now opens on a calm home

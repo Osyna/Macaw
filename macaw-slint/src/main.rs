@@ -750,6 +750,25 @@ impl App {
         self.ui.set_live_native(native);
     }
 
+    /// Recommended STT models (plus the active one) ordered best→lowest:
+    /// machine-fit rank first, then curated rating. Powers the Easy-mode
+    /// picker; returns indices into `models_raw`.
+    fn easy_model_order(&self) -> Vec<usize> {
+        let raw = self.models_raw.borrow();
+        let mut idx: Vec<usize> = (0..raw.len())
+            .filter(|&i| {
+                raw[i]["recommended"].as_bool().unwrap_or(false)
+                    || raw[i]["active"].as_bool().unwrap_or(false)
+            })
+            .collect();
+        idx.sort_by_key(|&i| {
+            let fit = raw[i]["fit_rank"].as_i64().unwrap_or(0);
+            let fit = if fit > 0 { fit } else { i64::MAX };
+            (fit, -raw[i]["rating"].as_i64().unwrap_or(0))
+        });
+        idx
+    }
+
     fn render_models(&self) {
         let raw = self.models_raw.borrow();
         let op = self.op.borrow();
@@ -872,6 +891,30 @@ impl App {
             .and_then(|m| m["label"].as_str())
             .unwrap_or("");
         self.ui.set_active_model_label(SharedString::from(label));
+        // Easy-mode picker: recommended models (+ the active one), best→lowest.
+        let order = self.easy_model_order();
+        let easy_names: Vec<SharedString> = order
+            .iter()
+            .map(|&i| {
+                let m = &raw[i];
+                let label = m["label"].as_str().unwrap_or_default();
+                if m["ready"].as_bool().unwrap_or(false) {
+                    SharedString::from(label)
+                } else {
+                    SharedString::from(format!(
+                        "{label} · {}",
+                        m["size"].as_str().unwrap_or("download")
+                    ))
+                }
+            })
+            .collect();
+        let easy_current = order
+            .iter()
+            .position(|&i| raw[i]["active"].as_bool().unwrap_or(false))
+            .map(|p| p as i32)
+            .unwrap_or(-1);
+        self.ui.set_easy_model_names(ModelRc::from(easy_names.as_slice()));
+        self.ui.set_easy_model_current(easy_current);
 
         // detail models for the expanded card
         if let Some(m) = raw
@@ -1814,6 +1857,21 @@ fn main() {
         app.ui.on_activate(move |id| {
             a.client
                 .call("models.set_active", json!({ "id": id.to_string() }), None);
+        });
+    }
+    {
+        let a = Rc::clone(&app);
+        app.ui.on_easy_pick_model(move |i| {
+            let order = a.easy_model_order();
+            let raw = a.models_raw.borrow();
+            if let Some(id) = order
+                .get(i as usize)
+                .and_then(|&idx| raw[idx]["id"].as_str())
+                .map(str::to_string)
+            {
+                drop(raw);
+                a.client.call("models.set_active", json!({ "id": id }), None);
+            }
         });
     }
     {
