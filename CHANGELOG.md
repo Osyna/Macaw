@@ -2,6 +2,16 @@
 
 Notable changes to Macaw. Older releases live on the [releases page](https://github.com/Osyna/Macaw/releases).
 
+## 0.21.0 — 2026-07-15
+
+- **Live model status, right in the picker.** Switching your voice model now
+  shows a small **spinner inside the dropdown** while the model loads (or
+  downloads on first pick), then a **green dot** once it's ready to dictate.
+  Picking a not-yet-downloaded model fetches it and activates it automatically.
+- **Easy mode looks the part.** A friendlier home: the Macaw mascot, softer
+  rounded cards, a focal record button that gently pulses while listening, and
+  a tidy "Quick setup" section.
+
 ## 0.20.0 — 2026-07-15
 
 - **Easy mode gained a voice-model picker.** A simple **Voice model** dropdown

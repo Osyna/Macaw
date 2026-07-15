@@ -158,6 +158,7 @@ export component MainWindow inherits Window {
     in property <string> hw-summary;
     in property <[string]> easy-model-names;
     in property <int> easy-model-current;
+    in property <bool> model-downloading;
     callback easy-pick-model(int);
     callback pick-default-lang(int);
     callback install(string);
@@ -328,6 +329,7 @@ export component MainWindow inherits Window {
             capturing-hotkey: root.capturing-hotkey;
             model-names: root.easy-model-names;
             model-current: root.easy-model-current;
+            model-downloading: root.model-downloading;
             pick-model(i) => { root.easy-pick-model(i); }
             set-str(k, v) => { root.set-str(k, v); }
             set-bool(k, v) => { root.set-bool(k, v); }

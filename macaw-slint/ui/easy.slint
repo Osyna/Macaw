@@ -13,8 +13,9 @@ export component EasyView inherits Rectangle {
     in property <int> device-current;
     in property <[string]> langs;
     in property <int> lang-current;
-    in property <[string]> model-names;   // recommended STT models, best→lowest
+    in property <[string]> model-names;    // recommended STT models, best→lowest
     in property <int> model-current;
+    in property <bool> model-downloading;  // a picked model is being fetched
     in property <float> mic-level;
     in property <bool> engine-connected;
     in property <string> engine-state;
@@ -29,83 +30,117 @@ export component EasyView inherits Rectangle {
 
     property <bool> recording: root.engine-state == "recording";
     property <bool> has-shortcut: root.cfg.hotkey != "" && root.cfg.hotkey-enabled;
+    // inline dot shown in the Voice-model select: spinner→green→amber
+    property <string> model-status:
+        (root.engine-state == "loading" || root.model-downloading) ? "loading"
+        : (root.model-current < 0 || !root.engine-connected || root.engine-state == "error") ? "error"
+        : "ready";
 
     background: Theme.pal.bg;
 
     VerticalLayout {
         alignment: center;
-        padding: 40px;
         HorizontalLayout {
             alignment: center;
             VerticalLayout {
-                width: 860px;
-                spacing: 22px;
+                width: 820px;
+                spacing: 18px;
 
-                // ── hero: status + big record + shortcut ─────────────
+                // ── hero: mascot · status · big record · shortcut ────
                 Rectangle {
-                    border-radius: Theme.radius * 2;
+                    border-radius: 14px;
                     background: Theme.pal.surface;
                     border-width: 1px;
                     border-color: Theme.pal.border;
                     VerticalLayout {
-                        padding: 40px;
-                        spacing: 16px;
+                        padding: 30px;
+                        spacing: 12px;
                         alignment: center;
 
+                        HorizontalLayout {
+                            alignment: center;
+                            Image {
+                                source: @image-url("assets/parrot.png");
+                                width: 48px;
+                                height: 48px;
+                            }
+                        }
                         Text {
                             text: root.recording ? "Listening…"
                                 : root.engine-connected ? "Ready when you are"
                                 : "Starting up…";
                             color: Theme.pal.fg;
-                            font-size: 30px;
+                            font-size: 28px;
                             font-weight: 800;
                             horizontal-alignment: center;
                         }
                         Text {
                             text: root.recording
-                                ? "Speak now. Press Stop (or your shortcut) when you're done."
-                                : "Press the button — or your shortcut — then just talk.";
+                                ? "Speak now. Press Stop — or your shortcut — when you're done."
+                                : "Press the button below, or your shortcut, then just talk.";
                             color: Theme.pal.muted;
                             font-size: 14px;
                             horizontal-alignment: center;
                             wrap: word-wrap;
                         }
 
+                        // big record button, with a breathing halo while recording
                         HorizontalLayout {
                             alignment: center;
                             Rectangle {
-                                width: 280px;
-                                height: 60px;
-                                border-radius: Theme.radius;
-                                background: !root.engine-connected ? Theme.pal.control
-                                    : root.recording ? Theme.pal.danger : Theme.pal.accent;
-                                animate background { duration: 150ms; }
-                                HorizontalLayout {
-                                    alignment: center;
-                                    spacing: 12px;
-                                    Rectangle {
-                                        y: parent.height / 2 - 7px;
-                                        width: 14px;
-                                        height: 14px;
-                                        border-radius: root.recording ? 2px : 7px;
-                                        background: !root.engine-connected ? Theme.pal.muted
-                                            : root.recording ? white : Theme.pal.accent-fg;
-                                        animate border-radius { duration: 150ms; }
-                                    }
-                                    Text {
-                                        text: !root.engine-connected ? "Starting…"
-                                            : root.recording ? "Stop" : "Start dictating";
-                                        color: !root.engine-connected ? Theme.pal.muted
-                                            : root.recording ? white : Theme.pal.accent-fg;
-                                        font-size: 17px;
-                                        font-weight: 700;
-                                        vertical-alignment: center;
+                                width: 260px;
+                                height: 56px;
+                                if root.recording: Rectangle {
+                                    property <float> beat: 0;
+                                    init => { self.beat = 1.0; }
+                                    x: (parent.width - self.width) / 2;
+                                    y: (parent.height - self.height) / 2;
+                                    width: parent.width + 20px;
+                                    height: parent.height + 20px;
+                                    border-radius: 16px;
+                                    background: Theme.pal.danger;
+                                    opacity: 0.12 + self.beat * 0.22;
+                                    animate beat {
+                                        duration: 900ms;
+                                        iteration-count: -1;
+                                        direction: alternate;
+                                        easing: ease-in-out;
                                     }
                                 }
-                                TouchArea {
-                                    enabled: root.engine-connected;
-                                    clicked => { root.toggle-recording(); }
-                                    mouse-cursor: root.engine-connected ? pointer : default;
+                                rec := Rectangle {
+                                    width: 100%;
+                                    height: 100%;
+                                    border-radius: 12px;
+                                    background: !root.engine-connected ? Theme.pal.control
+                                        : root.recording ? Theme.pal.danger : Theme.pal.accent;
+                                    animate background { duration: 150ms; }
+                                    HorizontalLayout {
+                                        alignment: center;
+                                        spacing: 12px;
+                                        Rectangle {
+                                            y: parent.height / 2 - 7px;
+                                            width: 14px;
+                                            height: 14px;
+                                            border-radius: root.recording ? 3px : 7px;
+                                            background: !root.engine-connected ? Theme.pal.muted
+                                                : root.recording ? white : Theme.pal.accent-fg;
+                                            animate border-radius { duration: 150ms; }
+                                        }
+                                        Text {
+                                            text: !root.engine-connected ? "Starting…"
+                                                : root.recording ? "Stop" : "Start dictating";
+                                            color: !root.engine-connected ? Theme.pal.muted
+                                                : root.recording ? white : Theme.pal.accent-fg;
+                                            font-size: 17px;
+                                            font-weight: 700;
+                                            vertical-alignment: center;
+                                        }
+                                    }
+                                    TouchArea {
+                                        enabled: root.engine-connected;
+                                        clicked => { root.toggle-recording(); }
+                                        mouse-cursor: root.engine-connected ? pointer : default;
+                                    }
                                 }
                             }
                         }
@@ -151,21 +186,29 @@ export component EasyView inherits Rectangle {
                     }
                 }
 
-                // ── the essentials ───────────────────────────────────
+                // ── quick setup: the essentials ──────────────────────
                 Rectangle {
-                    border-radius: Theme.radius * 2;
+                    border-radius: 14px;
                     background: Theme.pal.surface;
                     border-width: 1px;
                     border-color: Theme.pal.border;
                     VerticalLayout {
-                        padding: 26px;
-                        spacing: 12px;
+                        padding: 24px;
+                        spacing: 8px;
+                        Text {
+                            text: "QUICK SETUP";
+                            color: Theme.pal.muted;
+                            font-size: 11px;
+                            font-weight: 800;
+                        }
+                        Rectangle { height: 2px; }
                         Row {
                             label: "Voice model";
-                            hint: "The engine that turns your speech into text. These are the recommended picks for your machine, best first — bigger ones download on first use.";
+                            hint: "The engine that turns your speech into text. Recommended picks for your machine, best first — bigger ones download on first use.";
                             Select {
                                 options: root.model-names;
                                 current: root.model-current;
+                                status: root.model-status;
                                 changed(i) => { root.pick-model(i); }
                             }
                         }

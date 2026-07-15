@@ -3,6 +3,31 @@
 
 import { Theme, Tip } from "theme.slint";
 
+// Indeterminate loading indicator: three dots pulsing in sequence. Pure Slint
+// (no rotation — Rectangle can't rotate), cheap on the software renderer and
+// theme-skinned. Shared by the model listers and the Select status dot.
+export component Spinner inherits HorizontalLayout {
+    in property <length> dot: 7px;
+    property <bool> go: false;
+    init => { root.go = true; }
+    spacing: root.dot * 0.7;
+    alignment: center;
+    for i in 3: Rectangle {
+        width: root.dot;
+        height: root.dot;
+        border-radius: root.dot / 2;
+        background: Theme.pal.accent;
+        opacity: root.go ? 1.0 : 0.2;
+        animate opacity {
+            duration: 600ms;
+            delay: i * 180ms;
+            iteration-count: -1;
+            direction: alternate;
+            easing: ease-in-out;
+        }
+    }
+}
+
 // Labeled settings row: hover shows the hint through the global Tip overlay.
 export component Row inherits HorizontalLayout {
     in property <string> label;
@@ -167,6 +192,7 @@ export component Select inherits Rectangle {
     in property <[string]> options;
     in-out property <int> current: 0;
     callback changed(int);
+    in property <string> status: "";  // "" | loading | ready | error — inline leading dot
 
     height: 30px;
     min-width: 140px;
@@ -177,9 +203,32 @@ export component Select inherits Rectangle {
     clip: true;
 
     // value: trims to … at rest, slides to reveal the full text on hover
-    Rectangle {
+    // optional leading status: spinner while a model loads, dot when ready/error
+    if root.status == "loading": Rectangle {
         x: 10px;
-        width: parent.width - 34px; // clear of the ▾ arrow
+        width: 20px;
+        height: 100%;
+        Spinner { dot: 4px; height: 4px; y: (parent.height - self.height) / 2; }
+    }
+    if root.status == "ready": Rectangle {
+        x: 12px;
+        y: parent.height / 2 - 5px;
+        width: 10px;
+        height: 10px;
+        border-radius: 5px;
+        background: Theme.pal.ok;
+    }
+    if root.status == "error": Rectangle {
+        x: 12px;
+        y: parent.height / 2 - 5px;
+        width: 10px;
+        height: 10px;
+        border-radius: 5px;
+        background: Theme.pal.warn;
+    }
+    Rectangle {
+        x: root.status == "" ? 10px : 34px;
+        width: parent.width - (root.status == "" ? 34px : 58px); // clear ▾ arrow (+ leading status)
         clip: true;
         val := Text {
             property <bool> over: self.preferred-width > parent.width;
@@ -296,32 +345,6 @@ export component Badge inherits Rectangle {
         color: root.tint;
         font-size: 10px;
         font-weight: 700;
-    }
-}
-
-// Indeterminate loading indicator: three dots pulsing in sequence. Pure Slint
-// (no assets, no rotation — Rectangle can't rotate), so it stays cheap on the
-// software renderer and re-skins with the theme accent. Shared by both model
-// listers while their catalog round-trips back from the engine.
-export component Spinner inherits HorizontalLayout {
-    in property <length> dot: 7px;
-    property <bool> go: false;
-    init => { root.go = true; }
-    spacing: root.dot * 0.7;
-    alignment: center;
-    for i in 3: Rectangle {
-        width: root.dot;
-        height: root.dot;
-        border-radius: root.dot / 2;
-        background: Theme.pal.accent;
-        opacity: root.go ? 1.0 : 0.2;
-        animate opacity {
-            duration: 600ms;
-            delay: i * 180ms;
-            iteration-count: -1;
-            direction: alternate;
-            easing: ease-in-out;
-        }
     }
 }
 

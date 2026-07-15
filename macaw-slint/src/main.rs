@@ -154,6 +154,7 @@ struct App {
     search: RefCell<String>,
     filter: Cell<i32>, // -1 none / 0 For you / 1 Light / 2 Cloud / 3 Live
     llm_sel: RefCell<String>, // optimistic formatter pick: instant dossier; "" = follow engine
+    pending_activate: RefCell<Option<String>>, // Easy: model queued to activate once its download lands
 }
 
 /// Build the per-model tunable rows (shared by the Voice-model and formatter
@@ -1216,6 +1217,23 @@ impl App {
                 self.render_models();
                 self.sync_live_native();
                 self.ui.set_models_loading(false);
+                // Easy: a queued download just finished → activate now it's ready.
+                let pending = self.pending_activate.borrow().clone();
+                if let Some(id) = pending {
+                    let ready = self
+                        .models_raw
+                        .borrow()
+                        .iter()
+                        .find(|m| m["id"].as_str() == Some(id.as_str()))
+                        .map(|m| m["ready"].as_bool().unwrap_or(false))
+                        .unwrap_or(false);
+                    if ready {
+                        *self.pending_activate.borrow_mut() = None;
+                        self.ui.set_model_downloading(false);
+                        self.client
+                            .call("models.set_active", json!({ "id": id }), None);
+                    }
+                }
             }
             Msg::LlmModelsLoaded(list) => {
                 self.llm_models_raw.replace(list);
@@ -1364,6 +1382,10 @@ impl App {
                     self.op.replace(None);
                     let level = if ok == Some(true) { "success" } else { "error" };
                     self.toast(level, &msg);
+                    if ok != Some(true) && self.pending_activate.borrow().is_some() {
+                        *self.pending_activate.borrow_mut() = None;
+                        self.ui.set_model_downloading(false);
+                    }
                 } else {
                     self.op.replace(Some((op, key, msg, pct.unwrap_or(-1.0))));
                 }
@@ -1652,6 +1674,7 @@ fn main() {
         search: RefCell::new(String::new()),
         filter: Cell::new(-1), // -1 = no filter selected
         llm_sel: RefCell::new(String::new()),
+        pending_activate: RefCell::new(None),
     });
     APP.with(|a| *a.borrow_mut() = Some(Rc::clone(&app)));
     app.ui.set_app_version(env!("CARGO_PKG_VERSION").into());
@@ -1864,13 +1887,22 @@ fn main() {
         app.ui.on_easy_pick_model(move |i| {
             let order = a.easy_model_order();
             let raw = a.models_raw.borrow();
-            if let Some(id) = order
-                .get(i as usize)
-                .and_then(|&idx| raw[idx]["id"].as_str())
-                .map(str::to_string)
-            {
-                drop(raw);
+            let Some(&idx) = order.get(i as usize) else {
+                return;
+            };
+            let id = raw[idx]["id"].as_str().unwrap_or_default().to_string();
+            let ready = raw[idx]["ready"].as_bool().unwrap_or(false);
+            drop(raw);
+            if id.is_empty() {
+                return;
+            }
+            if ready {
                 a.client.call("models.set_active", json!({ "id": id }), None);
+            } else {
+                // not downloaded: fetch it, then activate when it lands (ModelsLoaded)
+                *a.pending_activate.borrow_mut() = Some(id.clone());
+                a.ui.set_model_downloading(true);
+                a.client.call("models.download", json!({ "id": id }), None);
             }
         });
     }
