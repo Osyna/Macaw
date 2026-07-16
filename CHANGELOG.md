@@ -2,6 +2,12 @@
 
 Notable changes to Macaw. Older releases live on the [releases page](https://github.com/Osyna/Macaw/releases).
 
+## 0.22.1 — 2026-07-15
+
+- **Fix: Easy-mode theme preview was squished.** The recording-indicator
+  preview now scales at the real indicator's aspect ratio (like the Appearance
+  tab) instead of being stretched flat.
+
 ## 0.22.0 — 2026-07-15
 
 - **Pick your recording-indicator theme right from Easy mode**, with a **live

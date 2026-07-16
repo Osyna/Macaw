@@ -270,17 +270,20 @@ export component EasyView inherits Rectangle {
                             // live preview of the recording indicator in the chosen theme
                             Rectangle {
                                 width: 260px;
-                                height: 58px;
+                                height: 64px;
                                 border-radius: 10px;
                                 background: Theme.pal.bg;
                                 border-width: 1px;
                                 border-color: Theme.pal.border;
                                 clip: true;
                                 OverlayPill {
+                                    // scale to fit the strip at the pill's real
+                                    // aspect ratio (pv-w × pv-h), never upscaling
+                                    property <float> pv-scale: min((parent.width - 24px) / Look.pv-w, (parent.height - 12px) / Look.pv-h);
+                                    width: Look.pv-w * min(1.0, self.pv-scale);
+                                    height: Look.pv-h * min(1.0, self.pv-scale);
                                     x: (parent.width - self.width) / 2;
                                     y: (parent.height - self.height) / 2;
-                                    width: min(parent.width - 20px, 210px);
-                                    height: min(parent.height - 12px, 46px);
                                     mode: "eq";
                                     record-anim: Look.record-anim;
                                     anim: Look.anim;
