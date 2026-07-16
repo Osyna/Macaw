@@ -1,10 +1,12 @@
 // Easy mode: the friendly default home. No tabs, no model lists, no params —
-// just "press and talk", plus the handful of things a first-time user actually
-// changes. Everything advanced lives one toggle away (header) in the full UI.
-// Binds the same config fields/callbacks as Settings, so there's no new truth.
+// just "press and talk", the handful of things a first-time user actually
+// changes, and a live preview of the recording indicator to pick a theme.
+// Everything advanced lives one toggle away (header) in the full UI. Binds the
+// same config fields/callbacks as Settings, so there's no new truth.
 
-import { Theme } from "theme.slint";
-import { Btn, Toggle, Select, Row } from "widgets.slint";
+import { Theme, Look } from "theme.slint";
+import { Btn, Select, Row } from "widgets.slint";
+import { OverlayPill } from "pill.slint";
 import { Cfg } from "settings.slint";
 
 export component EasyView inherits Rectangle {
@@ -16,6 +18,8 @@ export component EasyView inherits Rectangle {
     in property <[string]> model-names;    // recommended STT models, best→lowest
     in property <int> model-current;
     in property <bool> model-downloading;  // a picked model is being fetched
+    in property <[string]> theme-names;    // indicator themes
+    in property <int> theme-current;
     in property <float> mic-level;
     in property <bool> engine-connected;
     in property <string> engine-state;
@@ -25,12 +29,13 @@ export component EasyView inherits Rectangle {
     callback pick-device(int);
     callback pick-default-lang(int);
     callback pick-model(int);
+    callback pick-theme(int);
     callback capture-hotkey();
     callback toggle-recording();
 
     property <bool> recording: root.engine-state == "recording";
     property <bool> has-shortcut: root.cfg.hotkey != "" && root.cfg.hotkey-enabled;
-    // inline dot shown in the Voice-model select: spinner→green→amber
+    // inline dot in the Voice-model select: spinner→green→amber
     property <string> model-status:
         (root.engine-state == "loading" || root.model-downloading) ? "loading"
         : (root.model-current < 0 || !root.engine-connected || root.engine-state == "error") ? "error"
@@ -44,7 +49,7 @@ export component EasyView inherits Rectangle {
             alignment: center;
             VerticalLayout {
                 width: 820px;
-                spacing: 18px;
+                spacing: 16px;
 
                 // ── hero: mascot · status · big record · shortcut ────
                 Rectangle {
@@ -53,7 +58,7 @@ export component EasyView inherits Rectangle {
                     border-width: 1px;
                     border-color: Theme.pal.border;
                     VerticalLayout {
-                        padding: 30px;
+                        padding: 26px;
                         spacing: 12px;
                         alignment: center;
 
@@ -61,8 +66,8 @@ export component EasyView inherits Rectangle {
                             alignment: center;
                             Image {
                                 source: @image-url("assets/parrot.png");
-                                width: 48px;
-                                height: 48px;
+                                width: 44px;
+                                height: 44px;
                             }
                         }
                         Text {
@@ -70,7 +75,7 @@ export component EasyView inherits Rectangle {
                                 : root.engine-connected ? "Ready when you are"
                                 : "Starting up…";
                             color: Theme.pal.fg;
-                            font-size: 28px;
+                            font-size: 27px;
                             font-weight: 800;
                             horizontal-alignment: center;
                         }
@@ -89,7 +94,7 @@ export component EasyView inherits Rectangle {
                             alignment: center;
                             Rectangle {
                                 width: 260px;
-                                height: 56px;
+                                height: 54px;
                                 if root.recording: Rectangle {
                                     property <float> beat: 0;
                                     init => { self.beat = 1.0; }
@@ -193,7 +198,7 @@ export component EasyView inherits Rectangle {
                     border-width: 1px;
                     border-color: Theme.pal.border;
                     VerticalLayout {
-                        padding: 24px;
+                        padding: 22px;
                         spacing: 8px;
                         Text {
                             text: "QUICK SETUP";
@@ -242,17 +247,115 @@ export component EasyView inherits Rectangle {
                                 }
                             }
                         }
-                        Row {
-                            label: "Tidy up my words";
-                            hint: "Automatically fix punctuation and capitalization and trim filler like \"um\". Pick a smarter model in Advanced.";
-                            Toggle {
-                                checked: root.cfg.llm-enabled;
-                                toggled(v) => {
-                                    root.set-bool("llm_enabled", v);
-                                    // give the toggle something to do out of the box: the
-                                    // instant, no-download rules cleaner, unless one is set.
-                                    if (v && root.cfg.llm-model == "") {
-                                        root.set-str("llm_model", "rules-basic");
+                    }
+                }
+
+                // ── appearance: theme picker with a live indicator preview
+                Rectangle {
+                    border-radius: 14px;
+                    background: Theme.pal.surface;
+                    border-width: 1px;
+                    border-color: Theme.pal.border;
+                    VerticalLayout {
+                        padding: 22px;
+                        spacing: 12px;
+                        Text {
+                            text: "APPEARANCE";
+                            color: Theme.pal.muted;
+                            font-size: 11px;
+                            font-weight: 800;
+                        }
+                        HorizontalLayout {
+                            spacing: 18px;
+                            // live preview of the recording indicator in the chosen theme
+                            Rectangle {
+                                width: 260px;
+                                height: 58px;
+                                border-radius: 10px;
+                                background: Theme.pal.bg;
+                                border-width: 1px;
+                                border-color: Theme.pal.border;
+                                clip: true;
+                                OverlayPill {
+                                    x: (parent.width - self.width) / 2;
+                                    y: (parent.height - self.height) / 2;
+                                    width: min(parent.width - 20px, 210px);
+                                    height: min(parent.height - 12px, 46px);
+                                    mode: "eq";
+                                    record-anim: Look.record-anim;
+                                    anim: Look.anim;
+                                    done-anim: Look.done-anim;
+                                    demo-loop: true;
+                                    ring-color: Look.ring-color;
+                                    anim-speed: Look.anim-speed;
+                                    heard: max(Look.heard, 0.4);
+                                    levels: Look.demo-levels;
+                                    loader-colors: Look.loader-colors;
+                                    pill-bg: Look.pill-bg;
+                                    pill-opacity: 1.0;
+                                    idle-color: Look.idle-color;
+                                    eq-colors: Look.eq-colors;
+                                    ok-color: Look.ok-color;
+                                    danger-color: Look.danger-color;
+                                    r-tl: Look.r-tl;
+                                    r-tr: Look.r-tr;
+                                    r-br: Look.r-br;
+                                    r-bl: Look.r-bl;
+                                    bar-width: Look.bar-width;
+                                    bar-spacing: Look.bar-spacing;
+                                    bar-radius: Look.bar-radius;
+                                    bar-fade: Look.bar-fade;
+                                    orb-size: Look.orb-size;
+                                    orb-dynamic: Look.orb-dynamic;
+                                }
+                            }
+                            // theme picker
+                            VerticalLayout {
+                                horizontal-stretch: 1;
+                                alignment: center;
+                                spacing: 6px;
+                                Text {
+                                    text: "Recording indicator theme";
+                                    color: Theme.pal.muted;
+                                    font-size: 12px;
+                                }
+                                HorizontalLayout {
+                                    alignment: start;
+                                    spacing: 10px;
+                                    Btn {
+                                        text: "‹";
+                                        clicked => {
+                                            root.pick-theme(root.theme-current > 0
+                                                ? root.theme-current - 1
+                                                : root.theme-names.length - 1);
+                                        }
+                                    }
+                                    Rectangle {
+                                        width: 190px;
+                                        height: 30px;
+                                        border-radius: Theme.radius;
+                                        background: Theme.pal.control;
+                                        border-width: 1px;
+                                        border-color: Theme.pal.border;
+                                        Text {
+                                            text: root.theme-current >= 0 && root.theme-current < root.theme-names.length
+                                                ? root.theme-names[root.theme-current] : "—";
+                                            color: Theme.pal.accent;
+                                            font-size: 14px;
+                                            font-weight: 700;
+                                            horizontal-alignment: center;
+                                            vertical-alignment: center;
+                                            width: 100%;
+                                            height: 100%;
+                                            overflow: elide;
+                                        }
+                                    }
+                                    Btn {
+                                        text: "›";
+                                        clicked => {
+                                            root.pick-theme((root.theme-current + 1) < root.theme-names.length
+                                                ? root.theme-current + 1 : 0);
+                                        }
                                     }
                                 }
                             }
@@ -261,7 +364,7 @@ export component EasyView inherits Rectangle {
                 }
 
                 Text {
-                    text: "Models, appearance and every other setting live in Advanced — the switch is top-right.";
+                    text: "Models, formatting and every other setting live in Advanced — the switch is top-right.";
                     color: Theme.pal.muted;
                     font-size: 12px;
                     horizontal-alignment: center;

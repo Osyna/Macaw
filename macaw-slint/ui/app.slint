@@ -330,6 +330,9 @@ export component MainWindow inherits Window {
             model-names: root.easy-model-names;
             model-current: root.easy-model-current;
             model-downloading: root.model-downloading;
+            theme-names: root.theme-names;
+            theme-current: root.theme-current;
+            pick-theme(i) => { root.theme-picked(i); }
             pick-model(i) => { root.easy-pick-model(i); }
             set-str(k, v) => { root.set-str(k, v); }
             set-bool(k, v) => { root.set-bool(k, v); }

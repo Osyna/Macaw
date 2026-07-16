@@ -2,6 +2,15 @@
 
 Notable changes to Macaw. Older releases live on the [releases page](https://github.com/Osyna/Macaw/releases).
 
+## 0.22.0 — 2026-07-15
+
+- **Pick your recording-indicator theme right from Easy mode**, with a **live
+  preview**: a real indicator animates in the chosen theme, and ‹ › arrows
+  cycle through the themes so you can watch it change before you commit.
+- **Removed "Tidy up my words" from Easy mode.** Text formatting now lives only
+  in Advanced → Formatting, keeping the Easy home focused on getting you
+  dictating.
+
 ## 0.21.0 — 2026-07-15
 
 - **Live model status, right in the picker.** Switching your voice model now
